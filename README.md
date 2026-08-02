@@ -97,13 +97,15 @@ npx wrangler deploy --dry-run --outdir .tmp-bundle
 
 then `connections_execute { local: true, tool_name: "cloudflare_worker_deploy", params: { accountId: "eed9c6a3d77c18da26148d25e20ee951", scriptName: "imdbwatcharr", filePath: "<abs>/.tmp-bundle/index.js", mainModule: "index.js", instance: "default", dryRun: true } }`, check the inherited bindings, then re-run with `dryRun: false`.
 
-**Pages, deployed with local wrangler.** The MCP has no Pages deploy tool yet (logged in the Connections repo at
-`docs/todo/mcp-improvements/cloudflare-pages-deploy-has-no-vault-tool.md`). The blocker is the
-Functions `_worker.bundle` step, which needs wrangler's own bundler.
+**Pages, also through the vault.** There is no dedicated Pages tool, but `shell`'s `secrets` param
+leases the Cloudflare credential into the child process env value-blind, so wrangler runs
+authenticated without any `wrangler login` on the machine. Build first, then:
 
-```bash
-npm run web:build && CLOUDFLARE_ACCOUNT_ID=eed9c6a3d77c18da26148d25e20ee951 npx wrangler pages deploy pages-static --project-name imdbwatcharr --branch main --cwd pages-proxy
-```
+`connections_execute { local: true, tool_name: "shell", params: { command: "npx wrangler pages deploy pages-static --project-name imdbwatcharr --branch main --cwd pages-proxy", cwd: "<repo>", shell: "bash", secrets: [{ service: "cloudflare", as: "CLOUDFLARE_API_TOKEN" }], env: { CLOUDFLARE_ACCOUNT_ID: "eed9c6a3d77c18da26148d25e20ee951" } } }`
+
+Note `shell`'s `instance` param is AWS-only and will not help here; `secrets` is the one that leases
+a Cloudflare token. The lease is short (about 25 minutes), so re-run rather than reconnect if a long
+upload outlives it.
 
 Deploy **Pages before the Worker**: the SPA tolerates an older API shape, but the Worker's `/` is a
 JSON API index, so a Worker-first order briefly serves JSON at `/`.
@@ -118,4 +120,8 @@ Required repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Known limits
 
-IMDb access is the hard part. IMDb frequently challenges datacenter traffic, so a refresh can fail even though the feeds keep working from the stored snapshot. The UI says so explicitly when that happens rather than pretending the sync succeeded.
+⚠️ **The feeds are currently frozen on a 2026-04-18 snapshot.** IMDb challenges the direct fetch and
+Browser Rendering answers `429 Rate limit exceeded`, so every refresh has failed since April while
+the routes kept serving the last good snapshot. The UI says so explicitly rather than pretending the
+sync succeeded, but the data is stale. The fix, with a proven browser-free replacement, is written up
+in [NEXT.md](NEXT.md).
