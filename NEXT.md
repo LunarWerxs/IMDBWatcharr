@@ -1,84 +1,69 @@
 # What is next for IMDb Watcharr
 
-Written 2026-08-02. Everything below is verified live, not inferred.
+Updated 2026-08-02. Everything below is verified live, not inferred.
 
-## The one real problem: the feeds have been frozen since April
+## The April freeze is over
 
-`GET /radarr/l/ls006123300` returns `<lastBuildDate>Sat, 18 Apr 2026 07:01:31 GMT</lastBuildDate>`.
-That snapshot is **3.5 months old**, and the live IMDb list now has **107 titles against the stored
-100**. Radarr and Sonarr have been happily importing stale data the whole time.
+The feeds were stuck on a 2026-04-18 snapshot for three and a half months. They are current now:
+`/radarr/l/ls006123300` serves 72 movies and `/sonarr/l/ls006123300` serves 31 series, off a live
+107-title list, with today's `lastBuildDate`.
 
-The site does not look broken, which is why this went unnoticed. Every route still answers 200,
-because the Worker deliberately falls back to the last good snapshot when a refresh fails. The UI
-now says so out loud ("last good snapshot"), but the underlying refresh has simply never succeeded
-again.
+Two things changed.
 
-Both fetch paths are dead:
+**Scraping is gone.** The parser reads [IMDb's own GraphQL API](https://api.graphql.imdb.com/)
+instead of `__NEXT_DATA__` out of an HTML page. `@cloudflare/playwright` and the `BROWSER` binding
+are deleted; the Worker bundle went from **3.1 MB to 29.6 KB** and starts in ~5 ms.
 
-| Path                                        | What happens now                                                |
-| ------------------------------------------- | --------------------------------------------------------------- |
-| Direct `fetch()` of the IMDb page            | IMDb answers with a bot challenge, not list data                 |
-| Browser Rendering fallback (`env.BROWSER`)   | `Unable to create new browser: code: 429: Rate limit exceeded`   |
+**The fetching moved off Cloudflare.** This is the part the previous write-up got wrong, and it is
+worth stating plainly because it is not obvious and it cost a deploy to discover:
 
-The 429 is the free Browser Rendering allowance. Even paying for it only buys headroom on a scraping
-approach that IMDb is actively fighting, so raising the quota is a patch, not a fix.
+> IMDb refuses Cloudflare's egress. `api.graphql.imdb.com` and `caching.graphql.imdb.com` both
+> answer `429 Too many network requests` to a Worker, on POST and GET, with or without the client
+> header, **0 out of 20 attempts**. `www.imdb.com/list/…` answers a `202` challenge page. In the
+> same Worker, `imdb.com/robots.txt` returns `200` and TVMaze returns `200`, so it is a rate-limit
+> rule aimed at Cloudflare's shared Worker egress IPs, not a connectivity or header problem. A
+> GitHub Actions runner reached the same API 5 times out of 5.
 
-## The fix: stop scraping, use IMDb's own GraphQL API
+So [sync-feeds.yml](.github/workflows/sync-feeds.yml) fetches and `POST /api/ingest` stores. The
+Worker still owns fingerprinting, caching, TVDB resolution, and every feed route.
 
-`https://api.graphql.imdb.com/` is public, needs no key, and answers the exact question this project
-asks. Verified working 2026-08-02 from this machine:
+## What is actually left
 
-```bash
-curl -s -X POST 'https://api.graphql.imdb.com/' \
-  -H 'content-type: application/json' \
-  -H 'x-imdb-client-name: imdb-web-next' \
-  -d '{"query":"query{list(id:\"ls006123300\"){name{originalText} titleListItemSearch(first:3){total edges{title{id titleText{text} titleType{id} releaseYear{year}}}}}}"}'
-```
+- **`CLOUDFLARE_API_TOKEN` in the repo secrets is still revoked.** Both deploy workflows fail in
+  ~20s with `Invalid access token [code: 9109]`. Owner work, a 2 minute rotation. Deploys currently
+  go through the local `wrangler` login, which works. `Sync feeds` does not touch that token, so the
+  feeds keep updating either way.
+- **`GITHUB_DISPATCH_TOKEN` is not set on the Worker.** Without it a newly pasted list waits for the
+  next scheduled run instead of filling in under a minute. Everything degrades gracefully: the
+  Worker just skips the dispatch. Needs a fine-grained PAT that can dispatch this repo, then
+  `npx wrangler secret put GITHUB_DISPATCH_TOKEN` and `GITHUB_REPOSITORY`.
+- **The SPA still talks about a fetch the Worker no longer does.** `web/src/App.tsx` says "IMDb did
+  not answer this refresh" and "Feeds refresh at most every six hours". Both are now wrong in
+  detail: the refresh is a scheduled job on a 15 minute floor, and a pending feed is queued rather
+  than failed. The Worker already returns a `syncing` flag the UI could use to poll.
 
-```json
-{"data":{"list":{"name":{"originalText":"WATCHLIST"},"titleListItemSearch":{"total":107,
-"edges":[{"title":{"id":"tt0423977","titleText":{"text":"Charlie Bartlett"},
-"titleType":{"id":"movie"},"releaseYear":{"year":2007}}}, ...]}}}}
-```
+## Things learned the hard way, so you do not repeat them
 
-That is every field `parseImdbHtml` currently digs out of `__NEXT_DATA__`: imdb id, title, type,
-year, and the total. No browser, no HTML, no challenge page.
+- The `x-imdb-client-name` header is **required** on the GraphQL endpoint. Without it you get a bare
+  nginx `403` with no JSON body.
+- Full `__schema` introspection is **blocked** (`Unauthorized introspection request`), but
+  `__type(name:"…")` still works, which is enough to walk the whole schema a type at a time.
+- The edge field is `title`, not `listItem` and not `node`. `node` carries `absolutePosition` and
+  `createdDate`; `title` carries the id, text, type and year.
+- `titleListItemSearch` caps a page at **250** regardless of what `first` asks for. A 1000-title
+  list returns 250 with `hasNextPage: true`, so cursor paging is mandatory, not optional.
+- `after` on that field is a **`String`**, not an `ID`. Declaring the variable as `ID` fails
+  validation.
+- `predefinedList` only accepts a `ur…` id. A `p.…` profile id has to go through
+  `userProfile(input:{profileId}){userId}` first, which costs one extra request.
+- **IMDb lists really do contain duplicate titles** (`ls002448041` has 4). `feed_items` is keyed on
+  `(feed_id, imdb_id)`, so a duplicate would fail the entire insert batch. The parser dedupes,
+  keeping the first occurrence in `LIST_ORDER`.
+- Junk feed rows reached production (`/p/profile-id`, `/p/<slug>.xml`, `ls123456789`) because the
+  route patterns accepted any `[a-z0-9._-]+` as a watchlist key. They are deleted, and the patterns
+  now only accept `p.<alnum>` or `ur<digits>`.
 
-Things already learned the hard way, so you do not repeat them:
-
-- The `x-imdb-client-name` header is **required**. Without it the endpoint returns a bare nginx
-  `403 Forbidden` with no JSON body.
-- The edge field is `title`, not `listItem` and not `node`. `titleListItemSearch` returns
-  `TitleListItemSearchEdge`, whose fields are `cursor`, `node` and `title`.
-- **Introspection is open**, so stop guessing at the schema and ask it:
-  `{"query":"query{__type(name:\"TitleListItemSearchEdge\"){fields{name type{name kind ofType{name}}}}}"}`
-
-## The open question to answer first
-
-The proven query covers `/list/lsXXXXXXX/`. **Watchlists (`/user/p.XXXX/watchlist/` and `ur…`) are
-not yet proven** through GraphQL. Settle that before writing any code, because it decides the shape
-of the change:
-
-- If one query covers both, `fetchImdbHtmlDirect` + the whole Browser Rendering block in
-  [src/index.js](src/index.js) collapse into a single `fetchImdbList(sourceKey, sourceKind)`.
-- If watchlists need a different root field, the parser keeps two source paths but still loses the
-  browser.
-
-Introspect `Query` for the watchlist-shaped root field, or check what a logged-out
-`imdb.com/user/p.…/watchlist/` page posts to the same endpoint.
-
-## What lands once it works
-
-- `parseImdbHtml` / `extractImdbFingerprintPayload` in [src/imdb.js](src/imdb.js) stop parsing HTML
-  and take the GraphQL payload. The JSON-LD fallback and the challenge-detection regex both go.
-- Drop the `@cloudflare/playwright` dependency and the `browser` binding in [wrangler.toml](wrangler.toml).
-  The Worker bundle goes from **3.1 MB to roughly 20 KB**, and Worker startup drops with it.
-- `BROWSER_ATTEMPTS`, the retry/sleep loop, and the 429 backoff in `syncFeed` all delete.
-- Keep the fingerprint + `ETag` caching exactly as is. It works, and it is what makes an unchanged
-  list cheap.
-- The fixtures in `fixtures/` and `scripts/test-parser.mjs` need GraphQL-shaped replacements.
-
-## Before you ship it
+## Before you widen this beyond one household
 
 Read the disclaimer the API returns on every response:
 
@@ -86,11 +71,4 @@ Read the disclaimer the API returns on every response:
 
 This is a personal, non-commercial tool feeding one household's Radarr and Sonarr, which is the lane
 that language leaves open. It is Michael's call, and it should be a deliberate one rather than
-something discovered later. The current HTML scraping is not on firmer ground.
-
-## Smaller, unrelated
-
-- **`CLOUDFLARE_API_TOKEN` in the repo secrets is revoked.** Both deploy workflows fail in ~20s with
-  `Invalid access token [code: 9109]` while `CI` passes. Owner work, a 2 minute rotation. Until then
-  deploy per the Deployment section of [README.md](README.md), which is proven and takes both halves
-  through the Connections MCP vault.
+something discovered later. The HTML scraping it replaced was not on firmer ground.
