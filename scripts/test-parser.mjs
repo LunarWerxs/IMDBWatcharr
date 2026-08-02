@@ -269,7 +269,7 @@ assert(emptyTailList.items.length === 1, "An empty follow-up page should end pag
 
 await assertRejects(
   fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls000000001/"), stubFetch([{ data: { list: null } }])),
-  /no public list/i,
+  /no public list called/i,
   "A missing list should be rejected.",
 );
 
@@ -298,7 +298,7 @@ await assertRejects(
       },
     ]),
   ),
-  /^IMDb has no public list or watchlist at that address\.$/,
+  /^IMDb has nothing public at that link\. It may be private, or the id may be wrong\.$/,
   "A missing list should be reported in plain language.",
 );
 
@@ -313,7 +313,7 @@ await assertRejects(
 
 await assertRejects(
   fetchImdbList(watchlistUrl, stubFetch([{ data: { userProfile: null } }])),
-  /no public profile/i,
+  /no public profile at/i,
   "An unresolvable profile should be rejected.",
 );
 

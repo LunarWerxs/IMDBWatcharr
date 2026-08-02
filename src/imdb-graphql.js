@@ -94,7 +94,7 @@ async function imdbGraphql(query, variables, fetchImpl = fetch) {
     // A typo'd or private id is the common case here, and IMDb answers it with a
     // Java stack-trace string. Do not put that in front of someone.
     if (/RESOURCE_NOT_FOUND|Not found/i.test(message)) {
-      throw new NotFoundError("IMDb has no public list or watchlist at that address.");
+      throw new NotFoundError("IMDb has nothing public at that link. It may be private, or the id may be wrong.");
     }
 
     throw new Error(`IMDb GraphQL error: ${message}`);
@@ -111,7 +111,7 @@ async function resolveWatchlistUserId(sourceKey, fetchImpl) {
   const data = await imdbGraphql(PROFILE_QUERY, { profileId: sourceKey }, fetchImpl);
   const userId = data?.userProfile?.userId;
   if (!userId) {
-    throw new NotFoundError(`IMDb has no public profile for ${sourceKey}.`);
+    throw new NotFoundError(`IMDb has no public profile at ${sourceKey}. Check the watchlist is set to public.`);
   }
 
   return userId;
@@ -203,7 +203,7 @@ export async function fetchImdbList(normalized, fetchImpl = fetch) {
   if (normalized.sourceKind === "list") {
     const result = await collectListPages(LIST_QUERY, { id: normalized.sourceKey }, "list", fetchImpl);
     if (!result) {
-      throw new NotFoundError(`IMDb has no public list ${normalized.sourceKey}.`);
+      throw new NotFoundError(`IMDb has no public list called ${normalized.sourceKey}.`);
     }
 
     return buildSnapshot(result, normalized.sourceKey);

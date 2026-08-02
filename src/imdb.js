@@ -34,7 +34,7 @@ export function normalizeImdbUrl(input) {
     };
   }
 
-  throw new Error("Enter a public IMDb list URL or public watchlist URL.");
+  throw new Error("That link is not a public IMDb list or watchlist. Check it and try again.");
 }
 
 function buildSourceFeedPath(normalized) {

@@ -40,16 +40,16 @@ const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 
 const STEPS = [
   {
-    title: 'Paste a public IMDb URL',
-    body: 'A watchlist (imdb.com/user/ur…/watchlist/) or a list (imdb.com/list/ls…). It has to be public.',
+    title: 'Paste a public IMDb link',
+    body: 'A watchlist (imdb.com/user/ur…/watchlist/) or a list (imdb.com/list/ls…). Make sure it is set to public, or we cannot read it.',
   },
   {
-    title: 'Get two stable URLs',
-    body: 'Both are derived from the IMDb identifier, so the same list always maps to the same URLs.',
+    title: 'Copy your two links',
+    body: 'The same IMDb list always gives you the same two links, so you only have to set this up once.',
   },
   {
-    title: 'Point Radarr and Sonarr at them',
-    body: 'Radarr reads the RSS feed for movies. Sonarr reads the JSON custom list for series.',
+    title: 'Paste them into Radarr and Sonarr',
+    body: 'Radarr takes the movies link as an RSS list. Sonarr takes the shows link as a custom list.',
   },
 ]
 
@@ -167,8 +167,8 @@ export default function App() {
               Your IMDb list, straight into Radarr and Sonarr.
             </h1>
             <p className="text-muted-foreground mt-3 max-w-xl text-base text-pretty">
-              Paste a public IMDb watchlist or list. You get one RSS feed for Radarr's movies
-              and one custom list for Sonarr's series, both built from the same source.
+              Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for
+              the movies, one Sonarr uses for the shows. Both read the same list.
             </p>
           </section>
 
@@ -176,8 +176,8 @@ export default function App() {
             <CardHeader>
               <CardTitle>Create your feeds</CardTitle>
               <CardDescription>
-                The URLs are derived from the IMDb identifier, so they never change. Sign in to
-                keep the list refreshing on its own.
+                Your links never change, so you set them up once and leave them. Sign in and we
+                keep the list up to date for you.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -203,7 +203,7 @@ export default function App() {
                     {pending ? (
                       <>
                         <LoaderCircleIcon className="size-4 animate-spin" />
-                        Fetching IMDb
+                        Reading IMDb
                       </>
                     ) : (
                       <>
@@ -231,7 +231,7 @@ export default function App() {
                       </button>
                     </>
                   ) : (
-                    'That is not an IMDb list or watchlist URL yet.'
+                    'That does not look like an IMDb list or watchlist link.'
                   )}
                 </p>
               </form>
@@ -278,11 +278,12 @@ export default function App() {
                   {session?.authAvailable && !result.autoRefreshing ? (
                     <Alert className="mt-3">
                       <UserIcon className="size-4" />
-                      <AlertTitle>This feed will not update on its own</AlertTitle>
+                      <AlertTitle>This one will not update by itself</AlertTitle>
                       <AlertDescription>
                         <span>
-                          Both URLs keep working, but the list is only re-read when you ask for
-                          it. Sign in and these feeds refresh about every fifteen minutes.
+                          Your links work now and will keep working. We only read the list again
+                          when you come back and ask. Sign in and we check it for you about every
+                          fifteen minutes.
                         </span>
                         <Button asChild size="sm" className="mt-2">
                           <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
@@ -295,15 +296,15 @@ export default function App() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <StatTile label="IMDb items" value={result.totalCount} />
+                    <StatTile label="Titles on the list" value={result.totalCount} />
                     <StatTile label="Movies for Radarr" value={result.radarrCount} />
-                    <StatTile label="Series for Sonarr" value={result.sonarrCount} />
-                    <StatTile label="Series unresolved" value={result.sonarrUnresolvedCount} />
+                    <StatTile label="Shows for Sonarr" value={result.sonarrCount} />
+                    <StatTile label="Shows we skipped" value={result.sonarrUnresolvedCount} />
                   </div>
                   {result.sonarrUnresolvedCount > 0 && (
                     <p className="text-muted-foreground mt-3 text-xs">
-                      Sonarr needs a TVDB id. {result.sonarrUnresolvedCount} series had no TVMaze
-                      to TVDB mapping, so they are left out of the custom list.
+                      Sonarr needs a TVDB id for every show, and we could not find one for{' '}
+                      {result.sonarrUnresolvedCount} of them, so we left those out.
                     </p>
                   )}
                 </CardContent>
@@ -371,9 +372,12 @@ export default function App() {
         <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
           <Separator className="mb-6" />
           <p>
-            Signed in, feeds refresh about every fifteen minutes and fall back to the last good
-            snapshot when a refresh does not succeed. Signed out, a list is fetched when you ask
-            for it and then left alone. A brand-new list takes a moment to appear the first time.
+            Sign in and we check your lists about every fifteen minutes. Signed out, we only
+            read a list when you ask us to.
+          </p>
+          <p className="mt-3">
+            If IMDb does not answer, your links keep serving whatever we saw last, so Radarr and
+            Sonarr never get an empty list. A brand-new list takes a few seconds to show up.
           </p>
           <p className="mt-3">
             <span className="font-display text-foreground">IMDb Watcharr</span>

@@ -433,7 +433,7 @@ async function requestSyncRun(env, sourceUrl) {
 
 function describeFeedState(feed, dispatched, owned) {
   if (feed.status !== "ready" && feed.item_count > 0) {
-    return "The last refresh did not succeed, so the feeds keep serving the last good snapshot.";
+    return "We could not reach IMDb just now, so your links are still serving what we saw last.";
   }
 
   if (feed.status !== "ready" && feed.last_error) {
@@ -442,17 +442,17 @@ function describeFeedState(feed, dispatched, owned) {
 
   if (feed.status !== "ready") {
     return dispatched
-      ? "Fetching this list from IMDb now. Give it a few seconds, then reload."
-      : "Queued. This fills in on the next sync run.";
+      ? "We are reading this list from IMDb now. Give it a few seconds and reload."
+      : "This list is in the queue and we will pick it up shortly.";
   }
 
   if (owned) {
-    return "Feed is ready and refreshing automatically.";
+    return "Ready, and we are keeping it up to date.";
   }
 
   return dispatched
-    ? "Feed is ready. Refreshing it now."
-    : "Feed is ready. Sign in to keep it refreshing automatically.";
+    ? "Ready. We are refreshing it now."
+    : "Ready. Sign in and we will keep it up to date.";
 }
 
 async function isFeedOwnedBy(db, feedId, sub) {
@@ -731,7 +731,7 @@ export default {
 
       const items = await getFeedItems(env.DB, feed.id);
       if (items.length === 0) {
-        return new Response(feed.last_error || "Feed exists but has not synced successfully yet.", {
+        return new Response(feed.last_error || "We have not managed to read this list from IMDb yet.", {
           status: 503,
           headers: { "content-type": "text/plain; charset=utf-8" },
         });
