@@ -86,13 +86,8 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="bg-background text-foreground relative min-h-dvh">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(60rem_24rem_at_50%_-8rem,color-mix(in_oklch,var(--primary)_14%,transparent),transparent)]"
-        />
-
-        <header className="relative mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-5">
+      <div className="bg-background text-foreground min-h-dvh">
+        <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-5">
           <div className="flex items-center gap-2.5">
             <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
               <ClapperboardIcon className="size-4" />
@@ -108,7 +103,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="relative mx-auto w-full max-w-3xl px-4 pb-20">
+        <main className="mx-auto w-full max-w-3xl px-4 pb-20">
           <section className="pt-6 pb-8 sm:pt-10">
             <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
               Your IMDb list, straight into Radarr and Sonarr.
@@ -293,7 +288,7 @@ export default function App() {
           </section>
         </main>
 
-        <footer className="text-muted-foreground relative mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
+        <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
           <Separator className="mb-6" />
           <p>
             Feeds refresh at most every six hours and fall back to the last good snapshot when
