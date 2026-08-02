@@ -286,7 +286,7 @@ async function lookupTvdbIdByImdb(imdbId) {
 async function enrichTvdbIdsForFeed(env, feed, items) {
   const seriesItems = filterItemsForTarget(items, "sonarr").filter((item) => !item.tvdb_id);
   if (!seriesItems.length) {
-    return { items, resolved: 0 };
+    return items;
   }
 
   const resolutions = [];
@@ -308,7 +308,7 @@ async function enrichTvdbIdsForFeed(env, feed, items) {
   }
 
   if (!resolutions.length) {
-    return { items, resolved: 0 };
+    return items;
   }
 
   await env.DB.batch(
@@ -317,7 +317,7 @@ async function enrichTvdbIdsForFeed(env, feed, items) {
     ),
   );
 
-  return { items: await getFeedItems(env.DB, feed.id), resolved: resolutions.length };
+  return getFeedItems(env.DB, feed.id);
 }
 
 async function syncFeedFromHtml(env, feed, htmlText) {
@@ -330,7 +330,7 @@ async function syncFeedFromHtml(env, feed, htmlText) {
   const parsed = parseImdbHtml(htmlText);
   let currentFeed = await storeFeedSnapshot(env.DB, feed, parsed);
   const storedItems = await getFeedItems(env.DB, currentFeed.id);
-  const { items } = await enrichTvdbIdsForFeed(env, currentFeed, storedItems);
+  const items = await enrichTvdbIdsForFeed(env, currentFeed, storedItems);
   currentFeed = await storeFeedCaches(env.DB, currentFeed, items, sourceFingerprint);
 
   return currentFeed;
@@ -420,14 +420,16 @@ export default {
         const existing = await getOrCreateFeed(env.DB, normalized);
         let { feed, message } = await ensureFeedIsFresh(env, existing);
         const storedItems = await getFeedItems(env.DB, feed.id);
-        const { items: enrichedItems, resolved } = await enrichTvdbIdsForFeed(env, feed, storedItems);
+        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
         const counts = summarizeItemsByTarget(enrichedItems);
         const sonarrPayload = buildSonarrCustomListPayload(enrichedItems);
         const sonarrUnresolvedCount = counts.sonarr - sonarrPayload.length;
 
-        // Newly resolved TVDB ids would otherwise only reach the served feed on
-        // the next sync, because the cached payloads are built during sync.
-        if (resolved > 0 && feed.source_fingerprint) {
+        // The cached payloads are only built during a sync, so a TVDB id resolved
+        // outside one leaves the served feed behind what this response reports.
+        // Compare against the cache itself rather than against what this request
+        // happened to resolve, or a feed enriched by an earlier request stays stale.
+        if (feed.source_fingerprint && feed.sonarr_cache !== JSON.stringify(sonarrPayload)) {
           feed = await storeFeedCaches(env.DB, feed, enrichedItems, feed.source_fingerprint);
         }
 
@@ -501,7 +503,7 @@ export default {
           });
         }
 
-        const { items: enrichedItems } = await enrichTvdbIdsForFeed(env, feed, items);
+        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
         const payload = buildSonarrCustomListPayload(enrichedItems);
         return json(payload, {
           headers: {
