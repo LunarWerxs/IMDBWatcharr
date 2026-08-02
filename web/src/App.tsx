@@ -63,9 +63,11 @@ export default function App() {
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
-  // The Worker keeps serving the stored snapshot when IMDb blocks a refresh, so
-  // a failed sync with items behind it is not a failed request.
+  // The routes keep serving the stored snapshot when a sync fails, so a feed
+  // with items behind it is stale rather than broken.
   const servedFromSnapshot = Boolean(result && result.status !== 'ready' && result.totalCount > 0)
+  // A brand-new list has nothing stored yet: the sync job has to fetch it first.
+  const awaitingFirstSync = Boolean(result && result.status !== 'ready' && result.totalCount === 0)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -204,12 +206,16 @@ export default function App() {
                       variant={result.status === 'ready' ? 'secondary' : 'outline'}
                       className="font-normal"
                     >
-                      {servedFromSnapshot ? 'last good snapshot' : result.status}
+                      {servedFromSnapshot
+                        ? 'last good snapshot'
+                        : awaitingFirstSync
+                          ? 'fetching'
+                          : result.status}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
                     {servedFromSnapshot
-                      ? `IMDb did not answer this refresh, so the feeds keep serving the last good snapshot. ${result.message}`
+                      ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
                       : result.message}
                   </CardDescription>
                 </CardHeader>
@@ -291,8 +297,8 @@ export default function App() {
         <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
           <Separator className="mb-6" />
           <p>
-            Feeds refresh at most every six hours and fall back to the last good snapshot when
-            IMDb blocks a fetch.
+            Feeds refresh about every fifteen minutes and fall back to the last good snapshot when
+            a refresh does not succeed. A brand-new list takes a moment to appear the first time.
           </p>
         </footer>
       </div>

@@ -26,7 +26,31 @@ jobs:
       - name: Verify parser fixtures
         run: npm run check
 
+      # A revoked token is an unset credential, not a broken build. Failing here
+      # paints main red forever and trains everyone to ignore the deploy result,
+      # which is worse than saying plainly that there is nothing to deploy with.
+      - name: Check the Cloudflare token
+        id: token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "usable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set, so the Worker was not deployed."
+            exit 0
+          fi
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            https://api.cloudflare.com/client/v4/user/tokens/verify)
+          if [ "$status" = "200" ]; then
+            echo "usable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "usable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN is rejected by Cloudflare (HTTP $status), so the Worker was not deployed. Rotate it to re-enable this deploy."
+          fi
+
       - name: Deploy Worker
+        if: steps.token.outputs.usable == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
