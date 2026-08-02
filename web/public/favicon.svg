@@ -1,6 +1,7 @@
+<!-- IMDb Watcharr, in LunarWerx colours: slate-950 ground, red accent. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#0a0a0a"/>
-  <g fill="none" stroke="#fafafa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="32" height="32" rx="7" fill="#020617"/>
+  <g fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M6 12h20v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/>
     <path d="M6 12 8.5 6l4.5 6"/>
     <path d="M13 12 15.5 6l4.5 6"/>

@@ -11,6 +11,12 @@ workers_dev = true
 pattern = "watcharr.lunarwerx.com"
 custom_domain = true
 
+# The product is IMDb Watcharr; `watcharr` is only the short label. Both spellings
+# resolve, and everything redirects to PUBLIC_ORIGIN so feed URLs have one form.
+[[routes]]
+pattern = "imdbwatcharr.lunarwerx.com"
+custom_domain = true
+
 # The SPA is served by this Worker rather than a separate Pages project, so a
 # deploy is one command and there is no proxy in front of the API. The Worker
 # runs first on every request and hands anything it does not answer to ASSETS,

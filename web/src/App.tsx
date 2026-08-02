@@ -376,11 +376,13 @@ export default function App() {
             for it and then left alone. A brand-new list takes a moment to appear the first time.
           </p>
           <p className="mt-3">
+            <span className="font-display text-foreground">IMDb Watcharr</span>
+            <span aria-hidden="true"> · </span>
+            built and operated by{' '}
             <a href="https://lunarwerx.com" className="hover:text-foreground transition-colors">
               LunarWerx
             </a>
-            <span aria-hidden="true"> · </span>
-            an independent software studio
+            , an independent software studio.
           </p>
         </footer>
       </div>

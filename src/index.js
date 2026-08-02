@@ -45,6 +45,27 @@ function getPublicOrigin(request) {
   return request.headers.get("x-public-origin") || new URL(request.url).origin;
 }
 
+// A 301 to PUBLIC_ORIGIN for any other hostname this Worker answers on, keeping
+// the path and query so an aliased feed URL still lands on its feed. Only for
+// reads: redirecting a POST would drop its body. Local development has no
+// PUBLIC_ORIGIN worth enforcing, so it is skipped there.
+function canonicalRedirect(request, env, url) {
+  if (!env.PUBLIC_ORIGIN || (request.method !== "GET" && request.method !== "HEAD")) {
+    return null;
+  }
+
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return null;
+  }
+
+  const canonical = new URL(env.PUBLIC_ORIGIN);
+  if (url.hostname === canonical.hostname) {
+    return null;
+  }
+
+  return Response.redirect(`${canonical.origin}${url.pathname}${url.search}`, 301);
+}
+
 function buildFeedEtag(feed, feedTarget) {
   if (!feed?.source_fingerprint) {
     return null;
@@ -474,6 +495,14 @@ function mayRefreshNow(feed, session) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // One canonical address, so a feed URL copied off the site always reads the
+    // same and an alias never becomes a second identity for the same feed.
+    const canonical = canonicalRedirect(request, env, url);
+    if (canonical) {
+      return canonical;
+    }
+
     const publicOrigin = getPublicOrigin(request);
 
     // ── Sign in with Connections ─────────────────────────────────────────────
