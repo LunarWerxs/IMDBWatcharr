@@ -81,7 +81,34 @@ npm run db:migrate:remote
 
 ## Deployment
 
-Pushing to `main` runs three workflows:
+> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02). Both deploy
+> workflows fail in ~20s with `Invalid access token [code: 9109]` while `CI` passes. A red deploy
+> there is the token, not your commit. Deploy manually until it is rotated.
+
+Cloudflare account: `eed9c6a3d77c18da26148d25e20ee951` (Blogitech@gmail.com).
+
+**Worker, deployed through the Connections MCP vault.** This is the preferred path: the credential is
+injected server-side, so it does not depend on whatever `wrangler login` session the machine happens
+to hold, and every D1/Browser binding is inherited from the live Worker rather than re-declared.
+
+```bash
+npx wrangler deploy --dry-run --outdir .tmp-bundle
+```
+
+then `connections_execute { local: true, tool_name: "cloudflare_worker_deploy", params: { accountId: "eed9c6a3d77c18da26148d25e20ee951", scriptName: "imdbwatcharr", filePath: "<abs>/.tmp-bundle/index.js", mainModule: "index.js", instance: "default", dryRun: true } }`, check the inherited bindings, then re-run with `dryRun: false`.
+
+**Pages, deployed with local wrangler.** The MCP has no Pages deploy tool yet (logged in the Connections repo at
+`docs/todo/mcp-improvements/cloudflare-pages-deploy-has-no-vault-tool.md`). The blocker is the
+Functions `_worker.bundle` step, which needs wrangler's own bundler.
+
+```bash
+npm run web:build && CLOUDFLARE_ACCOUNT_ID=eed9c6a3d77c18da26148d25e20ee951 npx wrangler pages deploy pages-static --project-name imdbwatcharr --branch main --cwd pages-proxy
+```
+
+Deploy **Pages before the Worker**: the SPA tolerates an older API shape, but the Worker's `/` is a
+JSON API index, so a Worker-first order briefly serves JSON at `/`.
+
+Once the token is rotated, pushing to `main` does all of this by itself:
 
 - [ci.yml](.github/workflows/ci.yml) parser checks, web lint, web build
 - [deploy-worker.yml](.github/workflows/deploy-worker.yml) deploys the Worker
