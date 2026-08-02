@@ -18,6 +18,7 @@ import {
 
 const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
 const BROWSER_ATTEMPTS = 3;
+const TVMAZE_LOOKUP_CONCURRENCY = 6;
 const DIRECT_FETCH_HEADERS = {
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "accept-language": "en-US,en;q=0.9",
@@ -35,16 +36,6 @@ function json(data, init = {}) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       ...init.headers,
-    },
-  });
-}
-
-function html(body, status = 200) {
-  return new Response(body, {
-    status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
     },
   });
 }
@@ -150,14 +141,24 @@ async function upsertFeed(db, normalized) {
 async function storeFeedSnapshot(db, feed, snapshot) {
   const timestamp = nowIso();
   const storedItems = snapshot.items;
+
+  // The rows are replaced wholesale, so carry forward the TVDB ids already
+  // resolved for these titles. Without this every sync drops them and the
+  // Sonarr list re-resolves the whole series set through TVMaze.
+  const previousItems = await getFeedItems(db, feed.id);
+  const knownTvdbIds = new Map(
+    previousItems.filter((item) => item.tvdb_id).map((item) => [item.imdb_id, item.tvdb_id]),
+  );
+
   const statements = [db.prepare("DELETE FROM feed_items WHERE feed_id = ?").bind(feed.id)];
 
   for (const item of storedItems) {
+    const tvdbId = item.tvdbId ?? knownTvdbIds.get(item.imdbId) ?? null;
     statements.push(
       db.prepare(
         `INSERT INTO feed_items (feed_id, imdb_id, tvdb_id, position, title, year, title_type, added_at, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(feed.id, item.imdbId, item.tvdbId ?? null, item.position, item.title, item.year, item.titleType, item.addedAt, timestamp)
+      ).bind(feed.id, item.imdbId, tvdbId, item.position, item.title, item.year, item.titleType, item.addedAt, timestamp)
     );
   }
 
@@ -254,6 +255,12 @@ async function fetchImdbHtmlDirect(sourceUrl) {
     redirect: "follow",
   });
 
+  // A challenge or block page is not list data. Fail here so the caller moves
+  // on to Browser Rendering instead of parsing an error page.
+  if (!response.ok) {
+    throw new Error(`IMDb direct fetch failed with status ${response.status}.`);
+  }
+
   return response.text();
 }
 
@@ -279,28 +286,38 @@ async function lookupTvdbIdByImdb(imdbId) {
 async function enrichTvdbIdsForFeed(env, feed, items) {
   const seriesItems = filterItemsForTarget(items, "sonarr").filter((item) => !item.tvdb_id);
   if (!seriesItems.length) {
-    return items;
+    return { items, resolved: 0 };
   }
 
-  const statements = [];
+  const resolutions = [];
 
-  for (const item of seriesItems) {
-    try {
-      const tvdbId = await lookupTvdbIdByImdb(item.imdb_id);
-      if (tvdbId) {
-        statements.push(
-          env.DB.prepare("UPDATE feed_items SET tvdb_id = ? WHERE feed_id = ? AND imdb_id = ?").bind(tvdbId, feed.id, item.imdb_id),
-        );
-      }
-    } catch {}
+  // TVMaze is a third party, so keep the lookups bounded rather than firing one
+  // request per series at once.
+  for (let offset = 0; offset < seriesItems.length; offset += TVMAZE_LOOKUP_CONCURRENCY) {
+    const batch = seriesItems.slice(offset, offset + TVMAZE_LOOKUP_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async (item) => {
+        try {
+          return { imdbId: item.imdb_id, tvdbId: await lookupTvdbIdByImdb(item.imdb_id) };
+        } catch {
+          return { imdbId: item.imdb_id, tvdbId: null };
+        }
+      }),
+    );
+    resolutions.push(...results.filter((result) => result.tvdbId));
   }
 
-  if (!statements.length) {
-    return items;
+  if (!resolutions.length) {
+    return { items, resolved: 0 };
   }
 
-  await env.DB.batch(statements);
-  return getFeedItems(env.DB, feed.id);
+  await env.DB.batch(
+    resolutions.map(({ imdbId, tvdbId }) =>
+      env.DB.prepare("UPDATE feed_items SET tvdb_id = ? WHERE feed_id = ? AND imdb_id = ?").bind(tvdbId, feed.id, imdbId),
+    ),
+  );
+
+  return { items: await getFeedItems(env.DB, feed.id), resolved: resolutions.length };
 }
 
 async function syncFeedFromHtml(env, feed, htmlText) {
@@ -312,8 +329,8 @@ async function syncFeedFromHtml(env, feed, htmlText) {
 
   const parsed = parseImdbHtml(htmlText);
   let currentFeed = await storeFeedSnapshot(env.DB, feed, parsed);
-  let items = await getFeedItems(env.DB, currentFeed.id);
-  items = await enrichTvdbIdsForFeed(env, currentFeed, items);
+  const storedItems = await getFeedItems(env.DB, currentFeed.id);
+  const { items } = await enrichTvdbIdsForFeed(env, currentFeed, storedItems);
   currentFeed = await storeFeedCaches(env.DB, currentFeed, items, sourceFingerprint);
 
   return currentFeed;
@@ -382,164 +399,18 @@ async function ensureFeedIsFresh(env, feed) {
   return { feed: currentFeed, message };
 }
 
-function renderHomePage(origin) {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IMDb Watch to RSS</title>
-  <style>
-    :root {
-      --bg: #f6f1e5;
-      --panel: rgba(255,255,255,0.78);
-      --text: #191510;
-      --muted: #65584a;
-      --line: rgba(25,21,16,0.12);
-      --accent: #f3c646;
-      --accent-ink: #6f4810;
-      --shadow: 0 20px 45px rgba(92,72,28,0.14);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: "Segoe UI", Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(243,198,70,0.45), transparent 30%),
-        linear-gradient(180deg, #f3e7ca 0%, var(--bg) 50%, #efe8d8 100%);
-    }
-    main {
-      width: min(760px, calc(100vw - 1.5rem));
-      margin: 0 auto;
-      padding: 2rem 0 3rem;
-    }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      box-shadow: var(--shadow);
-      padding: 1.5rem;
-      backdrop-filter: blur(8px);
-    }
-    h1 {
-      margin: 0;
-      font-family: Georgia, serif;
-      font-size: clamp(2.4rem, 6vw, 4.2rem);
-      line-height: 0.98;
-      max-width: 10ch;
-    }
-    p { color: var(--muted); line-height: 1.6; }
-    form { display: grid; gap: 0.9rem; margin-top: 1.25rem; }
-    input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 1rem 1.1rem;
-      font: inherit;
-      background: rgba(255,255,255,0.9);
-    }
-    button {
-      justify-self: start;
-      border: 0;
-      border-radius: 999px;
-      padding: 0.8rem 1.2rem;
-      background: var(--accent);
-      color: var(--accent-ink);
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .result, .error {
-      margin-top: 1rem;
-      padding: 1rem;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.72);
-      display: none;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .error { color: #8a2c2c; }
-    .url-block {
-      margin-top: 0.9rem;
-      padding-top: 0.9rem;
-      border-top: 1px solid var(--line);
-    }
-    code {
-      font-family: Consolas, monospace;
-      background: rgba(25,21,16,0.06);
-      padding: 0.15rem 0.35rem;
-      border-radius: 8px;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <section class="panel">
-      <p style="margin:0 0 0.7rem;color:var(--accent-ink);font-weight:700;text-transform:uppercase;letter-spacing:0.12em;font-size:0.78rem;">Paste IMDb URL, get list URLs</p>
-      <h1>IMDb to Radarr and Sonarr lists.</h1>
-      <p>Paste a public IMDb watchlist or list URL. The Worker derives deterministic list URLs from the IMDb identifier, fetches the data once, and then serves a Radarr RSS feed plus a Sonarr custom JSON list from the same source.</p>
-      <form id="create-form">
-        <input id="source-url" name="sourceUrl" placeholder="https://www.imdb.com/user/ur12345678/watchlist/" required>
-        <button type="submit">Create Feed</button>
-      </form>
-      <div id="result" class="result"></div>
-      <div id="error" class="error"></div>
-      <p style="margin-top:1rem;">Radarr uses <code>${origin}/radarr/p/profile-id</code> or <code>${origin}/radarr/l/ls123456789</code>. Sonarr uses <code>${origin}/sonarr/p/profile-id</code> or <code>${origin}/sonarr/l/ls123456789</code>.</p>
-      <p style="margin-top:0.6rem;font-size:0.95rem;">The <code>/sonarr</code> route returns Sonarr Custom List JSON with TVDB IDs when they can be resolved from IMDb via TVMaze.</p>
-    </section>
-  </main>
-  <script>
-    const form = document.getElementById("create-form");
-    const result = document.getElementById("result");
-    const errorBox = document.getElementById("error");
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      result.style.display = "none";
-      errorBox.style.display = "none";
-
-      const sourceUrl = document.getElementById("source-url").value.trim();
-      try {
-        const response = await fetch("/api/create", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sourceUrl })
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Request failed");
-
-        result.style.display = "block";
-        result.innerHTML =
-          '<div class="url-block"><strong>Radarr Feed URL</strong><br>' +
-          '<a href="' + payload.radarrFeedUrl + '" target="_blank" rel="noreferrer">' + payload.radarrFeedUrl + "</a></div>" +
-          '<div class="url-block"><strong>Sonarr Custom List URL</strong><br>' +
-          '<a href="' + payload.sonarrFeedUrl + '" target="_blank" rel="noreferrer">' + payload.sonarrFeedUrl + "</a></div><br>" +
-          "<strong>Status</strong><br>" + payload.status +
-          (payload.radarrCount != null ? "<br><br><strong>Radarr Items</strong><br>" + payload.radarrCount : "") +
-          (payload.sonarrCount != null ? "<br><br><strong>Sonarr Importable Items</strong><br>" + payload.sonarrCount : "") +
-          (payload.sonarrUnresolvedCount != null ? "<br><br><strong>Unresolved TV Items</strong><br>" + payload.sonarrUnresolvedCount : "") +
-          (payload.totalCount != null ? "<br><br><strong>Total IMDb Items</strong><br>" + payload.totalCount : "") +
-          (payload.message ? "<br><br><strong>Message</strong><br>" + payload.message : "");
-      } catch (error) {
-        errorBox.style.display = "block";
-        errorBox.textContent = error.message;
-      }
-    });
-  </script>
-</body>
-</html>`;
-}
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const publicOrigin = getPublicOrigin(request);
 
+    // The UI is the SPA served by Cloudflare Pages; the Worker is API only.
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/") {
-      return html(renderHomePage(publicOrigin));
+      return json({
+        service: "imdbwatcharr",
+        ui: "https://imdbwatcharr.pages.dev",
+        routes: ["POST /api/create", "GET /radarr/{p|l|f}/:id", "GET /sonarr/{p|l|f}/:id"],
+      });
     }
 
     if (request.method === "POST" && url.pathname === "/api/create") {
@@ -547,15 +418,22 @@ export default {
         const payload = await request.json();
         const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
         const existing = await getOrCreateFeed(env.DB, normalized);
-        const { feed, message } = await ensureFeedIsFresh(env, existing);
-        const items = await getFeedItems(env.DB, feed.id);
-        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
+        let { feed, message } = await ensureFeedIsFresh(env, existing);
+        const storedItems = await getFeedItems(env.DB, feed.id);
+        const { items: enrichedItems, resolved } = await enrichTvdbIdsForFeed(env, feed, storedItems);
         const counts = summarizeItemsByTarget(enrichedItems);
         const sonarrPayload = buildSonarrCustomListPayload(enrichedItems);
         const sonarrUnresolvedCount = counts.sonarr - sonarrPayload.length;
 
+        // Newly resolved TVDB ids would otherwise only reach the served feed on
+        // the next sync, because the cached payloads are built during sync.
+        if (resolved > 0 && feed.source_fingerprint) {
+          feed = await storeFeedCaches(env.DB, feed, enrichedItems, feed.source_fingerprint);
+        }
+
         return json({
           slug: feed.slug,
+          listTitle: feed.list_title || "",
           routePath: buildPublicFeedPath(normalized, "radarr"),
           feedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
           radarrRoutePath: buildPublicFeedPath(normalized, "radarr"),
@@ -623,7 +501,7 @@ export default {
           });
         }
 
-        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
+        const { items: enrichedItems } = await enrichTvdbIdsForFeed(env, feed, items);
         const payload = buildSonarrCustomListPayload(enrichedItems);
         return json(payload, {
           headers: {

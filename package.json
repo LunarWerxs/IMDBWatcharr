@@ -1,22 +1,28 @@
 {
   "name": "imdbwatch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "web"
+  ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "check": "node scripts/test-parser.mjs",
     "dev": "wrangler dev --remote",
+    "web:dev": "npm run dev --workspace web",
+    "web:build": "npm run build --workspace web",
+    "build": "npm run web:build",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply imdbwatcharr-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply imdbwatcharr-db --remote"
   },
   "dependencies": {
-    "@cloudflare/playwright": "^1.3.0"
+    "@cloudflare/playwright": "^1.3.3"
   },
   "devDependencies": {
-    "wrangler": "^4.11.1"
+    "wrangler": "^4.118.0"
   }
 }

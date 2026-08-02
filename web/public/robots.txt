@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /$
+Disallow: /radarr/
+Disallow: /sonarr/
+Disallow: /api/

@@ -1,1 +1,0 @@
-This Pages project proxies requests to the imdbwatcharr Worker.

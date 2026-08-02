@@ -1,53 +1,79 @@
-# IMDb Watchlist to Radarr RSS Worker
+# IMDb Watcharr
 
-This project is a Cloudflare Worker plus Cloudflare Pages proxy that turns public IMDb lists and watchlists into a Radarr RSS feed and a Sonarr Custom List feed.
+Turn a public IMDb watchlist or list into a **Radarr RSS feed** and a **Sonarr custom list**.
 
-Flow:
+Live at [imdbwatcharr.pages.dev](https://imdbwatcharr.pages.dev).
 
-1. Open the site on `imdbwatcharr.pages.dev`
+1. Open the site
 2. Paste a public IMDb watchlist or list URL
-3. Get back deterministic movie and TV list URLs derived from the IMDb identifier
-4. Use the movie URL in Radarr's `RSS List` and the TV URL in Sonarr's `Custom List`
+3. Copy the two URLs it gives back
+4. Radarr `RSS List` gets the movie URL, Sonarr `Custom List` gets the TV URL
 
-Examples:
+The URLs are derived from the IMDb identifier, so the same list always maps to the same URLs:
 
-- Radarr movie feed: `https://www.imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/` becomes `https://imdbwatcharr.pages.dev/radarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`
-- Sonarr custom list: `https://www.imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/` becomes `https://imdbwatcharr.pages.dev/sonarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`
-- Radarr movie feed: `https://www.imdb.com/list/ls006123300/` becomes `https://imdbwatcharr.pages.dev/radarr/l/ls006123300`
-- Sonarr custom list: `https://www.imdb.com/list/ls006123300/` becomes `https://imdbwatcharr.pages.dev/sonarr/l/ls006123300`
+| IMDb source                                                  | Radarr                                                   | Sonarr                                                   |
+| ------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------- |
+| `imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/`       | `/radarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`                  | `/sonarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`                  |
+| `imdb.com/list/ls006123300/`                                  | `/radarr/l/ls006123300`                                   | `/sonarr/l/ls006123300`                                   |
 
 ## Architecture
 
-- Cloudflare Worker serves the UI, API, and RSS generation logic
-- Cloudflare Pages exposes the public `pages.dev` hostname and proxies requests to the Worker
-- D1 stores feed metadata plus the last successful snapshot of all IMDb items, any resolved TVDB IDs, and cached Radarr/Sonarr payloads
-- Browser Rendering fetches IMDb pages and lets the parser extract data from stable page payloads such as `#__NEXT_DATA__`
-- The Worker tries a direct IMDb fetch first and only falls back to Browser Rendering when needed
-- The Worker fingerprints the stable IMDb payload block instead of the whole HTML page, so unchanged lists can reuse the cached Radarr RSS or Sonarr JSON response without rebuilding it
+```
+Cloudflare Pages (imdbwatcharr.pages.dev)
+├── pages-static/          built React SPA, served from the edge
+└── functions/[[path]].js  proxies only /api, /radarr, /sonarr, /p, /l, /f
+                           to the Worker; everything else is a static asset
+                                        │
+                                        ▼
+Cloudflare Worker (imdbwatcharr)        API + feed generation
+├── D1                    feed metadata, item snapshots, resolved TVDB ids,
+│                         and the cached Radarr XML / Sonarr JSON payloads
+└── Browser Rendering     fallback when a direct IMDb fetch is challenged
+```
+
+- The Worker tries a plain IMDb fetch first and only falls back to Browser Rendering when that fails.
+- It fingerprints the stable IMDb payload block rather than the whole page, so an unchanged list re-serves the cached body with an `ETag` instead of being rebuilt.
+- If both fetch paths fail, the routes keep serving the last good snapshot.
+- TVDB ids come from TVMaze. Series with no mapping are left out of the Sonarr list, and resolved ids are carried across syncs rather than re-looked-up.
+
+## Web app
+
+`web/` is a Vite + React 19 + TypeScript SPA styled with Tailwind CSS v4 and [shadcn/ui](https://ui.shadcn.com) (`radix-nova`, neutral base, Geist). It builds into `pages-proxy/pages-static/`.
+
+```bash
+npm install
+npm run web:dev     # http://localhost:5173, API calls proxied to the live Worker
+npm run web:build   # builds into pages-proxy/pages-static/
+```
+
+Point the dev proxy somewhere else with `VITE_API_ORIGIN=http://localhost:8787 npm run web:dev`.
+
+Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 
 ## Routes
 
-- `GET /` simple input form
-- `POST /api/create` normalize an IMDb URL, create the feed record if needed, refresh it, resolve TVDB IDs for shows when possible, and return both public URLs
-- `GET /radarr/p/:profileId` dynamically serve the Radarr movie feed for a watchlist
-- `GET /radarr/l/:listId` dynamically serve the Radarr movie feed for a list
-- `GET /sonarr/p/:profileId` dynamically serve the Sonarr Custom List JSON for a watchlist
-- `GET /sonarr/l/:listId` dynamically serve the Sonarr Custom List JSON for a list
-- `GET /radarr/f/:imdbKey` optional generic Radarr route that infers the source from values like `ls...`, `p....`, or `ur...`
-- `GET /sonarr/f/:imdbKey` optional generic Sonarr route with the same inference rules
-- `GET /p/:profileId`, `GET /l/:listId`, and `GET /f/:imdbKey` are legacy shortcuts that redirect to `/radarr/...`
-- `GET /f/:slug.xml` legacy slug route that redirects to the deterministic path
-- `GET /api/feeds/:slug` internal metadata lookup for stored feed records
+| Route                                         | What it does                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `POST /api/create`                            | Normalize an IMDb URL, create/refresh the feed, return both URLs     |
+| `GET /radarr/p/:profileId`                    | Radarr RSS for a watchlist                                           |
+| `GET /radarr/l/:listId`                       | Radarr RSS for a list                                                |
+| `GET /sonarr/p/:profileId`                    | Sonarr custom list JSON for a watchlist                              |
+| `GET /sonarr/l/:listId`                       | Sonarr custom list JSON for a list                                   |
+| `GET /{radarr,sonarr}/f/:imdbKey`             | Same, inferring the source from `ls…`, `p.…`, or `ur…`               |
+| `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
+| `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
+| `GET /api/feeds/:slug`                        | Stored feed metadata                                                 |
 
 ## Local development
 
 ```bash
 npm install
-npm run check
-npm run dev
+npm run check        # fixture-based parser checks
+npm run web:build    # build the SPA
+npm run dev          # wrangler dev --remote (Worker only)
 ```
 
-For remote D1 migrations after the database exists:
+Remote D1 migrations:
 
 ```bash
 npm run db:migrate:remote
@@ -55,21 +81,14 @@ npm run db:migrate:remote
 
 ## Deployment
 
-This repo includes:
+Pushing to `main` runs three workflows:
 
-- [ci.yml](.github/workflows/ci.yml) for fixture-based parser checks
-- [deploy-worker.yml](.github/workflows/deploy-worker.yml) for Worker deployment
-- [deploy-pages-proxy.yml](.github/workflows/deploy-pages-proxy.yml) for the public `pages.dev` proxy
+- [ci.yml](.github/workflows/ci.yml) parser checks, web lint, web build
+- [deploy-worker.yml](.github/workflows/deploy-worker.yml) deploys the Worker
+- [deploy-pages-proxy.yml](.github/workflows/deploy-pages-proxy.yml) builds the SPA and deploys Pages
 
-Required GitHub repo secrets:
+Required repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+## Known limits
 
-## Important note
-
-IMDb access is the hardest part of the system. The Worker now tries a direct HTTP fetch first because it is lighter and avoids Browser Rendering rate limits in the common case. If IMDb returns a challenge page, the Worker falls back to Browser Rendering. If both fail, the route serves the last stored error or snapshot until a later refresh succeeds.
-
-The `/sonarr/...` route is now designed for Sonarr's `Custom List` provider, which expects JSON entries with `TvdbId`. TVDB IDs are resolved from IMDb IDs through TVMaze when possible, so some IMDb TV entries may be skipped if no TVDB mapping is available.
-
-When IMDb does respond, the Worker hashes the stable list payload extracted from the page. If that fingerprint has not changed, it keeps serving the cached list body with `ETag` headers so Radarr, Sonarr, and any upstream cache can avoid re-downloading the full payload unnecessarily.
+IMDb access is the hard part. IMDb frequently challenges datacenter traffic, so a refresh can fail even though the feeds keep working from the stored snapshot. The UI says so explicitly when that happens rather than pretending the sync succeeded.

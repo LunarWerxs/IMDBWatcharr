@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  parser-check:
+  check:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -25,3 +25,9 @@ jobs:
 
       - name: Verify parser fixtures
         run: npm run check
+
+      - name: Lint the web app
+        run: npm run lint --workspace web
+
+      - name: Build the web app
+        run: npm run web:build

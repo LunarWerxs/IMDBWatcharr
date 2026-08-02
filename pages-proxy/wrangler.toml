@@ -1,6 +1,6 @@
 name = "imdbwatcharr"
 pages_build_output_dir = "./pages-static"
-compatibility_date = "2026-04-15"
+compatibility_date = "2026-07-01"
 
 [[services]]
 binding = "BACKEND"
