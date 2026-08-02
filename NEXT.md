@@ -29,18 +29,19 @@ Worker still owns fingerprinting, caching, TVDB resolution, and every feed route
 
 ## What is actually left
 
-- **`CLOUDFLARE_API_TOKEN` in the repo secrets is still revoked.** Both deploy workflows fail in
-  ~20s with `Invalid access token [code: 9109]`. Owner work, a 2 minute rotation. Deploys currently
-  go through the local `wrangler` login, which works. `Sync feeds` does not touch that token, so the
-  feeds keep updating either way.
+Nothing is broken. Two optional things, both of which the code already degrades around:
+
 - **`GITHUB_DISPATCH_TOKEN` is not set on the Worker.** Without it a newly pasted list waits for the
-  next scheduled run instead of filling in under a minute. Everything degrades gracefully: the
-  Worker just skips the dispatch. Needs a fine-grained PAT that can dispatch this repo, then
+  next scheduled run instead of filling in under a minute. The Worker just skips the dispatch.
+  Needs a fine-grained PAT that can dispatch this repo, then
   `npx wrangler secret put GITHUB_DISPATCH_TOKEN` and `GITHUB_REPOSITORY`.
-- **The SPA still talks about a fetch the Worker no longer does.** `web/src/App.tsx` says "IMDb did
-  not answer this refresh" and "Feeds refresh at most every six hours". Both are now wrong in
-  detail: the refresh is a scheduled job on a 15 minute floor, and a pending feed is queued rather
-  than failed. The Worker already returns a `syncing` flag the UI could use to poll.
+- **`CLOUDFLARE_API_TOKEN` in the repo secrets is revoked**, so the two deploy workflows verify it,
+  skip, and post a warning annotation rather than failing. Every workflow on `main` is green.
+  Deploys go through the local `wrangler` login meanwhile, and the deploy jobs resume on their own
+  the moment a valid token is in place. `Sync feeds` never touched that token.
+
+The SPA polls nothing yet: `/api/create` returns a `syncing` flag the UI could use to refresh itself
+while a first sync runs, instead of the reader hitting Generate again.
 
 ## Things learned the hard way, so you do not repeat them
 
