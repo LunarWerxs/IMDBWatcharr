@@ -1,0 +1,89 @@
+{
+  "data": {
+    "list": {
+      "id": "ls006123300",
+      "name": {
+        "originalText": "WATCHLIST"
+      },
+      "lastModifiedDate": "2026-07-31T08:26:46Z",
+      "author": {
+        "userId": "ur15738437",
+        "username": {
+          "text": "IMikeDB"
+        }
+      },
+      "titleListItemSearch": {
+        "total": 3,
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "edges": [
+          {
+            "node": {
+              "absolutePosition": 1,
+              "createdDate": "2014-07-31T15:04:32.000Z"
+            },
+            "title": {
+              "id": "tt0423977",
+              "titleText": {
+                "text": "Charlie Bartlett"
+              },
+              "originalTitleText": {
+                "text": "Charlie Bartlett"
+              },
+              "titleType": {
+                "id": "movie"
+              },
+              "releaseYear": {
+                "year": 2007
+              }
+            }
+          },
+          {
+            "node": {
+              "absolutePosition": 2,
+              "createdDate": "2017-12-20T00:42:07.000Z"
+            },
+            "title": {
+              "id": "tt1236246",
+              "titleText": {
+                "text": "Runaways"
+              },
+              "originalTitleText": {
+                "text": "Runaways"
+              },
+              "titleType": {
+                "id": "tvSeries"
+              },
+              "releaseYear": {
+                "year": 2017
+              }
+            }
+          },
+          {
+            "node": {
+              "absolutePosition": 3,
+              "createdDate": "2015-01-30T17:57:44.000Z"
+            },
+            "title": {
+              "id": "tt1809398",
+              "titleText": {
+                "text": "Unbroken"
+              },
+              "originalTitleText": {
+                "text": "Unbroken"
+              },
+              "titleType": {
+                "id": "movie"
+              },
+              "releaseYear": {
+                "year": 2014
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,30 +1,21 @@
-import { launch } from "@cloudflare/playwright";
 import {
   buildFeedXml,
   buildCachedFeedXmlTemplate,
   buildPublicFeedPath,
   buildSonarrCustomListPayload,
   createStableSlug,
-  extractImdbFingerprintPayload,
   filterItemsForTarget,
   getNormalizedFromStoredFeed,
   hashText,
   injectPublicOrigin,
   normalizeImdbUrl,
   parseFeedRoute,
-  parseImdbHtml,
   summarizeItemsByTarget,
 } from "./imdb.js";
+import { buildSnapshotFingerprintPayload } from "./imdb-graphql.js";
 
 const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
-const BROWSER_ATTEMPTS = 3;
 const TVMAZE_LOOKUP_CONCURRENCY = 6;
-const DIRECT_FETCH_HEADERS = {
-  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  "accept-language": "en-US,en;q=0.9",
-  "user-agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-};
 const TVMAZE_HEADERS = {
   accept: "application/json",
   "user-agent": "imdbwatcharr/1.0 (+https://imdbwatcharr.pages.dev)",
@@ -86,8 +77,74 @@ function getLegacyRedirectPath(pathname) {
   return null;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Length-independent comparison, so a wrong secret cannot be narrowed down by
+// timing the reply.
+function secretsMatch(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    mismatch |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  }
+
+  return mismatch === 0;
+}
+
+function isAuthorizedSyncRequest(request, env) {
+  // No configured secret means no ingest, rather than an open write endpoint.
+  if (!env.INGEST_SECRET) {
+    return false;
+  }
+
+  const header = request.headers.get("authorization") ?? "";
+  const presented = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return secretsMatch(presented, env.INGEST_SECRET);
+}
+
+// The runner is trusted with the secret, not with the shape. A malformed
+// snapshot would otherwise wipe a good feed down to zero items.
+function validateSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Snapshot missing.");
+  }
+
+  if (!Array.isArray(snapshot.items) || snapshot.items.length === 0) {
+    throw new Error("Snapshot has no items.");
+  }
+
+  const seen = new Set();
+  for (const item of snapshot.items) {
+    if (!/^tt\d+$/.test(String(item?.imdbId))) {
+      throw new Error(`Snapshot item has a bad IMDb id: ${item?.imdbId}`);
+    }
+    if (seen.has(item.imdbId)) {
+      throw new Error(`Snapshot repeats ${item.imdbId}.`);
+    }
+    seen.add(item.imdbId);
+    if (typeof item.title !== "string" || !item.title) {
+      throw new Error(`Snapshot item ${item.imdbId} has no title.`);
+    }
+  }
+
+  return {
+    parserMode: snapshot.parserMode ?? "graphql",
+    sourceTitle: snapshot.sourceTitle ?? snapshot.listTitle ?? "",
+    listTitle: snapshot.listTitle ?? snapshot.sourceTitle ?? "",
+    listAuthor: snapshot.listAuthor ?? "",
+    listId: snapshot.listId ?? "",
+    lastSourceModifiedAt: snapshot.lastSourceModifiedAt ?? null,
+    totalItems: snapshot.items.length,
+    items: snapshot.items.map((item, index) => ({
+      imdbId: item.imdbId,
+      title: item.title,
+      year: Number.isFinite(item.year) ? item.year : null,
+      titleType: item.titleType ?? "unknown",
+      position: Number.isFinite(item.position) ? item.position : index + 1,
+      addedAt: item.addedAt ?? null,
+    })),
+  };
 }
 
 function isStale(feed) {
@@ -249,21 +306,6 @@ async function markFeedUnchanged(db, feed, sourceFingerprint) {
   };
 }
 
-async function fetchImdbHtmlDirect(sourceUrl) {
-  const response = await fetch(sourceUrl, {
-    headers: DIRECT_FETCH_HEADERS,
-    redirect: "follow",
-  });
-
-  // A challenge or block page is not list data. Fail here so the caller moves
-  // on to Browser Rendering instead of parsing an error page.
-  if (!response.ok) {
-    throw new Error(`IMDb direct fetch failed with status ${response.status}.`);
-  }
-
-  return response.text();
-}
-
 async function lookupTvdbIdByImdb(imdbId) {
   const response = await fetch(`https://api.tvmaze.com/lookup/shows?imdb=${encodeURIComponent(imdbId)}`, {
     headers: TVMAZE_HEADERS,
@@ -320,15 +362,14 @@ async function enrichTvdbIdsForFeed(env, feed, items) {
   return getFeedItems(env.DB, feed.id);
 }
 
-async function syncFeedFromHtml(env, feed, htmlText) {
-  const sourceFingerprint = await hashText(extractImdbFingerprintPayload(htmlText), 32);
+async function syncFeedFromSnapshot(env, feed, snapshot) {
+  const sourceFingerprint = await hashText(buildSnapshotFingerprintPayload(snapshot), 32);
 
   if (sourceFingerprint === feed.source_fingerprint && feed.radarr_cache && feed.sonarr_cache) {
     return markFeedUnchanged(env.DB, feed, sourceFingerprint);
   }
 
-  const parsed = parseImdbHtml(htmlText);
-  let currentFeed = await storeFeedSnapshot(env.DB, feed, parsed);
+  let currentFeed = await storeFeedSnapshot(env.DB, feed, snapshot);
   const storedItems = await getFeedItems(env.DB, currentFeed.id);
   const items = await enrichTvdbIdsForFeed(env, currentFeed, storedItems);
   currentFeed = await storeFeedCaches(env.DB, currentFeed, items, sourceFingerprint);
@@ -336,67 +377,53 @@ async function syncFeedFromHtml(env, feed, htmlText) {
   return currentFeed;
 }
 
-async function syncFeed(env, feed) {
-  await env.DB.prepare("UPDATE feeds SET status = 'syncing', updated_at = ? WHERE id = ?").bind(nowIso(), feed.id).run();
+// Asking the sync job to run now, rather than waiting for its next tick. This is
+// what keeps a freshly pasted list from sitting empty for a quarter of an hour.
+// Best effort on purpose: without a token configured the feed still fills on the
+// schedule, so a missing or rejected dispatch must never fail /api/create.
+async function requestSyncRun(env, sourceUrl) {
+  if (!env.GITHUB_DISPATCH_TOKEN || !env.GITHUB_REPOSITORY) {
+    return false;
+  }
 
   try {
-    const htmlText = await fetchImdbHtmlDirect(feed.source_url);
-    return await syncFeedFromHtml(env, feed, htmlText);
-  } catch {}
+    const response = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
+      method: "POST",
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`,
+        "content-type": "application/json",
+        "user-agent": "imdbwatcharr-worker",
+      },
+      body: JSON.stringify({ event_type: "sync-feeds", client_payload: { sourceUrl } }),
+    });
 
-  let lastError = null;
-  for (let attempt = 1; attempt <= BROWSER_ATTEMPTS; attempt += 1) {
-    let browser;
-    try {
-      browser = await launch(env.BROWSER);
-      const page = await browser.newPage();
-      await page.setViewportSize({ width: 1440, height: 1800 });
-
-      try {
-        await page.goto(feed.source_url, { waitUntil: "domcontentloaded", timeout: 30000 });
-      } catch {
-        // IMDb may still complete after the initial timeout, so keep inspecting the page.
-      }
-
-      await page.waitForTimeout(3000);
-      const htmlText = await page.content();
-      await browser.close();
-      return await syncFeedFromHtml(env, feed, htmlText);
-    } catch (error) {
-      lastError = error;
-      try {
-        await browser.close();
-      } catch {}
-      if (!/429|rate limit/i.test(String(error)) || attempt === BROWSER_ATTEMPTS) {
-        break;
-      }
-      await sleep(attempt * 2000);
-    }
+    return response.ok;
+  } catch {
+    return false;
   }
-
-  await markFeedFailure(env.DB, feed.id, lastError);
-  throw lastError;
 }
 
-async function ensureFeedIsFresh(env, feed) {
-  if (feed.status === "syncing") {
-    return { feed, message: "Feed is already syncing. Using the latest stored snapshot for now." };
+function describeFeedState(feed, dispatched) {
+  if (feed.status === "ready" && !isStale(feed)) {
+    return "Feed is ready.";
   }
 
-  const shouldSync = feed.status !== "ready" || isStale(feed);
-  let currentFeed = feed;
-  let message = "Feed is ready.";
-
-  if (shouldSync) {
-    try {
-      currentFeed = await syncFeed(env, feed);
-    } catch (error) {
-      message = error.message;
-      currentFeed = await getFeedByUrl(env.DB, feed.source_url);
-    }
+  if (feed.status === "ready") {
+    return "Feed is ready. A refresh is queued.";
   }
 
-  return { feed: currentFeed, message };
+  if (feed.item_count > 0) {
+    return "IMDb has not answered a refresh recently, so the feeds keep serving the last good snapshot.";
+  }
+
+  if (feed.last_error) {
+    return feed.last_error;
+  }
+
+  return dispatched
+    ? "Fetching this list from IMDb now. It should be ready in under a minute."
+    : "Queued. The sync job picks this up on its next run.";
 }
 
 export default {
@@ -413,12 +440,81 @@ export default {
       });
     }
 
+    // ── The sync job's two routes ────────────────────────────────────────────
+    // IMDb refuses every request from Cloudflare's egress, so the Worker cannot
+    // fetch its own data. A GitHub Actions run does the fetching and hands the
+    // result back through here. Both routes are shared-secret authenticated.
+
+    if (request.method === "GET" && url.pathname === "/api/sync-targets") {
+      if (!isAuthorizedSyncRequest(request, env)) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+
+      const result = await env.DB.prepare(
+        "SELECT source_url, source_kind, status, last_synced_at, source_fingerprint FROM feeds ORDER BY last_synced_at IS NULL DESC, last_synced_at ASC",
+      ).all();
+
+      return json({
+        feeds: (result.results ?? []).map((feed) => ({
+          sourceUrl: feed.source_url,
+          sourceKind: feed.source_kind,
+          status: feed.status,
+          lastSyncedAt: feed.last_synced_at,
+          fingerprint: feed.source_fingerprint,
+          stale: isStale(feed),
+        })),
+      });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/ingest") {
+      if (!isAuthorizedSyncRequest(request, env)) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+
+      try {
+        const payload = await request.json();
+
+        // A failed fetch on the runner is reported rather than dropped, so the
+        // feed shows why it is stale instead of just silently ageing.
+        if (payload?.error) {
+          const failing = await getFeedByUrl(env.DB, normalizeImdbUrl(payload.sourceUrl).canonicalUrl);
+          if (failing) {
+            await markFeedFailure(env.DB, failing.id, payload.error);
+          }
+          return json({ ok: true, recorded: "error" });
+        }
+
+        const snapshot = validateSnapshot(payload?.snapshot);
+        const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+        const existing = await getOrCreateFeed(env.DB, normalized);
+        const feed = await syncFeedFromSnapshot(env, existing, snapshot);
+
+        return json({
+          ok: true,
+          slug: feed.slug,
+          status: feed.status,
+          itemCount: feed.item_count,
+          fingerprint: feed.source_fingerprint,
+        });
+      } catch (error) {
+        return json({ error: error.message }, { status: 400 });
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/api/create") {
       try {
         const payload = await request.json();
         const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
-        const existing = await getOrCreateFeed(env.DB, normalized);
-        let { feed, message } = await ensureFeedIsFresh(env, existing);
+        let feed = await getOrCreateFeed(env.DB, normalized);
+
+        // Nothing here can fetch IMDb, so a feed that needs data asks the sync
+        // job to run and reports honestly in the meantime.
+        let dispatched = false;
+        if (feed.status !== "ready" || isStale(feed)) {
+          dispatched = await requestSyncRun(env, normalized.canonicalUrl);
+        }
+
+        const message = describeFeedState(feed, dispatched);
         const storedItems = await getFeedItems(env.DB, feed.id);
         const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
         const counts = summarizeItemsByTarget(enrichedItems);
@@ -449,6 +545,7 @@ export default {
           sonarrUnresolvedCount,
           totalCount: counts.total,
           message,
+          syncing: dispatched || feed.status === "syncing",
         });
       } catch (error) {
         return json({ error: error.message }, { status: 400 });
@@ -465,11 +562,11 @@ export default {
       const { feedTarget, ...normalizedRoute } = parsedRoute;
       let feed = await getOrCreateFeed(env.DB, normalizedRoute);
 
-      if (feed.status !== "ready") {
-        const result = await ensureFeedIsFresh(env, feed);
-        feed = result.feed;
-      } else if (isStale(feed) && feed.status !== "syncing") {
-        ctx.waitUntil(syncFeed(env, feed).catch(() => {}));
+      // Radarr and Sonarr poll these routes, so a stale feed is the natural place
+      // to nudge the sync job. It is fire-and-forget: the response is always
+      // served from what is already stored.
+      if (feed.status !== "ready" || isStale(feed)) {
+        ctx.waitUntil(requestSyncRun(env, feed.source_url));
       }
 
       const items = await getFeedItems(env.DB, feed.id);

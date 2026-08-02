@@ -1,0 +1,44 @@
+name: Sync feeds
+
+# IMDb blocks Cloudflare's egress, so the Worker cannot fetch its own data.
+# This runner does the fetching and pushes snapshots to the Worker's /api/ingest.
+on:
+  schedule:
+    # Every 15 minutes. Free on a public repo, and well inside the six-hour
+    # freshness the feeds already promised. GitHub delays scheduled runs under
+    # load, so treat the cadence as a floor rather than a clock.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      sourceUrl:
+        description: "Sync only this IMDb URL (leave blank for all feeds)"
+        required: false
+  repository_dispatch:
+    types: [sync-feeds]
+
+concurrency:
+  # Snapshots are last-writer-wins per feed, so overlapping runs would just
+  # duplicate work. Never cancel a run in flight: it may be mid-ingest.
+  group: sync-feeds
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sync feeds from IMDb
+        env:
+          WORKER_ORIGIN: ${{ vars.WORKER_ORIGIN || 'https://imdbwatcharr.blogitech3243.workers.dev' }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          ONLY_SOURCE_URL: ${{ github.event.inputs.sourceUrl || github.event.client_payload.sourceUrl }}
+        run: node scripts/sync-feeds.mjs

@@ -1,26 +1,17 @@
+// The two shapes IMDb actually issues: an obfuscated profile id, or a legacy
+// user id. Accepting anything looser let `/p/profile-id` and `/p/<slug>.xml`
+// create feed rows for lists that cannot exist, which then failed on every
+// single sync run forever.
+const WATCHLIST_KEY = String.raw`(?:p\.[a-z0-9]+|ur\d+)`;
 const LIST_URL_RE = /^https?:\/\/(?:www\.)?imdb\.com\/list\/(ls\d+)(?:\/)?(?:[?#].*)?$/i;
-const WATCHLIST_URL_RE = /^https?:\/\/(?:www\.)?imdb\.com\/user\/([a-z0-9._-]+)\/watchlist(?:\/)?(?:[?#].*)?$/i;
-const TITLE_URL_RE = /\/title\/(tt\d+)/i;
-const NEXT_DATA_RE = /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i;
-const TITLE_RE = /<title>([^<]+)<\/title>/i;
-const H1_RE = /<h1[^>]*>([\s\S]*?)<\/h1>/i;
+const WATCHLIST_URL_RE = new RegExp(
+  String.raw`^https?://(?:www\.)?imdb\.com/user/(${WATCHLIST_KEY})/watchlist(?:/)?(?:[?#].*)?$`,
+  "i",
+);
 
 export const MOVIE_TITLE_TYPES = new Set(["movie", "tvMovie"]);
 export const SERIES_TITLE_TYPES = new Set(["tvSeries", "tvMiniSeries"]);
 const ORIGIN_PLACEHOLDER = "__IMDBWATCHARR_PUBLIC_ORIGIN__";
-
-function htmlDecode(value) {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function stripTags(value) {
-  return htmlDecode(value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
-}
 
 export function normalizeImdbUrl(input) {
   const url = new URL(String(input).trim());
@@ -76,18 +67,20 @@ export function getNormalizedFromStoredFeed(feed) {
 }
 
 export function parseFeedRoute(pathname) {
-  const targetedRouteMatch = pathname.match(/^\/(radarr|sonarr)\/(p|l)\/([a-z0-9._-]+)\/?$/i);
-  if (targetedRouteMatch) {
-    const [, feedTarget, kind, sourceKey] = targetedRouteMatch;
-    if (kind.toLowerCase() === "p") {
-      return {
-        feedTarget: feedTarget.toLowerCase(),
-        canonicalUrl: `https://www.imdb.com/user/${sourceKey}/watchlist/`,
-        sourceKind: "watchlist",
-        sourceKey,
-      };
-    }
+  const targetedWatchlistMatch = pathname.match(new RegExp(String.raw`^/(radarr|sonarr)/p/(${WATCHLIST_KEY})/?$`, "i"));
+  if (targetedWatchlistMatch) {
+    const [, feedTarget, sourceKey] = targetedWatchlistMatch;
+    return {
+      feedTarget: feedTarget.toLowerCase(),
+      canonicalUrl: `https://www.imdb.com/user/${sourceKey}/watchlist/`,
+      sourceKind: "watchlist",
+      sourceKey,
+    };
+  }
 
+  const targetedListMatch = pathname.match(/^\/(radarr|sonarr)\/l\/(ls\d+)\/?$/i);
+  if (targetedListMatch) {
+    const [, feedTarget, sourceKey] = targetedListMatch;
     return {
       feedTarget: feedTarget.toLowerCase(),
       canonicalUrl: `https://www.imdb.com/list/${sourceKey}/`,
@@ -96,7 +89,7 @@ export function parseFeedRoute(pathname) {
     };
   }
 
-  const watchlistMatch = pathname.match(/^\/p\/([a-z0-9._-]+)\/?$/i);
+  const watchlistMatch = pathname.match(new RegExp(String.raw`^/p/(${WATCHLIST_KEY})/?$`, "i"));
   if (watchlistMatch) {
     return {
       feedTarget: "radarr",
@@ -116,7 +109,7 @@ export function parseFeedRoute(pathname) {
     };
   }
 
-  const targetedGenericMatch = pathname.match(/^\/(radarr|sonarr)\/f\/((?:ls\d+)|(?:p\.[a-z0-9._-]+)|(?:ur[a-z0-9._-]+))\/?$/i);
+  const targetedGenericMatch = pathname.match(new RegExp(String.raw`^/(radarr|sonarr)/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i"));
   if (targetedGenericMatch) {
     const [, feedTarget, value] = targetedGenericMatch;
     if (/^ls\d+$/i.test(value)) {
@@ -136,7 +129,7 @@ export function parseFeedRoute(pathname) {
     };
   }
 
-  const genericMatch = pathname.match(/^\/f\/((?:ls\d+)|(?:p\.[a-z0-9._-]+)|(?:ur[a-z0-9._-]+))\/?$/i);
+  const genericMatch = pathname.match(new RegExp(String.raw`^/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i"));
   if (genericMatch) {
     const value = genericMatch[1];
     if (/^ls\d+$/i.test(value)) {
@@ -157,166 +150,6 @@ export function parseFeedRoute(pathname) {
   }
 
   return null;
-}
-
-function parseJsonLd(html) {
-  const matches = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)];
-  for (const [, rawJson] of matches) {
-    let parsed;
-    try {
-      parsed = JSON.parse(rawJson);
-    } catch {
-      continue;
-    }
-
-    const candidates = Array.isArray(parsed) ? parsed : [parsed];
-    const itemList = candidates.find((entry) => entry?.["@type"] === "ItemList" && Array.isArray(entry?.itemListElement));
-    if (!itemList) {
-      continue;
-    }
-
-    return itemList.itemListElement
-      .map((entry, index) => {
-        const item = entry?.item ?? entry;
-        const imdbId = item?.url?.match(TITLE_URL_RE)?.[1];
-        if (!imdbId) {
-          return null;
-        }
-
-        const typeName = String(item?.["@type"] ?? "Movie");
-        const titleType = typeName === "TVMovie" ? "tvMovie" : typeName.startsWith("TV") ? "tvSeries" : "movie";
-        const year = item?.datePublished ? Number(String(item.datePublished).slice(0, 4)) : null;
-
-        return {
-          imdbId,
-          title: item?.name ?? item?.alternateName ?? imdbId,
-          year: Number.isFinite(year) ? year : null,
-          titleType,
-          position: Number(entry?.position ?? index + 1),
-          addedAt: null,
-        };
-      })
-      .filter(Boolean);
-  }
-
-  return null;
-}
-
-export function extractImdbFingerprintPayload(html) {
-  const nextDataMatch = html.match(NEXT_DATA_RE);
-
-  if (nextDataMatch) {
-    try {
-      const nextData = JSON.parse(nextDataMatch[1]);
-      const pageProps = nextData?.props?.pageProps ?? {};
-      const mainColumnData = pageProps?.mainColumnData ?? {};
-      const listContainer = mainColumnData?.list?.titleListItemSearch ?? mainColumnData?.predefinedList?.titleListItemSearch;
-
-      if (Array.isArray(listContainer?.edges)) {
-        const above = pageProps?.aboveTheFoldData ?? {};
-        const items = listContainer.edges.map((edge, index) => {
-          const listItem = edge?.listItem ?? {};
-          return {
-            imdbId: listItem?.id ?? null,
-            title: listItem?.titleText?.text ?? listItem?.originalTitleText?.text ?? null,
-            year: listItem?.releaseYear?.year ?? listItem?.releaseDate?.year ?? null,
-            titleType: listItem?.titleType?.id ?? null,
-            position: Number(edge?.node?.absolutePosition ?? index + 1),
-            addedAt: edge?.node?.createdDate ?? null,
-          };
-        });
-
-        return JSON.stringify({
-          parserMode: "next-data",
-          listId: above?.listId ?? null,
-          lastModifiedDate: above?.lastModifiedDate ?? null,
-          total: Number(listContainer?.total ?? items.length),
-          items,
-        });
-      }
-    } catch {}
-  }
-
-  const ldItems = parseJsonLd(html);
-  if (ldItems?.length) {
-    return JSON.stringify({
-      parserMode: "json-ld",
-      total: ldItems.length,
-      items: ldItems,
-    });
-  }
-
-  return html;
-}
-
-export function parseImdbHtml(html) {
-  const nextDataMatch = html.match(NEXT_DATA_RE);
-  const title = stripTags(html.match(TITLE_RE)?.[1] ?? "");
-  const h1 = stripTags(html.match(H1_RE)?.[1] ?? "");
-
-  if (nextDataMatch) {
-    const nextData = JSON.parse(nextDataMatch[1]);
-    const pageProps = nextData?.props?.pageProps ?? {};
-    const mainColumnData = pageProps?.mainColumnData ?? {};
-    const listContainer = mainColumnData?.list?.titleListItemSearch ?? mainColumnData?.predefinedList?.titleListItemSearch;
-
-    if (Array.isArray(listContainer?.edges)) {
-      const above = pageProps?.aboveTheFoldData ?? {};
-      const items = listContainer.edges
-        .map((edge, index) => {
-          const listItem = edge?.listItem ?? {};
-          const imdbId = listItem?.id ?? listItem?.url?.match(TITLE_URL_RE)?.[1];
-          if (!imdbId || !/^tt\d+$/.test(imdbId)) {
-            return null;
-          }
-
-          const year = listItem?.releaseYear?.year ?? listItem?.releaseDate?.year ?? null;
-
-          return {
-            imdbId,
-            title: listItem?.titleText?.text ?? listItem?.originalTitleText?.text ?? imdbId,
-            year: Number.isFinite(year) ? year : null,
-            titleType: listItem?.titleType?.id ?? "unknown",
-            position: Number(edge?.node?.absolutePosition ?? index + 1),
-            addedAt: edge?.node?.createdDate ?? null,
-          };
-        })
-        .filter(Boolean);
-
-      return {
-        parserMode: "next-data",
-        sourceTitle: h1 || title,
-        listTitle: h1 || title,
-        listAuthor: above?.authorName ?? "",
-        listId: above?.listId ?? "",
-        lastSourceModifiedAt: above?.lastModifiedDate ?? null,
-        hasNextPage: Boolean(listContainer?.pageInfo?.hasNextPage),
-        totalItems: Number(listContainer?.total ?? items.length),
-        items,
-      };
-    }
-  }
-
-  const ldItems = parseJsonLd(html);
-  if (ldItems?.length) {
-    return {
-      parserMode: "json-ld",
-      sourceTitle: h1 || title,
-      listTitle: h1 || title,
-      listAuthor: "",
-      listId: "",
-      lastSourceModifiedAt: null,
-      hasNextPage: false,
-      totalItems: ldItems.length,
-      items: ldItems,
-    };
-  }
-
-  if (/403 forbidden|access denied|verify that you're not a robot|captcha/i.test(html)) {
-    throw new Error("IMDb returned an access challenge instead of list data.");
-  }
-
-  throw new Error("Could not extract IMDb data from the fetched page.");
 }
 
 export function filterItemsForTarget(items, feedTarget = "radarr") {

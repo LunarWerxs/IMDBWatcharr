@@ -26,15 +26,29 @@ Cloudflare Pages (imdbwatcharr.pages.dev)
                                         │
                                         ▼
 Cloudflare Worker (imdbwatcharr)        API + feed generation
-├── D1                    feed metadata, item snapshots, resolved TVDB ids,
-│                         and the cached Radarr XML / Sonarr JSON payloads
-└── Browser Rendering     fallback when a direct IMDb fetch is challenged
+└── D1                    feed metadata, item snapshots, resolved TVDB ids,
+                          and the cached Radarr XML / Sonarr JSON payloads
+                                        ▲
+                                        │ POST /api/ingest
+GitHub Actions (sync-feeds.yml)         reads IMDb, pushes snapshots
 ```
 
-- The Worker tries a plain IMDb fetch first and only falls back to Browser Rendering when that fails.
-- It fingerprints the stable IMDb payload block rather than the whole page, so an unchanged list re-serves the cached body with an `ETag` instead of being rebuilt.
-- If both fetch paths fail, the routes keep serving the last good snapshot.
-- TVDB ids come from TVMaze. Series with no mapping are left out of the Sonarr list, and resolved ids are carried across syncs rather than re-looked-up.
+**Why the fetching happens on a GitHub runner and not in the Worker.** IMDb refuses
+Cloudflare's egress outright: `api.graphql.imdb.com` and `caching.graphql.imdb.com` both answer
+`429 Too many network requests` to a Worker (0/20 attempts, on every header variant), and
+`www.imdb.com/list/…` answers a `202` bot challenge. `imdb.com/robots.txt` returns `200` from the
+same Worker, so it is not connectivity; it is a rate-limit rule against Cloudflare's shared Worker
+egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and the Worker stores.
+
+- Data comes from [IMDb's own GraphQL API](https://api.graphql.imdb.com/): `list(id:"ls…")` for
+  lists, `predefinedList(classType: WATCH_LIST, userId:"ur…")` for watchlists. A `p.…` profile id is
+  translated to its `ur…` id through `userProfile(input:{profileId})` first.
+- The Worker fingerprints the snapshot, so an unchanged list re-serves the cached body with an
+  `ETag` instead of being rebuilt.
+- If a sync fails, the routes keep serving the last good snapshot and the failure is recorded on the
+  feed rather than left to age silently.
+- TVDB ids come from TVMaze, looked up by the Worker (TVMaze is reachable from Cloudflare). Series
+  with no mapping are left out of the Sonarr list, and resolved ids are carried across syncs.
 
 ## Web app
 
@@ -63,6 +77,31 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
 | `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
 | `GET /api/feeds/:slug`                        | Stored feed metadata                                                 |
+| `GET /api/sync-targets`                       | Feeds the sync job should fetch (shared-secret auth)                 |
+| `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
+
+## The sync job
+
+[sync-feeds.yml](.github/workflows/sync-feeds.yml) runs [scripts/sync-feeds.mjs](scripts/sync-feeds.mjs)
+every 15 minutes, on manual dispatch, and on a `sync-feeds` repository dispatch. It reads the feed
+list from the Worker, fetches each one from IMDb, and posts the snapshots back.
+
+Both halves share `INGEST_SECRET` (a Worker secret and a repo secret); `WORKER_ORIGIN` is a repo
+variable. Set the Worker's half with:
+
+```bash
+npx wrangler secret put INGEST_SECRET
+```
+
+Optionally give the Worker `GITHUB_DISPATCH_TOKEN` (a fine-grained PAT that may dispatch this repo)
+and `GITHUB_REPOSITORY`. With them, pasting a new list asks the job to run immediately instead of
+waiting for the next tick. Without them everything still works, just on the schedule.
+
+Run a sync by hand from any machine that is not behind Cloudflare:
+
+```bash
+WORKER_ORIGIN=https://imdbwatcharr.blogitech3243.workers.dev INGEST_SECRET=... node scripts/sync-feeds.mjs
+```
 
 ## Local development
 
@@ -81,9 +120,10 @@ npm run db:migrate:remote
 
 ## Deployment
 
-> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02). Both deploy
-> workflows fail in ~20s with `Invalid access token [code: 9109]` while `CI` passes. A red deploy
-> there is the token, not your commit. Deploy manually until it is rotated.
+> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02). The two deploy
+> workflows fail in ~20s with `Invalid access token [code: 9109]` while `CI` and `Sync feeds` pass.
+> A red deploy there is the token, not your commit. `Sync feeds` does not use that token, so the
+> feeds keep updating regardless. Deploy manually until it is rotated.
 
 Cloudflare account: `eed9c6a3d77c18da26148d25e20ee951` (Blogitech@gmail.com).
 
@@ -120,8 +160,11 @@ Required repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Known limits
 
-⚠️ **The feeds are currently frozen on a 2026-04-18 snapshot.** IMDb challenges the direct fetch and
-Browser Rendering answers `429 Rate limit exceeded`, so every refresh has failed since April while
-the routes kept serving the last good snapshot. The UI says so explicitly rather than pretending the
-sync succeeded, but the data is stale. The fix, with a proven browser-free replacement, is written up
-in [NEXT.md](NEXT.md).
+- **A brand-new feed is not instant.** The Worker cannot fetch IMDb itself, so pasting a URL queues
+  the list and the routes answer `503` until the sync job fills it. With `GITHUB_DISPATCH_TOKEN`
+  configured that is under a minute; without it, up to the next scheduled run.
+- **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 15 minutes is a floor
+  rather than a clock.
+- **IMDb's API carries a usage disclaimer** on every response: public, commercial, and non-private
+  use of the data is not allowed. This is a personal, non-commercial tool feeding one household's
+  Radarr and Sonarr, which is the lane that language leaves open.

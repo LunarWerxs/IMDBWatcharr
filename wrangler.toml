@@ -5,8 +5,6 @@ compatibility_flags = ["nodejs_compat"]
 account_id = "eed9c6a3d77c18da26148d25e20ee951"
 workers_dev = true
 
-browser = { binding = "BROWSER" }
-
 [[d1_databases]]
 binding = "DB"
 database_name = "imdbwatcharr-db"
