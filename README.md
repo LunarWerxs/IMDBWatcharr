@@ -2,7 +2,11 @@
 
 Turn a public IMDb watchlist or list into a **Radarr RSS feed** and a **Sonarr custom list**.
 
-Live at [imdbwatcharr.pages.dev](https://imdbwatcharr.pages.dev).
+A [LunarWerx](https://lunarwerx.com) product, live at
+[watcharr.lunarwerx.com](https://watcharr.lunarwerx.com).
+
+Anyone can build a feed without an account: both URLs work immediately and keep working. Signing in
+with Connections is what makes a list refresh on its own, about every fifteen minutes.
 
 1. Open the site
 2. Paste a public IMDb watchlist or list URL
@@ -19,19 +23,24 @@ The URLs are derived from the IMDb identifier, so the same list always maps to t
 ## Architecture
 
 ```
-Cloudflare Pages (imdbwatcharr.pages.dev)
-├── pages-static/          built React SPA, served from the edge
-└── functions/[[path]].js  proxies only /api, /radarr, /sonarr, /p, /l, /f
-                           to the Worker; everything else is a static asset
-                                        │
-                                        ▼
-Cloudflare Worker (imdbwatcharr)        API + feed generation
-└── D1                    feed metadata, item snapshots, resolved TVDB ids,
-                          and the cached Radarr XML / Sonarr JSON payloads
+Cloudflare Worker (imdbwatcharr)   watcharr.lunarwerx.com
+├── web/dist                  built React SPA, served through the ASSETS binding
+├── D1                        feed metadata, item snapshots, resolved TVDB ids,
+│                             feed ownership, and the cached Radarr XML / Sonarr JSON
+└── Sign in with Connections  AEGIS OAuth; a signed session cookie, no user data stored
                                         ▲
                                         │ POST /api/ingest
 GitHub Actions (sync-feeds.yml)         reads IMDb, pushes snapshots
 ```
+
+One Worker serves both the site and the API: it runs first on every request and hands anything it
+does not answer to the static assets, so there is no proxy in front of the API and a deploy is one
+command.
+
+**Accounts decide what refreshes.** A feed anyone creates works forever off the snapshot it was
+built from. Claiming it by signing in is what puts it on the schedule, and ownership is a join
+table rather than a column, so two people can keep the same public list alive without taking it
+from each other.
 
 **Why the fetching happens on a GitHub runner and not in the Worker.** IMDb refuses
 Cloudflare's egress outright: `api.graphql.imdb.com` and `caching.graphql.imdb.com` both answer
@@ -52,12 +61,14 @@ egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and
 
 ## Web app
 
-`web/` is a Vite + React 19 + TypeScript SPA styled with Tailwind CSS v4 and [shadcn/ui](https://ui.shadcn.com) (`radix-nova`, neutral base, Geist). It builds into `pages-proxy/pages-static/`.
+`web/` is a Vite + React 19 + TypeScript SPA styled with Tailwind CSS v4 and [shadcn/ui](https://ui.shadcn.com),
+themed to the LunarWerx house palette: slate-950 ground, white type, red accent, Orbitron for display
+and Inter for everything else. It builds into `web/dist/`, which the Worker serves as its assets.
 
 ```bash
 npm install
 npm run web:dev     # http://localhost:5173, API calls proxied to the live Worker
-npm run web:build   # builds into pages-proxy/pages-static/
+npm run web:build   # builds into web/dist/
 ```
 
 Point the dev proxy somewhere else with `VITE_API_ORIGIN=http://localhost:8787 npm run web:dev`.
@@ -79,6 +90,9 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /api/feeds/:slug`                        | Stored feed metadata                                                 |
 | `GET /api/sync-targets`                       | Feeds the sync job should fetch (shared-secret auth)                 |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
+| `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
+| `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed                         |
+| `POST /api/unfollow`                          | Stop refreshing one of your feeds                                    |
 
 ## The sync job
 
@@ -93,6 +107,16 @@ variable. Set the Worker's half with:
 npx wrangler secret put INGEST_SECRET
 ```
 
+### Sign in with Connections
+
+The Worker is a confidential OAuth client against AEGIS (`accounts.connections.icu`), so the client
+secret never reaches the browser and the SPA only ever sees a session cookie. It asks for `openid`
+and `profile` only: the opaque subject is all it stores, hung on `feed_owners`.
+
+`CONNECTIONS_CLIENT_ID` and `CONNECTIONS_ISSUER` live in `wrangler.toml`; `CONNECTIONS_CLIENT_SECRET`
+and `SESSION_SECRET` are Worker secrets. With any of them missing the site simply hides the sign-in
+button and behaves as it did before accounts existed.
+
 Optionally give the Worker `GITHUB_DISPATCH_TOKEN` (a fine-grained PAT that may dispatch this repo)
 and `GITHUB_REPOSITORY`. With them, pasting a new list asks the job to run immediately instead of
 waiting for the next tick. Without them everything still works, just on the schedule.
@@ -100,7 +124,7 @@ waiting for the next tick. Without them everything still works, just on the sche
 Run a sync by hand from any machine that is not behind Cloudflare:
 
 ```bash
-WORKER_ORIGIN=https://imdbwatcharr.blogitech3243.workers.dev INGEST_SECRET=... node scripts/sync-feeds.mjs
+WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... node scripts/sync-feeds.mjs
 ```
 
 ## Local development
@@ -120,43 +144,26 @@ npm run db:migrate:remote
 
 ## Deployment
 
-> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02). The two deploy
-> workflows fail in ~20s with `Invalid access token [code: 9109]` while `CI` and `Sync feeds` pass.
-> A red deploy there is the token, not your commit. `Sync feeds` does not use that token, so the
-> feeds keep updating regardless. Deploy manually until it is rotated.
-
-Cloudflare account: `eed9c6a3d77c18da26148d25e20ee951` (Blogitech@gmail.com).
-
-**Worker, deployed through the Connections MCP vault.** This is the preferred path: the credential is
-injected server-side, so it does not depend on whatever `wrangler login` session the machine happens
-to hold, and every D1/Browser binding is inherited from the live Worker rather than re-declared.
+Cloudflare account: `36d7c731fd0352ef08ea7e46d2d20793` (Lunawerx@gmail.com), the same account that
+holds the `lunarwerx.com` zone. Site and API ship together:
 
 ```bash
-npx wrangler deploy --dry-run --outdir .tmp-bundle
+npm run deploy
 ```
 
-then `connections_execute { local: true, tool_name: "cloudflare_worker_deploy", params: { accountId: "eed9c6a3d77c18da26148d25e20ee951", scriptName: "imdbwatcharr", filePath: "<abs>/.tmp-bundle/index.js", mainModule: "index.js", instance: "default", dryRun: true } }`, check the inherited bindings, then re-run with `dryRun: false`.
+That builds the SPA into `web/dist/` and runs `wrangler deploy`, which uploads the assets, the
+Worker, and the `watcharr.lunarwerx.com` custom domain declared in [wrangler.toml](wrangler.toml).
 
-**Pages, also through the vault.** There is no dedicated Pages tool, but `shell`'s `secrets` param
-leases the Cloudflare credential into the child process env value-blind, so wrangler runs
-authenticated without any `wrangler login` on the machine. Build first, then:
+> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02) and it belonged
+> to the old account anyway. [deploy-worker.yml](.github/workflows/deploy-worker.yml) verifies the
+> token, skips with a warning annotation, and stays green; it starts deploying again once a token
+> for the Lunawerx account is in place. Until then deploy with the command above.
 
-`connections_execute { local: true, tool_name: "shell", params: { command: "npx wrangler pages deploy pages-static --project-name imdbwatcharr --branch main --cwd pages-proxy", cwd: "<repo>", shell: "bash", secrets: [{ service: "cloudflare", as: "CLOUDFLARE_API_TOKEN" }], env: { CLOUDFLARE_ACCOUNT_ID: "eed9c6a3d77c18da26148d25e20ee951" } } }`
-
-Note `shell`'s `instance` param is AWS-only and will not help here; `secrets` is the one that leases
-a Cloudflare token. The lease is short (about 25 minutes), so re-run rather than reconnect if a long
-upload outlives it.
-
-Deploy **Pages before the Worker**: the SPA tolerates an older API shape, but the Worker's `/` is a
-JSON API index, so a Worker-first order briefly serves JSON at `/`.
-
-Once the token is rotated, pushing to `main` does all of this by itself:
+Pushing to `main` runs:
 
 - [ci.yml](.github/workflows/ci.yml) parser checks, web lint, web build
-- [deploy-worker.yml](.github/workflows/deploy-worker.yml) deploys the Worker
-- [deploy-pages-proxy.yml](.github/workflows/deploy-pages-proxy.yml) builds the SPA and deploys Pages
-
-Required repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+- [deploy-worker.yml](.github/workflows/deploy-worker.yml) deploys the Worker when a token works
+- [sync-feeds.yml](.github/workflows/sync-feeds.yml) keeps the claimed feeds current
 
 ## Known limits
 

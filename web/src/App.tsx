@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   ArrowRightIcon,
   ClapperboardIcon,
@@ -7,6 +7,7 @@ import {
   RssIcon,
   TriangleAlertIcon,
   TvIcon,
+  UserIcon,
 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -27,7 +28,13 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { CopyField } from '@/components/copy-field'
 import { GithubLink } from '@/components/github-link'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { createFeed, isSupportedImdbUrl, type CreateFeedResponse } from '@/lib/api'
+import {
+  createFeed,
+  isSupportedImdbUrl,
+  readSession,
+  type CreateFeedResponse,
+  type Session,
+} from '@/lib/api'
 
 const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 
@@ -55,11 +62,54 @@ function StatTile({ label, value }: { label: string; value: number }) {
   )
 }
 
+/**
+ * Signing in is what turns a one-off fetch into a feed that keeps itself
+ * current, so the control says that rather than just "Sign in".
+ */
+function AccountControl({ session }: { session: Session | null }) {
+  if (!session?.authAvailable) {
+    return null
+  }
+
+  if (session.signedIn) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground hidden text-xs sm:inline">
+          {session.name ?? 'Signed in'}
+        </span>
+        <Button asChild variant="ghost" size="sm">
+          <a href="/auth/logout">Sign out</a>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <Button asChild variant="outline" size="sm">
+      <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
+        <UserIcon className="size-4" />
+        Sign in
+      </a>
+    </Button>
+  )
+}
+
 export default function App() {
   const [sourceUrl, setSourceUrl] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateFeedResponse | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    readSession().then((value) => {
+      if (!cancelled) setSession(value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
@@ -89,17 +139,23 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
-        <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-5">
+        <header className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-5">
           <div className="flex items-center gap-2.5">
             <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
               <ClapperboardIcon className="size-4" />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold">IMDb Watcharr</div>
-              <div className="text-muted-foreground text-xs">IMDb to Radarr and Sonarr</div>
+              <div className="font-display text-sm font-semibold">IMDb Watcharr</div>
+              <a
+                href="https://lunarwerx.com"
+                className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+              >
+                a LunarWerx product
+              </a>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <AccountControl session={session} />
             <GithubLink />
             <ThemeToggle />
           </div>
@@ -120,7 +176,8 @@ export default function App() {
             <CardHeader>
               <CardTitle>Create your feeds</CardTitle>
               <CardDescription>
-                Nothing to sign up for. The URLs are derived from the IMDb identifier.
+                The URLs are derived from the IMDb identifier, so they never change. Sign in to
+                keep the list refreshing on its own.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -218,6 +275,23 @@ export default function App() {
                       ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
                       : result.message}
                   </CardDescription>
+                  {session?.authAvailable && !result.autoRefreshing ? (
+                    <Alert className="mt-3">
+                      <UserIcon className="size-4" />
+                      <AlertTitle>This feed will not update on its own</AlertTitle>
+                      <AlertDescription>
+                        <span>
+                          Both URLs keep working, but the list is only re-read when you ask for
+                          it. Sign in and these feeds refresh about every fifteen minutes.
+                        </span>
+                        <Button asChild size="sm" className="mt-2">
+                          <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
+                            Sign in with Connections
+                          </a>
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -297,8 +371,16 @@ export default function App() {
         <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
           <Separator className="mb-6" />
           <p>
-            Feeds refresh about every fifteen minutes and fall back to the last good snapshot when
-            a refresh does not succeed. A brand-new list takes a moment to appear the first time.
+            Signed in, feeds refresh about every fifteen minutes and fall back to the last good
+            snapshot when a refresh does not succeed. Signed out, a list is fetched when you ask
+            for it and then left alone. A brand-new list takes a moment to appear the first time.
+          </p>
+          <p className="mt-3">
+            <a href="https://lunarwerx.com" className="hover:text-foreground transition-colors">
+              LunarWerx
+            </a>
+            <span aria-hidden="true"> · </span>
+            an independent software studio
           </p>
         </footer>
       </div>

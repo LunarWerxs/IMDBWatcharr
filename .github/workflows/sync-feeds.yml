@@ -38,7 +38,7 @@ jobs:
 
       - name: Sync feeds from IMDb
         env:
-          WORKER_ORIGIN: ${{ vars.WORKER_ORIGIN || 'https://imdbwatcharr.blogitech3243.workers.dev' }}
+          WORKER_ORIGIN: ${{ vars.WORKER_ORIGIN || 'https://watcharr.lunarwerx.com' }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           ONLY_SOURCE_URL: ${{ github.event.inputs.sourceUrl || github.event.client_payload.sourceUrl }}
         run: node scripts/sync-feeds.mjs

@@ -2,11 +2,35 @@ name = "imdbwatcharr"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
 compatibility_flags = ["nodejs_compat"]
-account_id = "eed9c6a3d77c18da26148d25e20ee951"
+account_id = "36d7c731fd0352ef08ea7e46d2d20793"
 workers_dev = true
+
+# The public address. Declared here so a deploy provisions the DNS record and
+# the certificate, rather than leaving them to be clicked in by hand.
+[[routes]]
+pattern = "watcharr.lunarwerx.com"
+custom_domain = true
+
+# The SPA is served by this Worker rather than a separate Pages project, so a
+# deploy is one command and there is no proxy in front of the API. The Worker
+# runs first on every request and hands anything it does not answer to ASSETS,
+# which is what makes /radarr/... a feed and /about a page from the same router.
+[assets]
+directory = "./web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
 
 [[d1_databases]]
 binding = "DB"
 database_name = "imdbwatcharr-db"
-database_id = "181ed2cd-f1f6-4ebb-8c51-9f1332d9d302"
+database_id = "667fab12-a1db-4b02-86a4-33f67d5b9530"
 migrations_dir = "migrations"
+
+[vars]
+PUBLIC_ORIGIN = "https://watcharr.lunarwerx.com"
+CONNECTIONS_ISSUER = "https://accounts.connections.icu"
+# Public by definition: it travels in every authorize URL. The client SECRET is
+# a Worker secret and never appears here.
+CONNECTIONS_CLIENT_ID = "eeec5544e6fc778cb8dea9ee3b8b98fe"
+GITHUB_REPOSITORY = "LunarWerxs/IMDBWatcharr"

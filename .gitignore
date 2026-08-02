@@ -6,5 +6,5 @@ dist/
 worker-configuration.d.ts
 .saydeploy/workspace.json
 
-# Built by `npm run web:build`, uploaded by the Pages deploy workflow.
-pages-proxy/pages-static/
+# Built by `npm run web:build`, uploaded by the Worker deploy as its assets.
+web/dist/

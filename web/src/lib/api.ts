@@ -13,11 +13,20 @@ export type CreateFeedResponse = {
   sonarrUnresolvedCount: number
   totalCount: number
   message: string
+  syncing: boolean
+  signedIn: boolean
+  autoRefreshing: boolean
+}
+
+export type Session = {
+  signedIn: boolean
+  name: string | null
+  authAvailable: boolean
 }
 
 const IMDB_LIST_RE = /^https?:\/\/(?:www\.)?imdb\.com\/list\/ls\d+\/?(?:[?#].*)?$/i
 const IMDB_WATCHLIST_RE =
-  /^https?:\/\/(?:www\.)?imdb\.com\/user\/[a-z0-9._-]+\/watchlist\/?(?:[?#].*)?$/i
+  /^https?:\/\/(?:www\.)?imdb\.com\/user\/(?:p\.[a-z0-9]+|ur\d+)\/watchlist\/?(?:[?#].*)?$/i
 
 /** Mirrors the Worker's `normalizeImdbUrl` so the field can validate before a round trip. */
 export function isSupportedImdbUrl(value: string): boolean {
@@ -41,4 +50,14 @@ export async function createFeed(sourceUrl: string): Promise<CreateFeedResponse>
   }
 
   return payload as CreateFeedResponse
+}
+
+export async function readSession(): Promise<Session> {
+  try {
+    const response = await fetch('/api/me', { credentials: 'same-origin' })
+    if (!response.ok) throw new Error('unavailable')
+    return (await response.json()) as Session
+  } catch {
+    return { signedIn: false, name: null, authAvailable: false }
+  }
 }

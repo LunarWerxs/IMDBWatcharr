@@ -13,8 +13,14 @@ import {
   summarizeItemsByTarget,
 } from "./imdb.js";
 import { buildSnapshotFingerprintPayload } from "./imdb-graphql.js";
+import { completeLogin, getSession, isAuthConfigured, logout, startLogin } from "./auth.js";
 
 const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
+
+// How often a signed-out visitor may ask for the same list to be re-fetched.
+// Their feed does not update on its own, so the button has to do something, but
+// not once per click.
+const MANUAL_REFRESH_MIN_MS = 1000 * 60 * 5;
 const TVMAZE_LOOKUP_CONCURRENCY = 6;
 const TVMAZE_HEADERS = {
   accept: "application/json",
@@ -404,26 +410,65 @@ async function requestSyncRun(env, sourceUrl) {
   }
 }
 
-function describeFeedState(feed, dispatched) {
-  if (feed.status === "ready" && !isStale(feed)) {
-    return "Feed is ready.";
+function describeFeedState(feed, dispatched, owned) {
+  if (feed.status !== "ready" && feed.item_count > 0) {
+    return "The last refresh did not succeed, so the feeds keep serving the last good snapshot.";
   }
 
-  if (feed.status === "ready") {
-    return "Feed is ready. A refresh is queued.";
-  }
-
-  if (feed.item_count > 0) {
-    return "IMDb has not answered a refresh recently, so the feeds keep serving the last good snapshot.";
-  }
-
-  if (feed.last_error) {
+  if (feed.status !== "ready" && feed.last_error) {
     return feed.last_error;
   }
 
+  if (feed.status !== "ready") {
+    return dispatched
+      ? "Fetching this list from IMDb now. Give it a few seconds, then reload."
+      : "Queued. This fills in on the next sync run.";
+  }
+
+  if (owned) {
+    return "Feed is ready and refreshing automatically.";
+  }
+
   return dispatched
-    ? "Fetching this list from IMDb now. It should be ready in under a minute."
-    : "Queued. The sync job picks this up on its next run.";
+    ? "Feed is ready. Refreshing it now."
+    : "Feed is ready. Sign in to keep it refreshing automatically.";
+}
+
+async function isFeedOwnedBy(db, feedId, sub) {
+  if (!sub) {
+    return false;
+  }
+
+  const row = await db
+    .prepare("SELECT 1 AS owned FROM feed_owners WHERE feed_id = ? AND owner_sub = ?")
+    .bind(feedId, sub)
+    .first();
+  return Boolean(row);
+}
+
+async function claimFeed(db, feedId, sub) {
+  await db
+    .prepare("INSERT OR IGNORE INTO feed_owners (feed_id, owner_sub, created_at) VALUES (?, ?, ?)")
+    .bind(feedId, sub, nowIso())
+    .run();
+}
+
+async function releaseFeed(db, feedId, sub) {
+  await db.prepare("DELETE FROM feed_owners WHERE feed_id = ? AND owner_sub = ?").bind(feedId, sub).run();
+}
+
+// A signed-out visitor gets one fetch and a rate-limited manual refresh; a
+// signed-in one gets both of those and the scheduled sync.
+function mayRefreshNow(feed, session) {
+  if (feed.status !== "ready" || !feed.last_synced_at) {
+    return true;
+  }
+
+  if (session) {
+    return isStale(feed);
+  }
+
+  return Date.now() - Date.parse(feed.last_synced_at) > MANUAL_REFRESH_MIN_MS;
 }
 
 export default {
@@ -431,13 +476,77 @@ export default {
     const url = new URL(request.url);
     const publicOrigin = getPublicOrigin(request);
 
-    // The UI is the SPA served by Cloudflare Pages; the Worker is API only.
-    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/") {
+    // ── Sign in with Connections ─────────────────────────────────────────────
+
+    if (request.method === "GET" && url.pathname === "/auth/login") {
+      return startLogin(request, env);
+    }
+
+    if (request.method === "GET" && url.pathname === "/auth/callback") {
+      return completeLogin(request, env);
+    }
+
+    if (url.pathname === "/auth/logout") {
+      return logout();
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/me") {
+      const session = await getSession(request, env);
       return json({
-        service: "imdbwatcharr",
-        ui: "https://imdbwatcharr.pages.dev",
-        routes: ["POST /api/create", "GET /radarr/{p|l|f}/:id", "GET /sonarr/{p|l|f}/:id"],
+        signedIn: Boolean(session),
+        name: session?.name ?? null,
+        authAvailable: isAuthConfigured(env),
       });
+    }
+
+    // The feeds a signed-in visitor has claimed, which is what the account is
+    // for, so it is worth showing them plainly.
+    if (request.method === "GET" && url.pathname === "/api/my-feeds") {
+      const session = await getSession(request, env);
+      if (!session) {
+        return json({ feeds: [] });
+      }
+
+      const result = await env.DB.prepare(
+        `SELECT f.slug, f.source_url, f.source_kind, f.list_title, f.status, f.item_count, f.last_synced_at
+           FROM feeds f JOIN feed_owners o ON o.feed_id = f.id
+          WHERE o.owner_sub = ?
+          ORDER BY f.list_title`,
+      )
+        .bind(session.sub)
+        .all();
+
+      return json({
+        feeds: (result.results ?? []).map((feed) => ({
+          slug: feed.slug,
+          sourceUrl: feed.source_url,
+          listTitle: feed.list_title,
+          status: feed.status,
+          itemCount: feed.item_count,
+          lastSyncedAt: feed.last_synced_at,
+          radarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}`,
+          sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}`,
+        })),
+      });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/unfollow") {
+      const session = await getSession(request, env);
+      if (!session) {
+        return json({ error: "Sign in first." }, { status: 401 });
+      }
+
+      try {
+        const payload = await request.json();
+        const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+        const feed = await getFeedByUrl(env.DB, normalized.canonicalUrl);
+        if (feed) {
+          await releaseFeed(env.DB, feed.id, session.sub);
+        }
+        return json({ ok: true });
+      } catch (error) {
+        return json({ error: error.message }, { status: 400 });
+      }
     }
 
     // ── The sync job's two routes ────────────────────────────────────────────
@@ -450,8 +559,13 @@ export default {
         return json({ error: "Unauthorized." }, { status: 401 });
       }
 
+      // Only claimed feeds ride the schedule. An unowned feed keeps serving what
+      // it already has and is refetched only when someone asks for it.
       const result = await env.DB.prepare(
-        "SELECT source_url, source_kind, status, last_synced_at, source_fingerprint FROM feeds ORDER BY last_synced_at IS NULL DESC, last_synced_at ASC",
+        `SELECT f.source_url, f.source_kind, f.status, f.last_synced_at, f.source_fingerprint
+           FROM feeds f
+          WHERE EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+          ORDER BY f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
       ).all();
 
       return json({
@@ -505,16 +619,23 @@ export default {
       try {
         const payload = await request.json();
         const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+        const session = await getSession(request, env);
         let feed = await getOrCreateFeed(env.DB, normalized);
+
+        // Signing in and pasting a list is what claims it. Claiming is additive,
+        // so two people can both keep the same public list alive.
+        if (session) {
+          await claimFeed(env.DB, feed.id, session.sub);
+        }
 
         // Nothing here can fetch IMDb, so a feed that needs data asks the sync
         // job to run and reports honestly in the meantime.
         let dispatched = false;
-        if (feed.status !== "ready" || isStale(feed)) {
+        if (mayRefreshNow(feed, session)) {
           dispatched = await requestSyncRun(env, normalized.canonicalUrl);
         }
 
-        const message = describeFeedState(feed, dispatched);
+        const message = describeFeedState(feed, dispatched, Boolean(session));
         const storedItems = await getFeedItems(env.DB, feed.id);
         const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
         const counts = summarizeItemsByTarget(enrichedItems);
@@ -546,6 +667,9 @@ export default {
           totalCount: counts.total,
           message,
           syncing: dispatched || feed.status === "syncing",
+          owned: Boolean(session),
+          signedIn: Boolean(session),
+          autoRefreshing: Boolean(session),
         });
       } catch (error) {
         return json({ error: error.message }, { status: 400 });
@@ -562,11 +686,18 @@ export default {
       const { feedTarget, ...normalizedRoute } = parsedRoute;
       let feed = await getOrCreateFeed(env.DB, normalizedRoute);
 
-      // Radarr and Sonarr poll these routes, so a stale feed is the natural place
-      // to nudge the sync job. It is fire-and-forget: the response is always
-      // served from what is already stored.
-      if (feed.status !== "ready" || isStale(feed)) {
-        ctx.waitUntil(requestSyncRun(env, feed.source_url));
+      // Radarr and Sonarr poll these routes, so a stale OWNED feed is the natural
+      // place to nudge the sync job. Fire-and-forget: the response is always
+      // served from what is already stored. An unowned feed is deliberately left
+      // alone here, which is exactly what signing in changes.
+      if (isStale(feed)) {
+        ctx.waitUntil(
+          env.DB.prepare("SELECT 1 AS owned FROM feed_owners WHERE feed_id = ? LIMIT 1")
+            .bind(feed.id)
+            .first()
+            .then((owned) => (owned ? requestSyncRun(env, feed.source_url) : null))
+            .catch(() => {}),
+        );
       }
 
       const items = await getFeedItems(env.DB, feed.id);
@@ -648,6 +779,12 @@ export default {
       return json(feed);
     }
 
-    return new Response("Not found.", { status: 404 });
+    // Anything the API did not claim is the SPA's: this Worker runs first on
+    // every request, so the static assets are only reached by falling through.
+    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) {
+      return json({ error: "Not found." }, { status: 404 });
+    }
+
+    return env.ASSETS.fetch(request);
   },
 };

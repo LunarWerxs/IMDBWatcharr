@@ -6,8 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 // The Worker serves the API and the Radarr/Sonarr feeds. During `vite dev` these
 // paths are proxied to the deployed Worker so the UI can be developed against
 // real data without running wrangler.
-const API_ORIGIN = process.env.VITE_API_ORIGIN ?? 'https://imdbwatcharr.pages.dev'
-const PROXIED_PATHS = ['/api', '/radarr', '/sonarr']
+const API_ORIGIN = process.env.VITE_API_ORIGIN ?? 'https://watcharr.lunarwerx.com'
+const PROXIED_PATHS = ['/api', '/auth', '/radarr', '/sonarr']
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,9 +18,10 @@ export default defineConfig({
     },
   },
   build: {
-    // Cloudflare Pages serves this directory; the Pages Function in
-    // ../pages-proxy/functions only intercepts the API and feed routes.
-    outDir: '../pages-proxy/pages-static',
+    // The Worker serves this directory through its ASSETS binding, so the built
+    // SPA ships in the same deploy as the API rather than as a separate Pages
+    // project sitting in front of it.
+    outDir: './dist',
     emptyOutDir: true,
   },
   server: {
