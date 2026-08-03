@@ -141,35 +141,30 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
-        <header className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-5">
-          <div className="flex min-w-0 items-center gap-2">
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground -ml-2 shrink-0"
-            >
-              <a href="https://lunarwerx.com" aria-label="Back to LunarWerx">
-                <ArrowLeftIcon className="size-4" />
-              </a>
-            </Button>
-            <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-              <ClapperboardIcon className="size-4" />
-            </div>
-            <div className="min-w-0 leading-tight">
+        {/* Up to the studio. It sits above the product mark rather than beside
+            it so the hierarchy reads in the order it actually is: studio, then
+            product. Same shape the other LunarWerx products use. */}
+        <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
+          <a
+            href="https://lunarwerx.com"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors"
+          >
+            <ArrowLeftIcon className="size-3.5 shrink-0" />
+            LunarWerx Studios
+          </a>
+
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <ClapperboardIcon className="size-4" />
+              </div>
               <div className="font-display truncate text-sm font-semibold">IMDb Watcharr</div>
-              <a
-                href="https://lunarwerx.com"
-                className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-              >
-                a LunarWerx product
-              </a>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <GithubLink />
-            <ThemeToggle />
-            <AccountControl session={session} />
+            <div className="flex shrink-0 items-center gap-1">
+              <GithubLink />
+              <ThemeToggle />
+              <AccountControl session={session} />
+            </div>
           </div>
         </header>
 

@@ -1,0 +1,49 @@
+<!--
+  Portfolio banner for the lunarwerx.com catalog card. 1200x520, matching the
+  other product banners. Rendered to PNG by `npm run og`, which also copies it
+  into the LunarWerx site's public/banners.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <!-- Faint grid, the texture the other banners share. -->
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M60 0H0v60" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="wash" cx="0.14" cy="0.1" r="0.85">
+      <stop offset="0" stop-color="#ef4444" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="520" fill="#020617"/>
+  <rect width="1200" height="520" fill="url(#grid)"/>
+  <rect width="1200" height="520" fill="url(#wash)"/>
+
+  <!-- Product mark, same clapperboard as the favicon and the header. -->
+  <rect x="92" y="46" width="120" height="120" rx="27" fill="#ef4444"/>
+  <g fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(112 68) scale(2.6)">
+    <path d="M2 8h27v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/>
+    <path d="M2 8 5 2l5 6"/>
+    <path d="M11 8 14 2l5 6"/>
+    <path d="M20 8 23 2l5 6"/>
+  </g>
+
+  <text x="92" y="278" fill="#ffffff" font-size="72" font-weight="800" letter-spacing="-1">IMDb Watcharr</text>
+  <text x="92" y="330" fill="#aab6c8" font-size="28">Your IMDb list, straight into Radarr and Sonarr.</text>
+
+  <!-- Chip row, matching the other banners. The last one is the accent. -->
+  <g font-size="21" font-weight="700">
+    <rect x="92" y="376" width="112" height="52" rx="12" fill="#ffffff" fill-opacity="0.07"/>
+    <text x="148" y="409" fill="#e2e8f0" text-anchor="middle">IMDb</text>
+
+    <rect x="220" y="376" width="132" height="52" rx="12" fill="#ffffff" fill-opacity="0.07"/>
+    <text x="286" y="409" fill="#e2e8f0" text-anchor="middle">Radarr</text>
+
+    <rect x="368" y="376" width="132" height="52" rx="12" fill="#ffffff" fill-opacity="0.07"/>
+    <text x="434" y="409" fill="#e2e8f0" text-anchor="middle">Sonarr</text>
+
+    <rect x="516" y="376" width="196" height="52" rx="12" fill="#ef4444"/>
+    <text x="614" y="409" fill="#ffffff" text-anchor="middle">Auto-refresh</text>
+  </g>
+</svg>
