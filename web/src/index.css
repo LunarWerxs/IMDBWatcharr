@@ -51,38 +51,37 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
+    /* Light mode borrows IMDb's own look: amber accent, near-black type, warm
+       off-white ground. Dark mode stays on the LunarWerx palette below.
+       Amber is too light to carry white text, so anything on --primary uses
+       near-black instead. */
+    --background: #ffffff;
+    --foreground: #121212;
+    --card: #ffffff;
+    --card-foreground: #121212;
+    --popover: #ffffff;
+    --popover-foreground: #121212;
+    --primary: #f5c518;
+    --primary-foreground: #121212;
+    --secondary: #f5f5f5;
+    --secondary-foreground: #121212;
+    --muted: #f5f1e4;
+    --muted-foreground: #5c5c5c;
+    --accent: #fdf3d0;
+    --accent-foreground: #121212;
+    --destructive: #c62828;
+    --border: #e2ddcd;
+    --input: #d9d4c4;
+    --ring: #f5c518;
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: #faf7ee;
+    --sidebar-foreground: #121212;
+    --sidebar-primary: #f5c518;
+    --sidebar-primary-foreground: #121212;
+    --sidebar-accent: #fdf3d0;
+    --sidebar-accent-foreground: #121212;
+    --sidebar-border: #e2ddcd;
+    --sidebar-ring: #f5c518;
 }
 
 .dark {

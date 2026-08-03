@@ -23,12 +23,20 @@
       content="Turn a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom list. A LunarWerx product."
     />
     <meta property="og:url" content="https://watcharr.lunarwerx.com" />
-    <meta name="twitter:card" content="summary" />
+    <!-- Raster PNG, not the SVG next to it: most platforms will not render an
+         SVG og:image. Regenerate from og-image.svg with `npm run og`. -->
+    <meta property="og:image" content="https://watcharr.lunarwerx.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="IMDb Watcharr, a LunarWerx product" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="IMDb Watcharr" />
     <meta
       name="twitter:description"
       content="Turn a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom list. A LunarWerx product."
     />
+    <meta name="twitter:image" content="https://watcharr.lunarwerx.com/og-image.png" />
+    <link rel="canonical" href="https://watcharr.lunarwerx.com/" />
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
+  ArrowLeftIcon,
   ArrowRightIcon,
+  ChevronRightIcon,
   ClapperboardIcon,
   FilmIcon,
   LoaderCircleIcon,
@@ -140,12 +142,22 @@ export default function App() {
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
         <header className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-5">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground -ml-2 shrink-0"
+            >
+              <a href="https://lunarwerx.com" aria-label="Back to LunarWerx">
+                <ArrowLeftIcon className="size-4" />
+              </a>
+            </Button>
+            <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
               <ClapperboardIcon className="size-4" />
             </div>
-            <div className="leading-tight">
-              <div className="font-display text-sm font-semibold">IMDb Watcharr</div>
+            <div className="min-w-0 leading-tight">
+              <div className="font-display truncate text-sm font-semibold">IMDb Watcharr</div>
               <a
                 href="https://lunarwerx.com"
                 className="text-muted-foreground hover:text-foreground text-xs transition-colors"
@@ -154,10 +166,10 @@ export default function App() {
               </a>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <AccountControl session={session} />
+          <div className="flex shrink-0 items-center gap-1">
             <GithubLink />
             <ThemeToggle />
+            <AccountControl session={session} />
           </div>
         </header>
 
@@ -351,42 +363,43 @@ export default function App() {
             </div>
           )}
 
-          <section className="mt-12">
-            <h2 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+          {/* Reference for a first-time visitor, noise for a returning one, so it
+              starts closed. A native <details> keeps it keyboard- and
+              search-friendly without another dependency. */}
+          <details className="group mt-12">
+            <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors [&::-webkit-details-marker]:hidden">
+              <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" />
               How it works
-            </h2>
-            <ol className="mt-4 grid gap-5 sm:grid-cols-3">
+            </summary>
+            <ol className="mt-4 grid gap-3 sm:grid-cols-3">
               {STEPS.map((step, index) => (
-                <li key={step.title} className="grid gap-1.5">
-                  <div className="bg-muted text-muted-foreground flex size-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
-                    {index + 1}
-                  </div>
-                  <div className="text-sm font-medium">{step.title}</div>
-                  <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
+                <li key={step.title}>
+                  <Card className="h-full gap-2 py-4">
+                    <CardHeader className="px-4">
+                      <div className="bg-muted text-muted-foreground mb-1.5 flex size-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
+                        {index + 1}
+                      </div>
+                      <CardTitle className="text-sm">{step.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4">
+                      <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
+                    </CardContent>
+                  </Card>
                 </li>
               ))}
             </ol>
-          </section>
+          </details>
         </main>
 
         <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
           <Separator className="mb-6" />
           <p>
-            Sign in and we check your lists about every fifteen minutes. Signed out, we only
-            read a list when you ask us to.
-          </p>
-          <p className="mt-3">
-            If IMDb does not answer, your links keep serving whatever we saw last, so Radarr and
-            Sonarr never get an empty list. A brand-new list takes a few seconds to show up.
-          </p>
-          <p className="mt-3">
             <span className="font-display text-foreground">IMDb Watcharr</span>
             <span aria-hidden="true"> · </span>
-            built and operated by{' '}
+            by{' '}
             <a href="https://lunarwerx.com" className="hover:text-foreground transition-colors">
               LunarWerx
             </a>
-            , an independent software studio.
           </p>
         </footer>
       </div>

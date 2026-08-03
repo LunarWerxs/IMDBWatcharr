@@ -1,0 +1,42 @@
+<!--
+  Share card source. Regenerate the PNG with `npm run og`.
+
+  Most platforms will not render an SVG og:image, so the PNG next to this file is
+  the one that actually ships; this stays as the editable original.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="630" fill="#020617"/>
+
+  <!-- A single soft red wash, matching the accent, so the card is not a flat block. -->
+  <defs>
+    <radialGradient id="glow" cx="0.18" cy="0.12" r="0.9">
+      <stop offset="0" stop-color="#ef4444" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Clapperboard mark, the same shape as the favicon and the header. -->
+  <rect x="88" y="86" width="76" height="76" rx="17" fill="#ef4444"/>
+  <!-- Stroke width is set in glyph units and then scaled, so it has to stay thin
+       here or the clapper's teeth close up into a solid bar at this size. -->
+  <g fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(101 105) scale(1.6)">
+    <path d="M2 8h27v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/>
+    <path d="M2 8 5 2l5 6"/>
+    <path d="M11 8 14 2l5 6"/>
+    <path d="M20 8 23 2l5 6"/>
+  </g>
+
+  <text x="184" y="126" fill="#ffffff" font-size="34" font-weight="700" letter-spacing="0.5">IMDb Watcharr</text>
+  <text x="184" y="158" fill="#aab6c8" font-size="21">a LunarWerx product</text>
+
+  <text x="88" y="300" fill="#ffffff" font-size="66" font-weight="700">Your IMDb list, straight into</text>
+  <text x="88" y="378" fill="#ffffff" font-size="66" font-weight="700">Radarr and Sonarr.</text>
+
+  <text x="88" y="452" fill="#aab6c8" font-size="27">Paste a public watchlist or list. Get one link for the movies,</text>
+  <text x="88" y="490" fill="#aab6c8" font-size="27">one for the shows. Both read the same list.</text>
+
+  <rect x="88" y="536" width="9" height="34" rx="4.5" fill="#ef4444"/>
+  <text x="112" y="562" fill="#ffffff" font-size="25" font-weight="600">watcharr.lunarwerx.com</text>
+</svg>
