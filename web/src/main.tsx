@@ -4,6 +4,7 @@ import { ThemeProvider } from 'next-themes'
 import './index.css'
 import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
+import { sendVisitPing } from '@/lib/analytics'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,3 +14,5 @@ createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </StrictMode>,
 )
+
+sendVisitPing()

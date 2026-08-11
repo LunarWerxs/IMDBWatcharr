@@ -127,6 +127,29 @@ Run a sync by hand from any machine that is not behind Cloudflare:
 WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... node scripts/sync-feeds.mjs
 ```
 
+## Analytics
+
+The site carries two anonymous, privacy-respecting pieces of instrumentation, both owned by
+LunarWerx's own Connections/Studio infrastructure rather than a third party.
+
+**ARGUS pixel** (`web/index.html`), served from `analytics.connections.icu`, gives page-view and
+traffic-source analytics. It honours Do Not Track and Sec-GPC itself and skips localhost.
+
+**Studio visit ping** (`web/src/lib/analytics.ts`) fires once per browser session on page load:
+a fire-and-forget `GET` to `studio.connections.icu/v1/app/imdbwatch/latest`. What it sends:
+
+- a random visitor id, generated client-side and kept in `localStorage` (not tied to any account)
+- the app's build version
+- the hostname (not the full URL) of `document.referrer`, only when one is present
+- a `new=1` flag on the first-ever visit only
+
+What the server derives from the request itself and stores: coarse geo (country, region, city,
+timezone), the network ASN, locale, and a truncated user agent. It never stores an IP address.
+
+The ping is skipped entirely when Do Not Track or Global Privacy Control is set, and when the page
+is loaded from localhost or a `.local` host. It never blocks rendering, never retries, and a failed
+ping is swallowed silently.
+
 ## Local development
 
 ```bash
