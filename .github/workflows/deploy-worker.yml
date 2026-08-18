@@ -45,8 +45,14 @@ jobs:
           if [ "$status" = "200" ]; then
             echo "usable=true" >> "$GITHUB_OUTPUT"
           else
+            # A token that is PRESENT and REJECTED is not the same thing as a
+            # token that was never set. The first is a deploy that used to work
+            # and silently stopped; warning-and-green there means the tick says
+            # "shipped" while nothing shipped, which is exactly how this went
+            # unnoticed until 2026-08-17. Absent stays a warning; rejected is red.
             echo "usable=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::CLOUDFLARE_API_TOKEN is rejected by Cloudflare (HTTP $status), so the Worker was not deployed. Rotate it to re-enable this deploy."
+            echo "::error::CLOUDFLARE_API_TOKEN is rejected by Cloudflare (HTTP $status). The Worker was NOT deployed and the live site is now behind this commit. Rotate the token to re-enable this deploy."
+            exit 1
           fi
 
       - name: Deploy Worker
