@@ -1,0 +1,47 @@
+# IMDb Watcharr
+
+> IMDb Watcharr turns a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom list. A LunarWerx product.
+
+IMDb Watcharr is for people who already track movies and TV shows in a public IMDb watchlist or
+list and want Radarr and Sonarr to pick up the same titles. Paste the IMDb URL once and get back
+two links: a Radarr RSS List for the movies and a Sonarr Custom List for the shows. Both links are
+derived from the IMDb list itself, so the same list always produces the same two links, and
+pasting it again never changes them.
+
+## Key facts
+
+- Anyone can build the two links without an account, and both work immediately and keep working off the snapshot they were built from.
+- Signing in with Connections is what puts a feed on the refresh schedule, checking it again about every fifteen minutes.
+- Radarr setup: Settings, Lists, Add list, Advanced, RSS List, paste the Radarr URL.
+- Sonarr setup: Settings, Import Lists, Add list, Advanced, Custom List, paste the Sonarr URL.
+- Sonarr needs a TVDB id for every show; a show IMDb Watcharr cannot resolve to a TVDB id is left out of the Sonarr list, and the app reports how many were skipped.
+- If a scheduled sync fails, the routes keep serving the last good snapshot instead of breaking.
+- A brand-new list is not instant: the site cannot fetch IMDb itself, so a freshly pasted URL queues the list and the routes answer 503 until the next sync fills it in.
+- Source-available on GitHub, so it can be self-hosted.
+- Free to use, and deliberately personal and non-commercial: IMDb attaches a usage disclaimer to every API response forbidding public and commercial use of the data, so this feeds one household rather than a business.
+
+## Common questions
+
+### Do I need an account to use IMDb Watcharr?
+No. Anyone can paste a public IMDb list URL and get both links back, and those links work immediately. Signing in with Connections is what puts a feed on the refresh schedule, so it is re-checked roughly every fifteen minutes instead of staying on its original snapshot.
+
+### How do I add the list to Radarr?
+In Radarr, open Settings, then Lists, then Add list, switch to Advanced, choose RSS List, and paste the Radarr URL that IMDb Watcharr gave you. The link is derived from the IMDb list itself, so it never changes and does not need replacing later.
+
+### How do I add the list to Sonarr?
+In Sonarr, open Settings, then Import Lists, then Add list, switch to Advanced, choose Custom List, and paste the Sonarr URL. It is a separate link from the Radarr one because the movies and the shows are split between the two applications.
+
+### Why is a show missing from my Sonarr list?
+Sonarr needs a TVDB id for every show, and not every IMDb title resolves to one. Any show IMDb Watcharr cannot match is left out of the Sonarr list rather than passed along broken, and the app tells you how many titles were skipped.
+
+### Does IMDb Watcharr cost anything?
+No. It is free, there is no paid tier and no payment of any kind is wired up. It is also deliberately personal and non-commercial: IMDb attaches a usage disclaimer to every API response forbidding public and commercial use of the data, so this is a household tool rather than a product.
+
+### Why does a list I just pasted return an error?
+A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly pasted URL is queued and the two routes answer with a 503 until the next sync fills the list in. Once it has synced, the links keep serving the last good snapshot even if a later sync fails.
+
+## Links
+
+- Home: https://watcharr.lunarwerx.com/
+- Source code: https://github.com/LunarWerxs/IMDBWatcharr
+- Studio: https://lunarwerx.com

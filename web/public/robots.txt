@@ -1,5 +1,45 @@
+# IMDb Watcharr - https://watcharr.lunarwerx.com/
+
+# Answer / search assistants (cite us, drive traffic).
+# Named one by one rather than left to the wildcard: a citation is a reader,
+# and an engine that has to infer its permission from * is one managed rule
+# away from being told otherwise.
+User-agent: OAI-SearchBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: Claude-SearchBot
+Allow: /
+User-agent: Claude-User
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+
+# Training crawlers: allowed on purpose. These are free, open products.
+User-agent: GPTBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: anthropic-ai
+Allow: /
+User-agent: CCBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Amazonbot
+Allow: /
+User-agent: Applebot-Extended
+Allow: /
+User-agent: meta-externalagent
+Allow: /
+User-agent: Bytespider
+Allow: /
+
+# Everyone else. The generated feed and list endpoints exist for Radarr and Sonarr to read, not for a search index.
 User-agent: *
 Allow: /$
 Disallow: /radarr/
 Disallow: /sonarr/
 Disallow: /api/
+
+Sitemap: https://watcharr.lunarwerx.com/sitemap.xml
