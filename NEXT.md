@@ -35,10 +35,23 @@ Nothing is broken. Two optional things, both of which the code already degrades 
   next scheduled run instead of filling in under a minute. The Worker just skips the dispatch.
   Needs a fine-grained PAT that can dispatch this repo, then
   `npx wrangler secret put GITHUB_DISPATCH_TOKEN` and `GITHUB_REPOSITORY`.
-- **`CLOUDFLARE_API_TOKEN` in the repo secrets is revoked**, so the two deploy workflows verify it,
-  skip, and post a warning annotation rather than failing. Every workflow on `main` is green.
-  Deploys go through the local `wrangler` login meanwhile, and the deploy jobs resume on their own
-  the moment a valid token is in place. `Sync feeds` never touched that token.
+- **`CLOUDFLARE_API_TOKEN` in the repo secrets is revoked.** Corrected 2026-08-24: this used to say
+  the deploy workflows verify the token, skip, and stay green. They do not. **`Deploy Worker` fails
+  red on every push** with `Authentication error [code: 10000]` then `Invalid access token
+  [code: 9109]`, and has since 2026-08-18. `CI`, `Sync feeds` and the egress probe are green and
+  never touched that token, so the repo looks healthy at a glance and is not. The red is honest and
+  worth leaving red: the credential is present and invalid, which is a real breakage.
+
+  Meanwhile the site is shipped by hand and stays current. It does not need a local `wrangler
+  login`: the Connections MCP leases the vaulted Cloudflare credential into a child process
+  value-blind, so an agent can run the deploy without the token ever being visible to it.
+
+      cd <this repo> && CLOUDFLARE_ACCOUNT_ID=36d7c731fd0352ef08ea7e46d2d20793 npm run deploy
+
+  inside `shell { secrets: [{ service: "cloudflare", as: "CLOUDFLARE_API_TOKEN" }] }`. Done that way
+  on 2026-08-24. The deploy job resumes on its own the moment a valid token is in the repo secrets;
+  the one in the vault is deliberately not installed there, because it is an account token that
+  reaches four Cloudflare accounts and this repo is public.
 
 The SPA polls nothing yet: `/api/create` returns a `syncing` flag the UI could use to refresh itself
 while a first sync runs, instead of the reader hitting Generate again.
