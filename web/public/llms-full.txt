@@ -1,0 +1,114 @@
+# IMDb Watcharr - full brief
+
+> IMDb Watcharr turns a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom
+> list. A LunarWerx product. Free, source-available, version 0.3.0.
+
+## What it is
+
+IMDb Watcharr is a small web tool. Paste a public IMDb watchlist or list URL and get back two
+deterministic links, a Radarr RSS List URL for the movies on that list, and a Sonarr Custom List
+URL for the shows. It does not host movies or shows, does not touch IMDb credentials, and does not
+require an IMDb account of any kind; it only reads a *public* watchlist or list URL.
+
+## Who it is for
+
+People who already keep a movie/TV watchlist or list on IMDb and run Radarr and/or Sonarr, and
+want the two to stay in sync without hand-copying titles every time the IMDb list changes. It is
+built and licensed for personal, non-commercial, single-household use; see Limitations below.
+
+## How it works
+
+1. Paste a public IMDb watchlist (`imdb.com/user/ur.../watchlist/`) or list
+   (`imdb.com/list/ls.../`) URL into the site.
+2. IMDb Watcharr returns two URLs, derived deterministically from the IMDb id, so the same list
+   always produces the same two links:
+   - Radarr: `/radarr/l/:listId` or `/radarr/p/:profileId`
+   - Sonarr: `/sonarr/l/:listId` or `/sonarr/p/:profileId`
+3. In Radarr: Settings → Lists → Add List → Advanced → RSS List → paste the Radarr URL.
+4. In Sonarr: Settings → Import Lists → Add List → Advanced → Custom List → paste the Sonarr URL.
+
+Both links work immediately off the first snapshot and keep working with no account. Signing in
+with Connections (LunarWerx's own OAuth) claims the feed and puts it on an automatic refresh
+schedule, checked again roughly every 15 minutes by a GitHub Actions job, not by the website
+itself.
+
+## Every feature
+
+- No account required to generate or use a feed; two working links come back immediately.
+- Deterministic URLs: the same IMDb list always maps to the same Radarr/Sonarr links.
+- Optional sign-in (via Connections) claims a feed for automatic ~15-minute refresh.
+- If a scheduled refresh ever fails, the feeds keep serving the last good snapshot instead of
+  breaking or going empty.
+- Sonarr output resolves each show to a TVDB id via TVMaze; any show that cannot be matched is
+  left out of the Sonarr list (not passed along broken), and the app reports how many were
+  skipped.
+- ETag-based caching: an unchanged list re-serves the cached body instead of being rebuilt.
+- Source-available on GitHub (github.com/LunarWerxs/IMDBWatcharr) and self-hostable end to end:
+  Cloudflare Worker, D1 database, and the GitHub Actions sync job.
+- One Worker serves both the static site and the API, so a deploy is a single command.
+
+## Install / self-hosting
+
+The whole stack is one Cloudflare Worker (serving the built React SPA plus the API) backed by a
+D1 database, with a separate GitHub Actions job doing the actual IMDb fetch:
+
+```
+npm install
+npm run web:build     # builds the SPA into web/dist/
+npm run deploy        # builds + wrangler deploy
+```
+
+Requires a Cloudflare account and `wrangler`; `INGEST_SECRET` is shared between the Worker and the
+GitHub Actions sync job. Sign-in with Connections is optional. Omit `CONNECTIONS_CLIENT_ID` /
+`CONNECTIONS_CLIENT_SECRET` and the site simply hides the sign-in button and runs account-free.
+Full setup steps are in the repository README.
+
+A GitHub Actions runner does the IMDb fetch rather than the Worker itself, because IMDb's API
+returns `429 Too many network requests` to Cloudflare's Worker egress IPs but answers a GitHub
+Actions runner fine. The Worker only stores and serves what the runner sends it.
+
+## Pricing
+
+Free. No paid tier, no payment integration of any kind. See `pricing.md` for the full breakdown
+including self-hosting costs.
+
+## FAQ
+
+**Is IMDb Watcharr free?** Yes, no paid tier, no payment set up anywhere in the app, and
+source-available on GitHub for free self-hosting too.
+
+**Do I need an account?** No. A feed works immediately without one; signing in with Connections
+only adds automatic ~15-minute refresh.
+
+**How does this compare to Radarr's/Sonarr's own IMDb list import, or Trakt-based syncing?**
+Sonarr removed its built-in IMDb list import in 2025, and Radarr's IMDb list-ID import stopped
+working after IMDb changed its export format; IMDb Watcharr fills that gap via a GitHub Actions fetch and gives back one Radarr feed and one Sonarr
+feed from a single pasted URL, with last-good-snapshot fallback. Trakt-based syncing (IMDb to
+Trakt to Radarr/Sonarr) is a common alternative that adds a second account and an extra hop;
+IMDb Watcharr skips the Trakt account.
+
+**Why does a freshly pasted list return an error?** A brand-new list is not instant. The site
+cannot fetch IMDb itself, so a new URL is queued and the Radarr/Sonarr routes answer `503` until
+the next sync fills the list in.
+
+## Limitations
+
+- Only public IMDb watchlists and lists work; private lists cannot be read.
+- A brand-new feed is not instant; expect a `503` until the first sync completes.
+- Scheduled syncs run on GitHub's `schedule` trigger, which drifts under GitHub's own load, so 15
+  minutes is a floor, not a guaranteed clock.
+- Sonarr coverage depends on TVMaze's TVDB mapping; unmapped shows are skipped, not guessed at.
+- IMDb's API carries a usage disclaimer forbidding public/commercial use of the data, so this tool
+  is scoped to personal, non-commercial, single-household use, not a resale or public-index
+  product.
+
+## Links
+
+- Home: https://watcharr.lunarwerx.com/
+- Source code: https://github.com/LunarWerxs/IMDBWatcharr
+- Pricing: https://watcharr.lunarwerx.com/pricing.md
+- Short brief: https://watcharr.lunarwerx.com/llms.txt
+- Studio: https://lunarwerx.com/
+- Other LunarWerx tools: https://repoyeti.com/, https://agenthydra.lunarwerx.com/,
+  https://sagethumbs.lunarwerx.com/, https://rolodexter.lunarwerx.com/,
+  https://ytsort.lunarwerx.com/
