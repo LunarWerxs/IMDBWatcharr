@@ -493,6 +493,36 @@ function mayRefreshNow(feed, session) {
 }
 
 export default {
+  async _handleMyFeedsRoute(request, env, publicOrigin, url) {
+    if (request.method !== "GET" || url.pathname !== "/api/my-feeds") {
+      return null;
+    }
+    const session = await getSession(request, env);
+    if (!session) {
+      return json({ feeds: [] });
+    }
+    const result = await env.DB.prepare(
+      \`SELECT f.slug, f.source_url, f.source_kind, f.list_title, f.status, f.item_count, f.last_synced_at
+         FROM feeds f JOIN feed_owners o ON o.feed_id = f.id
+        WHERE o.owner_sub = ?
+        ORDER BY f.list_title\`,
+    )
+      .bind(session.sub)
+      .all();
+    return json({
+      feeds: (result.results ?? []).map((feed) => ({
+        slug: feed.slug,
+        sourceUrl: feed.source_url,
+        listTitle: feed.list_title,
+        status: feed.status,
+        itemCount: feed.item_count,
+        lastSyncedAt: feed.last_synced_at,
+        radarrUrl: \`\${publicOrigin}\${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}\`,
+        sonarrUrl: \`\${publicOrigin}\${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}\`,
+      })),
+    });
+  }
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
@@ -530,34 +560,8 @@ export default {
 
     // The feeds a signed-in visitor has claimed, which is what the account is
     // for, so it is worth showing them plainly.
-    if (request.method === "GET" && url.pathname === "/api/my-feeds") {
-      const session = await getSession(request, env);
-      if (!session) {
-        return json({ feeds: [] });
-      }
-
-      const result = await env.DB.prepare(
-        `SELECT f.slug, f.source_url, f.source_kind, f.list_title, f.status, f.item_count, f.last_synced_at
-           FROM feeds f JOIN feed_owners o ON o.feed_id = f.id
-          WHERE o.owner_sub = ?
-          ORDER BY f.list_title`,
-      )
-        .bind(session.sub)
-        .all();
-
-      return json({
-        feeds: (result.results ?? []).map((feed) => ({
-          slug: feed.slug,
-          sourceUrl: feed.source_url,
-          listTitle: feed.list_title,
-          status: feed.status,
-          itemCount: feed.item_count,
-          lastSyncedAt: feed.last_synced_at,
-          radarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}`,
-          sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}`,
-        })),
-      });
-    }
+    const myFeedsResponse = await this._handleMyFeedsRoute(request, env, publicOrigin, url);
+    if (myFeedsResponse) return myFeedsResponse;
 
     if (request.method === "POST" && url.pathname === "/api/unfollow") {
       const session = await getSession(request, env);

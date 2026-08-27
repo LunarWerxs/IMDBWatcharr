@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -14,8 +14,34 @@ import {
 } from "../src/imdb.js";
 import { buildSnapshotFingerprintPayload, fetchImdbList } from "../src/imdb-graphql.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, "..");
+
+/**
+ * Find the repository root by traversing up from the current file location
+ * until we find a package.json. This is more robust than hop-counting with `..`
+ * which can become stale if the file structure changes.
+ */
+async function findRepoRoot() {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  const filesystem_root = path.parse(dir).root;
+  
+  while (dir !== filesystem_root) {
+    try {
+      await access(path.join(dir, 'package.json'));
+      return dir;
+    } catch {
+      // Continue to parent directory
+    }
+    
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  
+  throw new Error('Could not find repository root');
+}
+
+
+const rootDir = await findRepoRoot();
 
 function assert(condition, message) {
   if (!condition) {
