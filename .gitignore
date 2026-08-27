@@ -8,3 +8,6 @@ worker-configuration.d.ts
 
 # Built by `npm run web:build`, uploaded by the Worker deploy as its assets.
 web/dist/
+
+# Generated symbol digest (~/.claude/tools/codemap.py) - local artifact, never committed.
+.claude/codemap/
