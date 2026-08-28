@@ -40,6 +40,11 @@ import {
 
 const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 
+// How often to re-ask the API while a first sync is still running. The sync
+// job itself takes a few seconds to a couple of minutes, so this only needs
+// to be fast enough to feel live, not fast enough to catch every tick.
+const SYNC_POLL_INTERVAL_MS = 4000
+
 const STEPS = [
   {
     title: 'Paste a public IMDb link',
@@ -102,6 +107,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateFeedResponse | null>(null)
   const [session, setSession] = useState<Session | null>(null)
+  // The URL a poll should keep re-checking. Kept separate from `sourceUrl` so
+  // editing the input mid-sync cannot redirect a poll already in flight.
+  const [activeUrl, setActiveUrl] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +120,31 @@ export default function App() {
       cancelled = true
     }
   }, [])
+
+  // The API reports `syncing` while the first fetch from IMDb is still in
+  // flight, so poll it instead of making the reader click Generate again to
+  // see whether it landed. Stops itself the moment a response comes back
+  // with `syncing: false`.
+  useEffect(() => {
+    if (!result?.syncing || !activeUrl) return
+
+    let cancelled = false
+    const timer = setInterval(() => {
+      createFeed(activeUrl)
+        .then((next) => {
+          if (!cancelled) setResult(next)
+        })
+        .catch(() => {
+          // A transient failure mid-poll is not worth surfacing over the
+          // result already on screen; the next tick tries again.
+        })
+    }, SYNC_POLL_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [result?.syncing, activeUrl])
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
@@ -128,6 +161,7 @@ export default function App() {
     setPending(true)
     setError(null)
     setResult(null)
+    setActiveUrl(trimmed)
 
     try {
       setResult(await createFeed(trimmed))
@@ -276,6 +310,9 @@ export default function App() {
                           ? 'fetching'
                           : result.status}
                     </Badge>
+                    {result.syncing && (
+                      <LoaderCircleIcon className="text-muted-foreground size-3.5 animate-spin" />
+                    )}
                   </CardTitle>
                   <CardDescription>
                     {servedFromSnapshot
