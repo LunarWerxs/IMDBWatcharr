@@ -183,10 +183,11 @@ npm run deploy
 That builds the SPA into `web/dist/` and runs `wrangler deploy`, which uploads the assets, the
 Worker, and the `watcharr.lunarwerx.com` custom domain declared in [wrangler.toml](wrangler.toml).
 
-> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (verified 2026-08-02) and it belonged
-> to the old account anyway. [deploy-worker.yml](.github/workflows/deploy-worker.yml) verifies the
-> token, skips with a warning annotation, and stays green; it starts deploying again once a token
-> for the Lunawerx account is in place. Until then deploy with the command above.
+> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (corrected 2026-08-24) and it belonged
+> to the old account anyway. [deploy-worker.yml](.github/workflows/deploy-worker.yml) does **not**
+> skip or stay green: it **fails red on every push** with `Authentication error [code: 10000]` then
+> `Invalid access token [code: 9109]`. It will keep failing until a valid `CLOUDFLARE_API_TOKEN` for
+> the Lunawerx account is restored to the repo secrets. Until then deploy with the command above.
 
 Pushing to `main` runs:
 
