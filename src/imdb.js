@@ -13,6 +13,17 @@ export const MOVIE_TITLE_TYPES = new Set(["movie", "tvMovie"]);
 export const SERIES_TITLE_TYPES = new Set(["tvSeries", "tvMiniSeries"]);
 const ORIGIN_PLACEHOLDER = "__IMDBWATCHARR_PUBLIC_ORIGIN__";
 
+// WHY: a failed sync used to just age silently on the feed (see
+// markFeedFailure in src/index.js) until someone happened to look. Adapted
+// from PostHog's threshold-alert pattern (products/alerts/, MIT) - fire once
+// a metric crosses N in a row, not on the first miss, so a single transient
+// IMDb hiccup does not page anyone.
+export const FEED_ALERT_FAILURE_THRESHOLD = 3;
+
+export function isFeedAlerting(consecutiveFailures) {
+  return Number(consecutiveFailures ?? 0) >= FEED_ALERT_FAILURE_THRESHOLD;
+}
+
 export function normalizeImdbUrl(input) {
   const url = new URL(String(input).trim());
   const href = url.toString();

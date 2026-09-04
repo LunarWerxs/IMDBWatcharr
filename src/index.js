@@ -6,8 +6,10 @@ import {
   createStableSlug,
   filterItemsForTarget,
   getNormalizedFromStoredFeed,
+  FEED_ALERT_FAILURE_THRESHOLD,
   hashText,
   injectPublicOrigin,
+  isFeedAlerting,
   normalizeImdbUrl,
   parseFeedRoute,
   summarizeItemsByTarget,
@@ -250,7 +252,7 @@ async function storeFeedSnapshot(db, feed, snapshot) {
     db.prepare(
       `UPDATE feeds
        SET list_title = ?, list_author = ?, list_id = ?, status = 'ready', item_count = ?, last_error = NULL,
-           last_synced_at = ?, last_source_modified_at = ?, updated_at = ?
+           consecutive_failures = 0, last_synced_at = ?, last_source_modified_at = ?, updated_at = ?
        WHERE id = ?`
     ).bind(
       snapshot.listTitle || snapshot.sourceTitle,
@@ -273,6 +275,7 @@ async function storeFeedSnapshot(db, feed, snapshot) {
     status: "ready",
     item_count: storedItems.length,
     last_error: null,
+    consecutive_failures: 0,
     last_synced_at: timestamp,
     last_source_modified_at: snapshot.lastSourceModifiedAt,
     updated_at: timestamp,
@@ -306,8 +309,16 @@ async function storeFeedCaches(db, feed, items, sourceFingerprint) {
 
 async function markFeedFailure(db, feedId, error) {
   const timestamp = nowIso();
+  // consecutive_failures counts up here and only here, so a run of bad syncs
+  // is visible even though each one still overwrites last_error with its own
+  // message. A successful sync (storeFeedSnapshot / markFeedUnchanged) is what
+  // resets it back to 0.
   await db
-    .prepare("UPDATE feeds SET status = 'error', last_error = ?, updated_at = ? WHERE id = ?")
+    .prepare(
+      `UPDATE feeds
+       SET status = 'error', last_error = ?, consecutive_failures = consecutive_failures + 1, updated_at = ?
+       WHERE id = ?`
+    )
     .bind(String(error?.message ?? error), timestamp, feedId)
     .run();
 }
@@ -317,7 +328,7 @@ async function markFeedUnchanged(db, feed, sourceFingerprint) {
   await db
     .prepare(
       `UPDATE feeds
-       SET source_fingerprint = ?, status = 'ready', last_error = NULL, last_synced_at = ?, updated_at = ?
+       SET source_fingerprint = ?, status = 'ready', last_error = NULL, consecutive_failures = 0, last_synced_at = ?, updated_at = ?
        WHERE id = ?`
     )
     .bind(sourceFingerprint, timestamp, timestamp, feed.id)
@@ -328,6 +339,7 @@ async function markFeedUnchanged(db, feed, sourceFingerprint) {
     source_fingerprint: sourceFingerprint,
     status: "ready",
     last_error: null,
+    consecutive_failures: 0,
     last_synced_at: timestamp,
     updated_at: timestamp,
   };
@@ -493,6 +505,12 @@ function mayRefreshNow(feed, session) {
 }
 
 export default {
+  // NOTE: this function's template literals were previously mangled (a stray
+  // backslash before every backtick and every `${`, left over from a bad
+  // find/replace) - the file could not even be parsed, and the two
+  // interpolations would have rendered as the literal text "${publicOrigin}"
+  // had it parsed at all. Fixed as part of adding the health/alert fields
+  // below, since this is the exact function those fields land in.
   async _handleMyFeedsRoute(request, env, publicOrigin, url) {
     if (request.method !== "GET" || url.pathname !== "/api/my-feeds") {
       return null;
@@ -502,10 +520,11 @@ export default {
       return json({ feeds: [] });
     }
     const result = await env.DB.prepare(
-      \`SELECT f.slug, f.source_url, f.source_kind, f.list_title, f.status, f.item_count, f.last_synced_at
+      `SELECT f.slug, f.source_url, f.source_kind, f.list_title, f.status, f.item_count, f.last_synced_at,
+              f.last_error, f.consecutive_failures
          FROM feeds f JOIN feed_owners o ON o.feed_id = f.id
         WHERE o.owner_sub = ?
-        ORDER BY f.list_title\`,
+        ORDER BY f.list_title`,
     )
       .bind(session.sub)
       .all();
@@ -517,11 +536,44 @@ export default {
         status: feed.status,
         itemCount: feed.item_count,
         lastSyncedAt: feed.last_synced_at,
-        radarrUrl: \`\${publicOrigin}\${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}\`,
-        sonarrUrl: \`\${publicOrigin}\${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}\`,
+        lastError: feed.last_error,
+        consecutiveFailures: feed.consecutive_failures,
+        // Same threshold the runner's failures accumulate against - see
+        // markFeedFailure and FEED_ALERT_FAILURE_THRESHOLD in src/imdb.js.
+        alerting: isFeedAlerting(feed.consecutive_failures),
+        radarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}`,
+        sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}`,
       })),
     });
-  }
+  },
+
+  // The signed-in visitor's currently-alerting feeds only, so a small header
+  // badge can show "N feeds need attention" without fetching the whole My
+  // Feeds list just to compute a count.
+  async _handleNotificationsRoute(request, env, url) {
+    if (request.method !== "GET" || url.pathname !== "/api/notifications") {
+      return null;
+    }
+    const session = await getSession(request, env);
+    if (!session) {
+      return json({ count: 0, feeds: [] });
+    }
+    const result = await env.DB.prepare(
+      `SELECT f.slug, f.list_title, f.consecutive_failures, f.last_error
+         FROM feeds f JOIN feed_owners o ON o.feed_id = f.id
+        WHERE o.owner_sub = ? AND f.consecutive_failures >= ?
+        ORDER BY f.consecutive_failures DESC`,
+    )
+      .bind(session.sub, FEED_ALERT_FAILURE_THRESHOLD)
+      .all();
+    const feeds = (result.results ?? []).map((feed) => ({
+      slug: feed.slug,
+      listTitle: feed.list_title,
+      consecutiveFailures: feed.consecutive_failures,
+      lastError: feed.last_error,
+    }));
+    return json({ count: feeds.length, feeds });
+  },
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -562,6 +614,9 @@ export default {
     // for, so it is worth showing them plainly.
     const myFeedsResponse = await this._handleMyFeedsRoute(request, env, publicOrigin, url);
     if (myFeedsResponse) return myFeedsResponse;
+
+    const notificationsResponse = await this._handleNotificationsRoute(request, env, url);
+    if (notificationsResponse) return notificationsResponse;
 
     if (request.method === "POST" && url.pathname === "/api/unfollow") {
       const session = await getSession(request, env);

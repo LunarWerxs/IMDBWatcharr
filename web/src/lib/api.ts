@@ -24,6 +24,31 @@ export type Session = {
   authAvailable: boolean
 }
 
+export type MyFeed = {
+  slug: string
+  sourceUrl: string
+  listTitle: string
+  status: FeedStatus
+  itemCount: number
+  lastSyncedAt: string | null
+  lastError: string | null
+  consecutiveFailures: number
+  /** True once a feed has failed enough syncs in a row to need attention. */
+  alerting: boolean
+  radarrUrl: string
+  sonarrUrl: string
+}
+
+export type NotificationsResponse = {
+  count: number
+  feeds: Array<{
+    slug: string
+    listTitle: string
+    consecutiveFailures: number
+    lastError: string | null
+  }>
+}
+
 const IMDB_LIST_RE = /^https?:\/\/(?:www\.)?imdb\.com\/list\/ls\d+\/?(?:[?#].*)?$/i
 const IMDB_WATCHLIST_RE =
   /^https?:\/\/(?:www\.)?imdb\.com\/user\/(?:p\.[a-z0-9]+|ur\d+)\/watchlist\/?(?:[?#].*)?$/i
@@ -59,5 +84,28 @@ export async function readSession(): Promise<Session> {
     return (await response.json()) as Session
   } catch {
     return { signedIn: false, name: null, authAvailable: false }
+  }
+}
+
+/** The signed-in visitor's claimed feeds, each with its own sync health. Empty for a signed-out visitor. */
+export async function readMyFeeds(): Promise<MyFeed[]> {
+  try {
+    const response = await fetch('/api/my-feeds', { credentials: 'same-origin' })
+    if (!response.ok) throw new Error('unavailable')
+    const payload = (await response.json()) as { feeds?: MyFeed[] }
+    return payload.feeds ?? []
+  } catch {
+    return []
+  }
+}
+
+/** Just the feeds that have crossed the failure threshold, for a header badge. */
+export async function readNotifications(): Promise<NotificationsResponse> {
+  try {
+    const response = await fetch('/api/notifications', { credentials: 'same-origin' })
+    if (!response.ok) throw new Error('unavailable')
+    return (await response.json()) as NotificationsResponse
+  } catch {
+    return { count: 0, feeds: [] }
   }
 }

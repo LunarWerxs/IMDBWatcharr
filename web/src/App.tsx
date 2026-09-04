@@ -29,6 +29,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CopyField } from '@/components/copy-field'
 import { GithubLink } from '@/components/github-link'
+import { MyFeeds } from '@/components/my-feeds'
+import { NotificationsBadge } from '@/components/notifications-badge'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
   createFeed,
@@ -195,6 +197,7 @@ export default function App() {
               <div className="font-display truncate text-sm font-semibold">IMDb Watcharr</div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
               <GithubLink />
               <ThemeToggle />
               <AccountControl session={session} />
@@ -278,6 +281,8 @@ export default function App() {
               </form>
             </CardContent>
           </Card>
+
+          {session?.signedIn && <MyFeeds />}
 
           {pending && (
             <div className="mt-4 grid gap-4">
