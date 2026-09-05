@@ -109,3 +109,23 @@ export async function readNotifications(): Promise<NotificationsResponse> {
     return { count: 0, feeds: [] }
   }
 }
+
+// WHY: /api/unfollow (src/index.js) has existed since claiming shipped, but
+// nothing in the SPA ever called it - a signed-in visitor could see a feed in
+// "My feeds" but had no way to stop auto-refreshing it short of the raw API.
+/** Stops auto-refreshing a claimed feed. The feed's Radarr/Sonarr URLs keep serving its last snapshot. */
+export async function unfollowFeed(sourceUrl: string): Promise<void> {
+  const response = await fetch('/api/unfollow', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sourceUrl }),
+  })
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(
+      (payload as { error?: string } | null)?.error ??
+        `Request failed with status ${response.status}.`,
+    )
+  }
+}

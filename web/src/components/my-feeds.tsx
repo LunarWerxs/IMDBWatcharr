@@ -11,11 +11,14 @@ import {
   ClockIcon,
   LoaderCircleIcon,
   RefreshCwIcon,
+  XIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { readMyFeeds, type MyFeed } from '@/lib/api'
+import { readMyFeeds, unfollowFeed, type MyFeed } from '@/lib/api'
 
 /** "3 minutes ago", "2 hours ago", … - coarse on purpose, this is a glance, not a log. */
 function formatRelativeTime(iso: string | null): string {
@@ -66,7 +69,7 @@ function FeedHealthBadge({ feed }: { feed: MyFeed }) {
   )
 }
 
-function MyFeedRow({ feed }: { feed: MyFeed }) {
+function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFeed) => void }) {
   return (
     <li className="flex flex-col gap-2 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -80,8 +83,19 @@ function MyFeedRow({ feed }: { feed: MyFeed }) {
           <p className="text-destructive mt-1 text-xs">{feed.lastError}</p>
         )}
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
         <FeedHealthBadge feed={feed} />
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onUnfollow(feed)}
+          aria-label={`Stop following ${feed.listTitle || feed.sourceUrl}`}
+        >
+          <XIcon className="size-3.5" />
+          Unfollow
+        </Button>
       </div>
     </li>
   )
@@ -100,6 +114,28 @@ export function MyFeeds() {
       cancelled = true
     }
   }, [])
+
+  // Unfollowing only stops the schedule (releaseFeed in src/index.js) - it
+  // never deletes the feed row or its cached snapshot, so the confirm below
+  // is honest about what stays working afterward.
+  async function handleUnfollow(feed: MyFeed) {
+    const label = feed.listTitle || feed.sourceUrl
+    if (
+      !window.confirm(
+        `Stop auto-refreshing "${label}"? Its Radarr/Sonarr URLs keep serving the last synced snapshot, they just stop updating.`,
+      )
+    ) {
+      return
+    }
+
+    try {
+      await unfollowFeed(feed.sourceUrl)
+      setFeeds((current) => (current ?? []).filter((item) => item.slug !== feed.slug))
+      toast.success(`Stopped following "${label}".`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not unfollow this feed.')
+    }
+  }
 
   if (!feeds || feeds.length === 0) {
     return null
@@ -123,7 +159,7 @@ export function MyFeeds() {
       <CardContent>
         <ul>
           {feeds.map((feed) => (
-            <MyFeedRow key={feed.slug} feed={feed} />
+            <MyFeedRow key={feed.slug} feed={feed} onUnfollow={handleUnfollow} />
           ))}
         </ul>
       </CardContent>

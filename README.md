@@ -143,6 +143,10 @@ in a small bell badge in the header, so a Radarr/Sonarr feed going stale is noti
 discovered by accident. There is no outbound email today (the OAuth scopes never request one), so
 this is in-app only: no separate mail service to configure.
 
+Each row has an Unfollow button (with a confirm) that calls `POST /api/unfollow` to stop that feed
+from auto-refreshing; its Radarr/Sonarr URLs keep serving the last synced snapshot, they just stop
+updating.
+
 ## Analytics
 
 The site carries two anonymous, privacy-respecting pieces of instrumentation, both owned by

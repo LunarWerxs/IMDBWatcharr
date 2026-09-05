@@ -11,6 +11,7 @@
   },
   "scripts": {
     "check": "node scripts/test-parser.mjs",
+    "check:web": "node scripts/test-unfollow-ui.mjs",
     "dev": "wrangler dev --remote",
     "web:dev": "npm run dev --workspace web",
     "web:build": "npm run build --workspace web",
