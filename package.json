@@ -12,7 +12,7 @@
   "scripts": {
     "check": "node scripts/test-parser.mjs",
     "check:web": "node scripts/test-unfollow-ui.mjs",
-    "test": "npm run check && npm run check:web",
+    "test": "node --test \"test/**/*.test.mjs\" && npm run check && npm run check:web",
     "dev": "wrangler dev --remote",
     "web:dev": "npm run dev --workspace web",
     "web:build": "npm run build --workspace web",
