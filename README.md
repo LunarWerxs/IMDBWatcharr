@@ -97,7 +97,8 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /api/sync-targets`                       | Feeds the sync job should fetch (shared-secret auth)                 |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
 | `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
-| `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed                         |
+| `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed, each with its sync health |
+| `GET /api/notifications`                      | Just the feeds that have failed enough syncs in a row to need attention |
 | `POST /api/unfollow`                          | Stop refreshing one of your feeds                                    |
 
 ## The sync job
@@ -132,6 +133,15 @@ Run a sync by hand from any machine that is not behind Cloudflare:
 ```bash
 WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... node scripts/sync-feeds.mjs
 ```
+
+### My feeds and sync alerts
+
+A signed-in visitor sees a "My feeds" card on the home page listing every feed they have claimed,
+each with its status, item count, and when it last synced. A feed that fails
+`FEED_ALERT_FAILURE_THRESHOLD` (3) scheduled syncs in a row is marked as needing attention there and
+in a small bell badge in the header, so a Radarr/Sonarr feed going stale is noticed instead of
+discovered by accident. There is no outbound email today (the OAuth scopes never request one), so
+this is in-app only: no separate mail service to configure.
 
 ## Analytics
 

@@ -5,9 +5,11 @@ import {
   buildPublicFeedPath,
   buildCachedFeedXmlTemplate,
   buildSonarrCustomListPayload,
+  FEED_ALERT_FAILURE_THRESHOLD,
   filterItemsForTarget,
   hashText,
   injectPublicOrigin,
+  isFeedAlerting,
   normalizeImdbUrl,
   parseFeedRoute,
   summarizeItemsByTarget,
@@ -366,5 +368,25 @@ const cachedXmlTemplate = buildCachedFeedXmlTemplate(
 assert(cachedXmlTemplate.includes("__IMDBWATCHARR_PUBLIC_ORIGIN__"), "Cached XML should preserve the public-origin placeholder.");
 const injectedXml = injectPublicOrigin(cachedXmlTemplate, "https://imdbwatcharr.pages.dev");
 assert(injectedXml.includes("https://imdbwatcharr.pages.dev/radarr/l/ls008777572"), "Public origin injection should produce the final route.");
+
+// --- Feed failure alerting --------------------------------------------------
+// If isFeedAlerting stopped counting correctly, a feed owner would either
+// never see an alert (a truly dead feed stays silent forever) or see one on
+// the very first transient hiccup (noise on every 15-minute schedule blip).
+assert(!isFeedAlerting(0), "A feed with no failures should not alert.");
+assert(
+  !isFeedAlerting(FEED_ALERT_FAILURE_THRESHOLD - 1),
+  "A feed below the threshold should not alert yet.",
+);
+assert(
+  isFeedAlerting(FEED_ALERT_FAILURE_THRESHOLD),
+  "A feed that just reached the threshold should alert.",
+);
+assert(
+  isFeedAlerting(FEED_ALERT_FAILURE_THRESHOLD + 5),
+  "A feed well past the threshold should still alert.",
+);
+assert(!isFeedAlerting(null), "A feed with no recorded failures (null) should not alert.");
+assert(!isFeedAlerting(undefined), "A feed with an undefined failure count should not alert.");
 
 console.log("Parser checks passed.");
