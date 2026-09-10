@@ -5,6 +5,7 @@ Turn a public IMDb watchlist or list into a **Radarr RSS feed** and a **Sonarr c
 A [LunarWerx](https://lunarwerx.com) product, live at
 [watcharr.lunarwerx.com](https://watcharr.lunarwerx.com).
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join_the_community-5865F2?logo=discord&logoColor=white)](https://discord.gg/PsWpeNUzhk)
 
 IMDb Watcharr is a free web tool that turns a public IMDb watchlist or list into a Radarr RSS feed
