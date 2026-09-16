@@ -89,18 +89,25 @@ async function imdbGraphql(query, variables, fetchImpl = fetch) {
 
   const payload = await response.json();
   if (Array.isArray(payload?.errors) && payload.errors.length) {
-    const message = payload.errors[0]?.message ?? "unknown error";
-
-    // A typo'd or private id is the common case here, and IMDb answers it with a
-    // Java stack-trace string. Do not put that in front of someone.
-    if (/RESOURCE_NOT_FOUND|Not found/i.test(message)) {
-      throw new NotFoundError("IMDb has nothing public at that link. It may be private, or the id may be wrong.");
-    }
-
-    throw new Error(`IMDb GraphQL error: ${message}`);
+    throwGraphqlError(payload.errors[0]);
   }
 
   return payload?.data ?? {};
+}
+
+/**
+ * Translate one GraphQL error entry into the exception the caller should see.
+ * A typo'd or private id is the common case, and IMDb answers it with a Java
+ * stack-trace string - that is a user-facing answer, not something to log.
+ */
+function throwGraphqlError(error) {
+  const message = error?.message ?? "unknown error";
+
+  if (/RESOURCE_NOT_FOUND|Not found/i.test(message)) {
+    throw new NotFoundError("IMDb has nothing public at that link. It may be private, or the id may be wrong.");
+  }
+
+  throw new Error(`IMDb GraphQL error: ${message}`);
 }
 
 async function resolveWatchlistUserId(sourceKey, fetchImpl) {
@@ -138,11 +145,37 @@ function mapEdge(edge, index) {
   };
 }
 
+/**
+ * Append this page's edges to `items`, skipping duplicates and unmappable
+ * edges. feed_items is keyed on (feed_id, imdb_id) and IMDb lists really do
+ * repeat a title, so a duplicate would fail the whole insert batch. Keeping the
+ * first occurrence wins, which under LIST_ORDER is the earliest position.
+ */
+function appendNewEdges(items, seen, edges) {
+  for (const [index, edge] of edges.entries()) {
+    const mapped = mapEdge(edge, items.length + index);
+    if (mapped && !seen.has(mapped.imdbId)) {
+      seen.add(mapped.imdbId);
+      items.push(mapped);
+    }
+  }
+}
+
+/**
+ * The cursor to request next, or null when paging is finished. An empty page
+ * that still claims more, or a page with no cursor, would loop forever.
+ */
+function nextPageCursor(connection, edges) {
+  const pageInfo = connection?.pageInfo;
+  if (!pageInfo?.hasNextPage || !edges.length || !pageInfo.endCursor) {
+    return null;
+  }
+
+  return pageInfo.endCursor;
+}
+
 async function collectListPages(query, baseVariables, rootField, fetchImpl) {
   const items = [];
-  // feed_items is keyed on (feed_id, imdb_id) and IMDb lists really do repeat a
-  // title, so a duplicate would fail the whole insert batch. Keep the first
-  // occurrence, which under LIST_ORDER is the earliest position.
   const seen = new Set();
   let listNode = null;
   let after = null;
@@ -158,20 +191,14 @@ async function collectListPages(query, baseVariables, rootField, fetchImpl) {
     const connection = node?.titleListItemSearch ?? {};
     const edges = Array.isArray(connection.edges) ? connection.edges : [];
 
-    for (const [index, edge] of edges.entries()) {
-      const mapped = mapEdge(edge, items.length + index);
-      if (mapped && !seen.has(mapped.imdbId)) {
-        seen.add(mapped.imdbId);
-        items.push(mapped);
-      }
-    }
+    appendNewEdges(items, seen, edges);
 
-    // An empty page that still claims more would loop forever.
-    if (!connection?.pageInfo?.hasNextPage || !edges.length || !connection.pageInfo.endCursor) {
+    const cursor = nextPageCursor(connection, edges);
+    if (!cursor) {
       return { listNode, items };
     }
 
-    after = connection.pageInfo.endCursor;
+    after = cursor;
   }
 
   // Truncating here would silently drop titles from the user's feed. Failing
