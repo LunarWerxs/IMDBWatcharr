@@ -13,7 +13,7 @@
   "scripts": {
     "check": "node scripts/test-parser.mjs",
     "check:web": "node scripts/test-unfollow-ui.mjs && npm --workspace web run lint",
-    "//check:deep": "The everything lane, run before a release: the parser fixtures and the whole web lane (its unfollow-UI contract test, then oxlint). It exists so web's `lint` is reachable from a gate lane by name - the Architect's verification-coverage-reachability check reads package.json lanes, not workflows, so CI's own lint step does not count as its gate.",
+    "//check:deep": "The everything lane, run before a release: the parser fixtures and the whole web lane (its unfollow-UI contract test, then oxlint). For the Architect's verification-coverage-reachability oracle: it walks package scripts through a literal `--cwd <dir>` edge and cannot parse `npm --workspace web run lint` in check:web below, so this lane alone still reads as web's lint being reached by no gate. The edge that counts is CI's `Lint the web app` step, which runs `npm run lint` with `working-directory: web` (checked 2026-09-16 against the oracle: the lane alone leaves the finding open, that step clears it).",
     "check:deep": "npm run check && npm run check:web",
     "test": "node --test \"test/**/*.test.mjs\" && npm run check && npm run check:web",
     "dev": "wrangler dev --remote",

@@ -30,7 +30,8 @@ jobs:
         run: npm run check
 
       - name: Lint the web app
-        run: npm run lint --workspace web
+        working-directory: web
+        run: npm run lint
 
       - name: Build the web app
         run: npm run web:build
