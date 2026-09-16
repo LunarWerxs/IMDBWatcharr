@@ -19,6 +19,7 @@ async function writeToClipboard(value: string) {
     }
   }
 
+  // arkitect-allow: no-bandaids - this repo is source-available and self-hosted over plain http, where navigator.clipboard does not exist at all (secure-context only), so this branch is the only copy path those installs have; nothing here is a compat shim awaiting removal.
   // Safari and non-secure contexts still need the legacy path.
   const field = document.createElement('textarea')
   field.value = value

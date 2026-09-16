@@ -2,12 +2,15 @@
 // entirely on unfollowFeed's request contract in web/src/lib/api.ts - what it
 // POSTs, and how it turns a non-2xx response into the error text the toast
 // shows. That function is plain, dependency-free TypeScript (no React, no
-// bundler needed), so Node can import it directly (native type-stripping)
-// and it gets the same assert()-based check scripts/test-parser.mjs already
-// gives the backend parser code, instead of shipping untested. Not wired into
-// `npm run check`/CI's node-version:22 job, since type-stripping support
-// there is unverified from this worktree - run directly with
-// `node scripts/test-unfollow-ui.mjs` (or `npm run check:web`).
+// bundler needed), so it can be imported and gets the same assert()-based
+// check scripts/test-parser.mjs already gives the backend parser code,
+// instead of shipping untested.
+//
+// Run it with bun - `bun scripts/test-unfollow-ui.mjs` - not node: the import
+// above reaches a .ts module through the workspace, and bun strips those types
+// natively. The `npm run check:web` lane (what `npm test` and CI run) reaches
+// the same file under a runtime where that import needs type-stripping to be
+// on by default (Node 22.18+, above the >=22 floor package.json declares).
 import assert from "node:assert/strict";
 
 import { unfollowFeed } from "../web/src/lib/api.ts";
