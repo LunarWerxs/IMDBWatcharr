@@ -103,6 +103,393 @@ function AccountControl({ session }: { session: Session | null }) {
   )
 }
 
+// Up to the studio. It sits above the product mark rather than beside it so
+// the hierarchy reads in the order it actually is: studio, then product. Same
+// shape the other LunarWerx products use.
+function AppHeader({ session }: { session: Session | null }) {
+  return (
+    <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
+      <a
+        href="https://lunarwerx.com"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors"
+      >
+        <ArrowLeftIcon className="size-3.5 shrink-0" />
+        LunarWerx Studios
+      </a>
+
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+            <ClapperboardIcon className="size-4" />
+          </div>
+          <div className="font-display truncate text-sm font-semibold">IMDb Watcharr</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
+          <GithubLink />
+          <ThemeToggle />
+          <AccountControl session={session} />
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function Hero() {
+  return (
+    <section className="pt-6 pb-8 sm:pt-10">
+      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Your IMDb list, straight into Radarr and Sonarr.
+      </h1>
+      <p className="text-muted-foreground mt-3 max-w-xl text-base text-pretty">
+        Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for the
+        movies, one Sonarr uses for the shows. Both read the same list.
+      </p>
+    </section>
+  )
+}
+
+function CreateFeedForm({
+  sourceUrl,
+  onSourceUrlChange,
+  looksValid,
+  pending,
+  canSubmit,
+  onSubmit,
+}: {
+  sourceUrl: string
+  onSourceUrlChange: (value: string) => void
+  looksValid: boolean
+  pending: boolean
+  canSubmit: boolean
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create your feeds</CardTitle>
+        <CardDescription>
+          Your links never change, so you set them up once and leave them. Sign in and we keep the
+          list up to date for you.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} className="grid gap-2">
+          <Label htmlFor="source-url">IMDb watchlist or list URL</Label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              id="source-url"
+              name="sourceUrl"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              spellCheck={false}
+              placeholder={EXAMPLE_URL}
+              value={sourceUrl}
+              onChange={(event) => onSourceUrlChange(event.target.value)}
+              aria-invalid={!looksValid}
+              aria-describedby="source-url-hint"
+              className="sm:flex-1"
+              required
+            />
+            <Button type="submit" size="lg" disabled={!canSubmit}>
+              {pending ? (
+                <>
+                  <LoaderCircleIcon className="size-4 animate-spin" />
+                  Reading IMDb
+                </>
+              ) : (
+                <>
+                  Generate feeds
+                  <ArrowRightIcon className="size-4" />
+                </>
+              )}
+            </Button>
+          </div>
+          <p
+            id="source-url-hint"
+            className={
+              looksValid ? 'text-muted-foreground text-xs' : 'text-destructive text-xs'
+            }
+          >
+            {looksValid ? (
+              <>
+                Try{' '}
+                <button
+                  type="button"
+                  className="hover:text-foreground underline underline-offset-2"
+                  onClick={() => onSourceUrlChange(EXAMPLE_URL)}
+                >
+                  {EXAMPLE_URL}
+                </button>
+              </>
+            ) : (
+              'That does not look like an IMDb list or watchlist link.'
+            )}
+          </p>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SyncSkeleton() {
+  return (
+    <div className="mt-4 grid gap-4">
+      <Skeleton className="h-[132px] w-full rounded-xl" />
+      <Skeleton className="h-[196px] w-full rounded-xl" />
+    </div>
+  )
+}
+
+function BuildError({ message }: { message: string }) {
+  return (
+    <Alert variant="destructive" className="mt-4">
+      <TriangleAlertIcon />
+      <AlertTitle>Could not build the feeds</AlertTitle>
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  )
+}
+
+/**
+ * What a submission leaves behind: skeletons while it is in flight, the reason
+ * if it failed, or the feed it built. At most one of them is ever on screen,
+ * which is why they are decided together rather than three times over.
+ */
+function FeedOutcome({
+  pending,
+  error,
+  result,
+  session,
+}: {
+  pending: boolean
+  error: string | null
+  result: CreateFeedResponse | null
+  session: Session | null
+}) {
+  if (pending) {
+    return <SyncSkeleton />
+  }
+
+  if (error) {
+    return <BuildError message={error} />
+  }
+
+  return result ? <FeedResult result={result} session={session} /> : null
+}
+
+type FeedState = 'ready' | 'snapshot' | 'fetching'
+
+const FEED_STATE_LABELS: Record<FeedState, string> = {
+  ready: 'ready',
+  snapshot: 'last good snapshot',
+  fetching: 'fetching',
+}
+
+/**
+ * The routes keep serving the stored snapshot when a sync fails, so a feed with
+ * items behind it is stale rather than broken; a brand-new list has nothing
+ * stored yet, so its sync job still has to fetch it.
+ */
+function feedState(result: CreateFeedResponse): FeedState {
+  if (result.status === 'ready') {
+    return 'ready'
+  }
+
+  return result.totalCount > 0 ? 'snapshot' : 'fetching'
+}
+
+function FeedStatusBadge({ result }: { result: CreateFeedResponse }) {
+  const state = feedState(result)
+
+  return (
+    <Badge variant={state === 'ready' ? 'secondary' : 'outline'} className="font-normal">
+      {FEED_STATE_LABELS[state]}
+    </Badge>
+  )
+}
+
+function StatTiles({ result }: { result: CreateFeedResponse }) {
+  return (
+    <CardContent>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <StatTile label="Titles on the list" value={result.totalCount} />
+        <StatTile label="Movies for Radarr" value={result.radarrCount} />
+        <StatTile label="Shows for Sonarr" value={result.sonarrCount} />
+        <StatTile label="Shows we skipped" value={result.sonarrUnresolvedCount} />
+      </div>
+      {result.sonarrUnresolvedCount > 0 && (
+        <p className="text-muted-foreground mt-3 text-xs">
+          Sonarr needs a TVDB id for every show, and we could not find one for{' '}
+          {result.sonarrUnresolvedCount} of them, so we left those out.
+        </p>
+      )}
+    </CardContent>
+  )
+}
+
+/** A signed-out visitor's feed does not refresh itself, so it says so. */
+function UnsyncedNudge({
+  session,
+  autoRefreshing,
+}: {
+  session: Session | null
+  autoRefreshing: boolean
+}) {
+  if (!session?.authAvailable || autoRefreshing) {
+    return null
+  }
+
+  return (
+    <Alert className="mt-3">
+      <UserIcon className="size-4" />
+      <AlertTitle>This one will not update by itself</AlertTitle>
+      <AlertDescription>
+        <span>
+          Your links work now and will keep working. We only read the list again when you come
+          back and ask. Sign in and we check it for you about every fifteen minutes.
+        </span>
+        <Button asChild size="sm" className="mt-2">
+          <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
+            Sign in with Connections
+          </a>
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
+function FeedSummaryCard({
+  result,
+  session,
+}: {
+  result: CreateFeedResponse
+  session: Session | null
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {result.listTitle || 'Your list'}
+          <FeedStatusBadge result={result} />
+          {result.syncing && (
+            <LoaderCircleIcon className="text-muted-foreground size-3.5 animate-spin" />
+          )}
+        </CardTitle>
+        <CardDescription>
+          {feedState(result) === 'snapshot'
+            ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
+            : result.message}
+        </CardDescription>
+        <UnsyncedNudge session={session} autoRefreshing={result.autoRefreshing} />
+      </CardHeader>
+      <StatTiles result={result} />
+    </Card>
+  )
+}
+
+function TargetCards({ result }: { result: CreateFeedResponse }) {
+  return (
+    <div className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FilmIcon className="text-muted-foreground size-4" />
+            Radarr
+            <Badge variant="outline" className="ml-auto font-normal">
+              <RssIcon className="size-3" />
+              RSS List
+            </Badge>
+          </CardTitle>
+          <CardDescription>Settings, Lists, Add list, Advanced, RSS List.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CopyField value={result.radarrFeedUrl} label="Radarr RSS URL" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TvIcon className="text-muted-foreground size-4" />
+            Sonarr
+            <Badge variant="outline" className="ml-auto font-normal">
+              Custom List
+            </Badge>
+          </CardTitle>
+          <CardDescription>Settings, Import Lists, Add list, Advanced, Custom List.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CopyField value={result.sonarrFeedUrl} label="Sonarr custom list URL" />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function FeedResult({
+  result,
+  session,
+}: {
+  result: CreateFeedResponse
+  session: Session | null
+}) {
+  return (
+    <div className="mt-4 grid gap-4">
+      <FeedSummaryCard result={result} session={session} />
+      <TargetCards result={result} />
+    </div>
+  )
+}
+
+// Reference for a first-time visitor, noise for a returning one, so it starts
+// closed. A native <details> keeps it keyboard- and search-friendly without
+// another dependency.
+function HowItWorks() {
+  return (
+    <details className="group mt-12">
+      <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors [&::-webkit-details-marker]:hidden">
+        <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" />
+        How it works
+      </summary>
+      <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+        {STEPS.map((step, index) => (
+          <li key={step.title}>
+            <Card className="h-full gap-2 py-4">
+              <CardHeader className="px-4">
+                <div className="bg-muted text-muted-foreground mb-1.5 flex size-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
+                  {index + 1}
+                </div>
+                <CardTitle className="text-sm">{step.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4">
+                <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
+              </CardContent>
+            </Card>
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
+function AppFooter() {
+  return (
+    <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
+      <Separator className="mb-6" />
+      <p>
+        <span className="font-display text-foreground">IMDb Watcharr</span>
+        <span aria-hidden="true"> · </span>
+        by{' '}
+        <a href="https://lunarwerx.com" className="hover:text-foreground transition-colors">
+          LunarWerx
+        </a>
+      </p>
+    </footer>
+  )
+}
+
 export default function App() {
   const [sourceUrl, setSourceUrl] = useState('')
   const [pending, setPending] = useState(false)
@@ -150,11 +537,7 @@ export default function App() {
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
-  // The routes keep serving the stored snapshot when a sync fails, so a feed
-  // with items behind it is stale rather than broken.
-  const servedFromSnapshot = Boolean(result && result.status !== 'ready' && result.totalCount > 0)
-  // A brand-new list has nothing stored yet: the sync job has to fetch it first.
-  const awaitingFirstSync = Boolean(result && result.status !== 'ready' && result.totalCount === 0)
+  const canSubmit = !pending && trimmed.length > 0
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -177,268 +560,28 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
-        {/* Up to the studio. It sits above the product mark rather than beside
-            it so the hierarchy reads in the order it actually is: studio, then
-            product. Same shape the other LunarWerx products use. */}
-        <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
-          <a
-            href="https://lunarwerx.com"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors"
-          >
-            <ArrowLeftIcon className="size-3.5 shrink-0" />
-            LunarWerx Studios
-          </a>
-
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                <ClapperboardIcon className="size-4" />
-              </div>
-              <div className="font-display truncate text-sm font-semibold">IMDb Watcharr</div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
-              <GithubLink />
-              <ThemeToggle />
-              <AccountControl session={session} />
-            </div>
-          </div>
-        </header>
+        <AppHeader session={session} />
 
         <main className="mx-auto w-full max-w-3xl px-4 pb-20">
-          <section className="pt-6 pb-8 sm:pt-10">
-            <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Your IMDb list, straight into Radarr and Sonarr.
-            </h1>
-            <p className="text-muted-foreground mt-3 max-w-xl text-base text-pretty">
-              Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for
-              the movies, one Sonarr uses for the shows. Both read the same list.
-            </p>
-          </section>
+          <Hero />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Create your feeds</CardTitle>
-              <CardDescription>
-                Your links never change, so you set them up once and leave them. Sign in and we
-                keep the list up to date for you.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="grid gap-2">
-                <Label htmlFor="source-url">IMDb watchlist or list URL</Label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    id="source-url"
-                    name="sourceUrl"
-                    type="url"
-                    inputMode="url"
-                    autoComplete="url"
-                    spellCheck={false}
-                    placeholder={EXAMPLE_URL}
-                    value={sourceUrl}
-                    onChange={(event) => setSourceUrl(event.target.value)}
-                    aria-invalid={!looksValid}
-                    aria-describedby="source-url-hint"
-                    className="sm:flex-1"
-                    required
-                  />
-                  <Button type="submit" size="lg" disabled={pending || !trimmed}>
-                    {pending ? (
-                      <>
-                        <LoaderCircleIcon className="size-4 animate-spin" />
-                        Reading IMDb
-                      </>
-                    ) : (
-                      <>
-                        Generate feeds
-                        <ArrowRightIcon className="size-4" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-                <p
-                  id="source-url-hint"
-                  className={
-                    looksValid ? 'text-muted-foreground text-xs' : 'text-destructive text-xs'
-                  }
-                >
-                  {looksValid ? (
-                    <>
-                      Try{' '}
-                      <button
-                        type="button"
-                        className="hover:text-foreground underline underline-offset-2"
-                        onClick={() => setSourceUrl(EXAMPLE_URL)}
-                      >
-                        {EXAMPLE_URL}
-                      </button>
-                    </>
-                  ) : (
-                    'That does not look like an IMDb list or watchlist link.'
-                  )}
-                </p>
-              </form>
-            </CardContent>
-          </Card>
+          <CreateFeedForm
+            sourceUrl={sourceUrl}
+            onSourceUrlChange={setSourceUrl}
+            looksValid={looksValid}
+            pending={pending}
+            canSubmit={canSubmit}
+            onSubmit={handleSubmit}
+          />
 
           {session?.signedIn && <MyFeeds />}
 
-          {pending && (
-            <div className="mt-4 grid gap-4">
-              <Skeleton className="h-[132px] w-full rounded-xl" />
-              <Skeleton className="h-[196px] w-full rounded-xl" />
-            </div>
-          )}
+          <FeedOutcome pending={pending} error={error} result={result} session={session} />
 
-          {error && !pending && (
-            <Alert variant="destructive" className="mt-4">
-              <TriangleAlertIcon />
-              <AlertTitle>Could not build the feeds</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {result && !pending && (
-            <div className="mt-4 grid gap-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    {result.listTitle || 'Your list'}
-                    <Badge
-                      variant={result.status === 'ready' ? 'secondary' : 'outline'}
-                      className="font-normal"
-                    >
-                      {servedFromSnapshot
-                        ? 'last good snapshot'
-                        : awaitingFirstSync
-                          ? 'fetching'
-                          : result.status}
-                    </Badge>
-                    {result.syncing && (
-                      <LoaderCircleIcon className="text-muted-foreground size-3.5 animate-spin" />
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    {servedFromSnapshot
-                      ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
-                      : result.message}
-                  </CardDescription>
-                  {session?.authAvailable && !result.autoRefreshing ? (
-                    <Alert className="mt-3">
-                      <UserIcon className="size-4" />
-                      <AlertTitle>This one will not update by itself</AlertTitle>
-                      <AlertDescription>
-                        <span>
-                          Your links work now and will keep working. We only read the list again
-                          when you come back and ask. Sign in and we check it for you about every
-                          fifteen minutes.
-                        </span>
-                        <Button asChild size="sm" className="mt-2">
-                          <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
-                            Sign in with Connections
-                          </a>
-                        </Button>
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <StatTile label="Titles on the list" value={result.totalCount} />
-                    <StatTile label="Movies for Radarr" value={result.radarrCount} />
-                    <StatTile label="Shows for Sonarr" value={result.sonarrCount} />
-                    <StatTile label="Shows we skipped" value={result.sonarrUnresolvedCount} />
-                  </div>
-                  {result.sonarrUnresolvedCount > 0 && (
-                    <p className="text-muted-foreground mt-3 text-xs">
-                      Sonarr needs a TVDB id for every show, and we could not find one for{' '}
-                      {result.sonarrUnresolvedCount} of them, so we left those out.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FilmIcon className="text-muted-foreground size-4" />
-                      Radarr
-                      <Badge variant="outline" className="ml-auto font-normal">
-                        <RssIcon className="size-3" />
-                        RSS List
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      Settings, Lists, Add list, Advanced, RSS List.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <CopyField value={result.radarrFeedUrl} label="Radarr RSS URL" />
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TvIcon className="text-muted-foreground size-4" />
-                      Sonarr
-                      <Badge variant="outline" className="ml-auto font-normal">
-                        Custom List
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      Settings, Import Lists, Add list, Advanced, Custom List.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <CopyField value={result.sonarrFeedUrl} label="Sonarr custom list URL" />
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          )}
-
-          {/* Reference for a first-time visitor, noise for a returning one, so it
-              starts closed. A native <details> keeps it keyboard- and
-              search-friendly without another dependency. */}
-          <details className="group mt-12">
-            <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors [&::-webkit-details-marker]:hidden">
-              <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" />
-              How it works
-            </summary>
-            <ol className="mt-4 grid gap-3 sm:grid-cols-3">
-              {STEPS.map((step, index) => (
-                <li key={step.title}>
-                  <Card className="h-full gap-2 py-4">
-                    <CardHeader className="px-4">
-                      <div className="bg-muted text-muted-foreground mb-1.5 flex size-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
-                        {index + 1}
-                      </div>
-                      <CardTitle className="text-sm">{step.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4">
-                      <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
-                    </CardContent>
-                  </Card>
-                </li>
-              ))}
-            </ol>
-          </details>
+          <HowItWorks />
         </main>
 
-        <footer className="text-muted-foreground mx-auto w-full max-w-3xl px-4 pb-10 text-xs">
-          <Separator className="mb-6" />
-          <p>
-            <span className="font-display text-foreground">IMDb Watcharr</span>
-            <span aria-hidden="true"> · </span>
-            by{' '}
-            <a href="https://lunarwerx.com" className="hover:text-foreground transition-colors">
-              LunarWerx
-            </a>
-          </p>
-        </footer>
+        <AppFooter />
       </div>
     </TooltipProvider>
   )

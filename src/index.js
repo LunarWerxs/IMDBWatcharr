@@ -504,14 +504,357 @@ function mayRefreshNow(feed, session) {
   return Date.now() - Date.parse(feed.last_synced_at) > MANUAL_REFRESH_MIN_MS;
 }
 
-export default {
-  // NOTE: this function's template literals were previously mangled (a stray
-  // backslash before every backtick and every `${`, left over from a bad
-  // find/replace) - the file could not even be parsed, and the two
-  // interpolations would have rendered as the literal text "${publicOrigin}"
-  // had it parsed at all. Fixed as part of adding the health/alert fields
-  // below, since this is the exact function those fields land in.
-  async _handleMyFeedsRoute(request, env, publicOrigin, url) {
+// ── Route handlers ──────────────────────────────────────────────────────────
+// Each of these returns null when the request is not its own, so `fetch` can
+// offer every request to them in turn and answer with the first that claims
+// it. They all take the same single context object for that reason, whether or
+// not they read every field of it.
+
+async function handleAuthRoutes({ request, env, url }) {
+  if (request.method === "GET" && url.pathname === "/auth/login") {
+    return startLogin(request, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/auth/callback") {
+    return completeLogin(request, env);
+  }
+
+  if (url.pathname === "/auth/logout") {
+    return logout();
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/me") {
+    const session = await getSession(request, env);
+    return json({
+      signedIn: Boolean(session),
+      name: session?.name ?? null,
+      authAvailable: isAuthConfigured(env),
+    });
+  }
+
+  return null;
+}
+
+async function handleUnfollowRoute({ request, env, url }) {
+  if (request.method !== "POST" || url.pathname !== "/api/unfollow") {
+    return null;
+  }
+
+  const session = await getSession(request, env);
+  if (!session) {
+    return json({ error: "Sign in first." }, { status: 401 });
+  }
+
+  try {
+    const payload = await request.json();
+    const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+    const feed = await getFeedByUrl(env.DB, normalized.canonicalUrl);
+    if (feed) {
+      await releaseFeed(env.DB, feed.id, session.sub);
+    }
+    return json({ ok: true });
+  } catch (error) {
+    return json({ error: error.message }, { status: 400 });
+  }
+}
+
+// ── The sync job's two routes ────────────────────────────────────────────────
+// IMDb refuses every request from Cloudflare's egress, so the Worker cannot
+// fetch its own data. A GitHub Actions run does the fetching and hands the
+// result back through here. Both routes are shared-secret authenticated.
+
+async function handleSyncTargetsRoute({ request, env, url }) {
+  if (request.method !== "GET" || url.pathname !== "/api/sync-targets") {
+    return null;
+  }
+
+  if (!isAuthorizedSyncRequest(request, env)) {
+    return json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  // Only claimed feeds ride the schedule. An unowned feed keeps serving what
+  // it already has and is refetched only when someone asks for it.
+  const result = await env.DB.prepare(
+    `SELECT f.source_url, f.source_kind, f.status, f.last_synced_at, f.source_fingerprint
+       FROM feeds f
+      WHERE EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+      ORDER BY f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
+  ).all();
+
+  return json({
+    feeds: (result.results ?? []).map((feed) => ({
+      sourceUrl: feed.source_url,
+      sourceKind: feed.source_kind,
+      status: feed.status,
+      lastSyncedAt: feed.last_synced_at,
+      fingerprint: feed.source_fingerprint,
+      stale: isStale(feed),
+    })),
+  });
+}
+
+async function handleIngestRoute({ request, env, url }) {
+  if (request.method !== "POST" || url.pathname !== "/api/ingest") {
+    return null;
+  }
+
+  if (!isAuthorizedSyncRequest(request, env)) {
+    return json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  try {
+    const payload = await request.json();
+
+    // A failed fetch on the runner is reported rather than dropped, so the
+    // feed shows why it is stale instead of just silently ageing.
+    if (payload?.error) {
+      const failing = await getFeedByUrl(env.DB, normalizeImdbUrl(payload.sourceUrl).canonicalUrl);
+      if (failing) {
+        await markFeedFailure(env.DB, failing.id, payload.error);
+      }
+      return json({ ok: true, recorded: "error" });
+    }
+
+    const snapshot = validateSnapshot(payload?.snapshot);
+    const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+    const existing = await getOrCreateFeed(env.DB, normalized);
+    const feed = await syncFeedFromSnapshot(env, existing, snapshot);
+
+    return json({
+      ok: true,
+      slug: feed.slug,
+      status: feed.status,
+      itemCount: feed.item_count,
+      fingerprint: feed.source_fingerprint,
+    });
+  } catch (error) {
+    return json({ error: error.message }, { status: 400 });
+  }
+}
+
+async function handleCreateRoute({ request, env, url, publicOrigin }) {
+  if (request.method !== "POST" || url.pathname !== "/api/create") {
+    return null;
+  }
+
+  try {
+    const payload = await request.json();
+    const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
+    const session = await getSession(request, env);
+    let feed = await getOrCreateFeed(env.DB, normalized);
+
+    // Signing in and pasting a list is what claims it. Claiming is additive,
+    // so two people can both keep the same public list alive.
+    if (session) {
+      await claimFeed(env.DB, feed.id, session.sub);
+    }
+
+    // Nothing here can fetch IMDb, so a feed that needs data asks the sync
+    // job to run and reports honestly in the meantime.
+    let dispatched = false;
+    if (mayRefreshNow(feed, session)) {
+      dispatched = await requestSyncRun(env, normalized.canonicalUrl);
+    }
+
+    const message = describeFeedState(feed, dispatched, Boolean(session));
+    const storedItems = await getFeedItems(env.DB, feed.id);
+    const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
+    const counts = summarizeItemsByTarget(enrichedItems);
+    const sonarrPayload = buildSonarrCustomListPayload(enrichedItems);
+    const sonarrUnresolvedCount = counts.sonarr - sonarrPayload.length;
+
+    // The cached payloads are only built during a sync, so a TVDB id resolved
+    // outside one leaves the served feed behind what this response reports.
+    // Compare against the cache itself rather than against what this request
+    // happened to resolve, or a feed enriched by an earlier request stays stale.
+    if (feed.source_fingerprint && feed.sonarr_cache !== JSON.stringify(sonarrPayload)) {
+      feed = await storeFeedCaches(env.DB, feed, enrichedItems, feed.source_fingerprint);
+    }
+
+    return json({
+      slug: feed.slug,
+      listTitle: feed.list_title || "",
+      routePath: buildPublicFeedPath(normalized, "radarr"),
+      feedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
+      radarrRoutePath: buildPublicFeedPath(normalized, "radarr"),
+      radarrFeedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
+      sonarrRoutePath: buildPublicFeedPath(normalized, "sonarr"),
+      sonarrFeedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "sonarr")}`,
+      status: feed.status,
+      itemCount: counts.radarr,
+      radarrCount: counts.radarr,
+      sonarrCount: sonarrPayload.length,
+      sonarrUnresolvedCount,
+      totalCount: counts.total,
+      message,
+      syncing: dispatched || feed.status === "syncing",
+      owned: Boolean(session),
+      signedIn: Boolean(session),
+      autoRefreshing: Boolean(session),
+    });
+  } catch (error) {
+    return json({ error: error.message }, { status: 400 });
+  }
+}
+
+async function handleLegacyPathRedirect({ request, url, publicOrigin }) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return null;
+  }
+
+  const legacyRedirectPath = getLegacyRedirectPath(url.pathname);
+  return legacyRedirectPath ? Response.redirect(`${publicOrigin}${legacyRedirectPath}`, 302) : null;
+}
+
+// Radarr and Sonarr poll the feed routes, so a stale OWNED feed is the natural
+// place to nudge the sync job. Fire-and-forget: the response is always served
+// from what is already stored. An unowned feed is deliberately left alone
+// here, which is exactly what signing in changes.
+function nudgeSyncForOwnedFeed(feed, env, ctx) {
+  ctx.waitUntil(
+    env.DB.prepare("SELECT 1 AS owned FROM feed_owners WHERE feed_id = ? LIMIT 1")
+      .bind(feed.id)
+      .first()
+      .then((owned) => (owned ? requestSyncRun(env, feed.source_url) : null))
+      .catch(() => {}),
+  );
+}
+
+async function serveSonarrFeed(env, feed, items, baseHeaders) {
+  if (feed.sonarr_cache) {
+    return new Response(feed.sonarr_cache, {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        ...baseHeaders,
+      },
+    });
+  }
+
+  const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
+  const payload = buildSonarrCustomListPayload(enrichedItems);
+  return json(payload, {
+    headers: {
+      ...baseHeaders,
+    },
+  });
+}
+
+function serveRadarrFeed(feed, items, feedTarget, baseHeaders, publicOrigin) {
+  if (feed.radarr_cache) {
+    return new Response(injectPublicOrigin(feed.radarr_cache, publicOrigin), {
+      headers: {
+        "content-type": "application/rss+xml; charset=utf-8",
+        ...baseHeaders,
+      },
+    });
+  }
+
+  const filteredItems = filterItemsForTarget(items, feedTarget);
+  const xml = buildFeedXml(publicOrigin, feed, filteredItems, feedTarget);
+  return new Response(xml, {
+    headers: {
+      "content-type": "application/rss+xml; charset=utf-8",
+      ...baseHeaders,
+    },
+  });
+}
+
+async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return null;
+  }
+
+  const parsedRoute = parseFeedRoute(url.pathname);
+  if (!parsedRoute) {
+    return null;
+  }
+
+  const { feedTarget, ...normalizedRoute } = parsedRoute;
+  const feed = await getOrCreateFeed(env.DB, normalizedRoute);
+
+  if (isStale(feed)) {
+    nudgeSyncForOwnedFeed(feed, env, ctx);
+  }
+
+  const items = await getFeedItems(env.DB, feed.id);
+  if (items.length === 0) {
+    return new Response(feed.last_error || "We have not managed to read this list from IMDb yet.", {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  const etag = buildFeedEtag(feed, feedTarget);
+  const baseHeaders = {
+    "cache-control": "public, max-age=300",
+    ...(etag ? { etag } : {}),
+  };
+
+  if (hasFreshEtag(request, etag)) {
+    return new Response(null, {
+      status: 304,
+      headers: baseHeaders,
+    });
+  }
+
+  if (feedTarget === "sonarr") {
+    return serveSonarrFeed(env, feed, items, baseHeaders);
+  }
+
+  return serveRadarrFeed(feed, items, feedTarget, baseHeaders, publicOrigin);
+}
+
+async function handleLegacySlugRedirect({ request, env, url, publicOrigin }) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return null;
+  }
+
+  const legacyFeedMatch = url.pathname.match(/^\/f\/([a-f0-9]{12})\.xml$/);
+  if (!legacyFeedMatch) {
+    return null;
+  }
+
+  const feed = await getFeedBySlug(env.DB, legacyFeedMatch[1]);
+  if (!feed) {
+    return new Response("Feed not found.", { status: 404 });
+  }
+
+  const redirectUrl = `${publicOrigin}${buildPublicFeedPath(getNormalizedFromStoredFeed(feed), "radarr")}`;
+  return Response.redirect(redirectUrl, 302);
+}
+
+async function handleMetadataRoute({ request, env, url }) {
+  if (request.method !== "GET") {
+    return null;
+  }
+
+  const metadataMatch = url.pathname.match(/^\/api\/feeds\/([a-f0-9]{12})$/);
+  if (!metadataMatch) {
+    return null;
+  }
+
+  const feed = await getFeedBySlug(env.DB, metadataMatch[1]);
+  if (!feed) {
+    return json({ error: "Feed not found." }, { status: 404 });
+  }
+  return json(feed);
+}
+
+function handleUnroutedApiPath({ url }) {
+  if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/auth/")) {
+    return null;
+  }
+
+  return json({ error: "Not found." }, { status: 404 });
+}
+
+// NOTE: this function's template literals were previously mangled (a stray
+// backslash before every backtick and every `${`, left over from a bad
+// find/replace) - the file could not even be parsed, and the two
+// interpolations would have rendered as the literal text "${publicOrigin}"
+// had it parsed at all. Fixed as part of adding the health/alert fields
+// below, since this is the exact function those fields land in.
+async function handleMyFeedsRoute({ request, env, url, publicOrigin }) {
     if (request.method !== "GET" || url.pathname !== "/api/my-feeds") {
       return null;
     }
@@ -545,12 +888,12 @@ export default {
         sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}`,
       })),
     });
-  },
+}
 
-  // The signed-in visitor's currently-alerting feeds only, so a small header
-  // badge can show "N feeds need attention" without fetching the whole My
-  // Feeds list just to compute a count.
-  async _handleNotificationsRoute(request, env, url) {
+// The signed-in visitor's currently-alerting feeds only, so a small header
+// badge can show "N feeds need attention" without fetching the whole My
+// Feeds list just to compute a count.
+async function handleNotificationsRoute({ request, env, url }) {
     if (request.method !== "GET" || url.pathname !== "/api/notifications") {
       return null;
     }
@@ -573,8 +916,28 @@ export default {
       lastError: feed.last_error,
     }));
     return json({ count: feeds.length, feeds });
-  },
+}
 
+// The routing table, in the order the Worker tries them. Every handler takes
+// the same request context and returns null when the request is not its own.
+const ROUTE_HANDLERS = [
+  handleAuthRoutes,
+  handleMyFeedsRoute,
+  handleNotificationsRoute,
+  handleUnfollowRoute,
+  handleSyncTargetsRoute,
+  handleIngestRoute,
+  handleCreateRoute,
+  // Order matters around the feed routes: an old /p/… or /l/… path is
+  // redirected before it can be parsed as a feed route, and a legacy slug is
+  // only looked up once the feed routes have declined it.
+  handleLegacyPathRedirect,
+  handleFeedRoute,
+  handleLegacySlugRedirect,
+  handleMetadataRoute,
+];
+
+export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
@@ -585,292 +948,20 @@ export default {
       return canonical;
     }
 
-    const publicOrigin = getPublicOrigin(request);
+    const requestContext = { request, env, ctx, url, publicOrigin: getPublicOrigin(request) };
 
-    // ── Sign in with Connections ─────────────────────────────────────────────
-
-    if (request.method === "GET" && url.pathname === "/auth/login") {
-      return startLogin(request, env);
-    }
-
-    if (request.method === "GET" && url.pathname === "/auth/callback") {
-      return completeLogin(request, env);
-    }
-
-    if (url.pathname === "/auth/logout") {
-      return logout();
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/me") {
-      const session = await getSession(request, env);
-      return json({
-        signedIn: Boolean(session),
-        name: session?.name ?? null,
-        authAvailable: isAuthConfigured(env),
-      });
-    }
-
-    // The feeds a signed-in visitor has claimed, which is what the account is
-    // for, so it is worth showing them plainly.
-    const myFeedsResponse = await this._handleMyFeedsRoute(request, env, publicOrigin, url);
-    if (myFeedsResponse) return myFeedsResponse;
-
-    const notificationsResponse = await this._handleNotificationsRoute(request, env, url);
-    if (notificationsResponse) return notificationsResponse;
-
-    if (request.method === "POST" && url.pathname === "/api/unfollow") {
-      const session = await getSession(request, env);
-      if (!session) {
-        return json({ error: "Sign in first." }, { status: 401 });
+    for (const handle of ROUTE_HANDLERS) {
+      const response = await handle(requestContext);
+      if (response) {
+        return response;
       }
-
-      try {
-        const payload = await request.json();
-        const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
-        const feed = await getFeedByUrl(env.DB, normalized.canonicalUrl);
-        if (feed) {
-          await releaseFeed(env.DB, feed.id, session.sub);
-        }
-        return json({ ok: true });
-      } catch (error) {
-        return json({ error: error.message }, { status: 400 });
-      }
-    }
-
-    // ── The sync job's two routes ────────────────────────────────────────────
-    // IMDb refuses every request from Cloudflare's egress, so the Worker cannot
-    // fetch its own data. A GitHub Actions run does the fetching and hands the
-    // result back through here. Both routes are shared-secret authenticated.
-
-    if (request.method === "GET" && url.pathname === "/api/sync-targets") {
-      if (!isAuthorizedSyncRequest(request, env)) {
-        return json({ error: "Unauthorized." }, { status: 401 });
-      }
-
-      // Only claimed feeds ride the schedule. An unowned feed keeps serving what
-      // it already has and is refetched only when someone asks for it.
-      const result = await env.DB.prepare(
-        `SELECT f.source_url, f.source_kind, f.status, f.last_synced_at, f.source_fingerprint
-           FROM feeds f
-          WHERE EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
-          ORDER BY f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
-      ).all();
-
-      return json({
-        feeds: (result.results ?? []).map((feed) => ({
-          sourceUrl: feed.source_url,
-          sourceKind: feed.source_kind,
-          status: feed.status,
-          lastSyncedAt: feed.last_synced_at,
-          fingerprint: feed.source_fingerprint,
-          stale: isStale(feed),
-        })),
-      });
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/ingest") {
-      if (!isAuthorizedSyncRequest(request, env)) {
-        return json({ error: "Unauthorized." }, { status: 401 });
-      }
-
-      try {
-        const payload = await request.json();
-
-        // A failed fetch on the runner is reported rather than dropped, so the
-        // feed shows why it is stale instead of just silently ageing.
-        if (payload?.error) {
-          const failing = await getFeedByUrl(env.DB, normalizeImdbUrl(payload.sourceUrl).canonicalUrl);
-          if (failing) {
-            await markFeedFailure(env.DB, failing.id, payload.error);
-          }
-          return json({ ok: true, recorded: "error" });
-        }
-
-        const snapshot = validateSnapshot(payload?.snapshot);
-        const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
-        const existing = await getOrCreateFeed(env.DB, normalized);
-        const feed = await syncFeedFromSnapshot(env, existing, snapshot);
-
-        return json({
-          ok: true,
-          slug: feed.slug,
-          status: feed.status,
-          itemCount: feed.item_count,
-          fingerprint: feed.source_fingerprint,
-        });
-      } catch (error) {
-        return json({ error: error.message }, { status: 400 });
-      }
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/create") {
-      try {
-        const payload = await request.json();
-        const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
-        const session = await getSession(request, env);
-        let feed = await getOrCreateFeed(env.DB, normalized);
-
-        // Signing in and pasting a list is what claims it. Claiming is additive,
-        // so two people can both keep the same public list alive.
-        if (session) {
-          await claimFeed(env.DB, feed.id, session.sub);
-        }
-
-        // Nothing here can fetch IMDb, so a feed that needs data asks the sync
-        // job to run and reports honestly in the meantime.
-        let dispatched = false;
-        if (mayRefreshNow(feed, session)) {
-          dispatched = await requestSyncRun(env, normalized.canonicalUrl);
-        }
-
-        const message = describeFeedState(feed, dispatched, Boolean(session));
-        const storedItems = await getFeedItems(env.DB, feed.id);
-        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
-        const counts = summarizeItemsByTarget(enrichedItems);
-        const sonarrPayload = buildSonarrCustomListPayload(enrichedItems);
-        const sonarrUnresolvedCount = counts.sonarr - sonarrPayload.length;
-
-        // The cached payloads are only built during a sync, so a TVDB id resolved
-        // outside one leaves the served feed behind what this response reports.
-        // Compare against the cache itself rather than against what this request
-        // happened to resolve, or a feed enriched by an earlier request stays stale.
-        if (feed.source_fingerprint && feed.sonarr_cache !== JSON.stringify(sonarrPayload)) {
-          feed = await storeFeedCaches(env.DB, feed, enrichedItems, feed.source_fingerprint);
-        }
-
-        return json({
-          slug: feed.slug,
-          listTitle: feed.list_title || "",
-          routePath: buildPublicFeedPath(normalized, "radarr"),
-          feedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
-          radarrRoutePath: buildPublicFeedPath(normalized, "radarr"),
-          radarrFeedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
-          sonarrRoutePath: buildPublicFeedPath(normalized, "sonarr"),
-          sonarrFeedUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "sonarr")}`,
-          status: feed.status,
-          itemCount: counts.radarr,
-          radarrCount: counts.radarr,
-          sonarrCount: sonarrPayload.length,
-          sonarrUnresolvedCount,
-          totalCount: counts.total,
-          message,
-          syncing: dispatched || feed.status === "syncing",
-          owned: Boolean(session),
-          signedIn: Boolean(session),
-          autoRefreshing: Boolean(session),
-        });
-      } catch (error) {
-        return json({ error: error.message }, { status: 400 });
-      }
-    }
-
-    const legacyRedirectPath = getLegacyRedirectPath(url.pathname);
-    if ((request.method === "GET" || request.method === "HEAD") && legacyRedirectPath) {
-      return Response.redirect(`${publicOrigin}${legacyRedirectPath}`, 302);
-    }
-
-    const parsedRoute = parseFeedRoute(url.pathname);
-    if ((request.method === "GET" || request.method === "HEAD") && parsedRoute) {
-      const { feedTarget, ...normalizedRoute } = parsedRoute;
-      let feed = await getOrCreateFeed(env.DB, normalizedRoute);
-
-      // Radarr and Sonarr poll these routes, so a stale OWNED feed is the natural
-      // place to nudge the sync job. Fire-and-forget: the response is always
-      // served from what is already stored. An unowned feed is deliberately left
-      // alone here, which is exactly what signing in changes.
-      if (isStale(feed)) {
-        ctx.waitUntil(
-          env.DB.prepare("SELECT 1 AS owned FROM feed_owners WHERE feed_id = ? LIMIT 1")
-            .bind(feed.id)
-            .first()
-            .then((owned) => (owned ? requestSyncRun(env, feed.source_url) : null))
-            .catch(() => {}),
-        );
-      }
-
-      const items = await getFeedItems(env.DB, feed.id);
-      if (items.length === 0) {
-        return new Response(feed.last_error || "We have not managed to read this list from IMDb yet.", {
-          status: 503,
-          headers: { "content-type": "text/plain; charset=utf-8" },
-        });
-      }
-
-      const etag = buildFeedEtag(feed, feedTarget);
-      const baseHeaders = {
-        "cache-control": "public, max-age=300",
-        ...(etag ? { etag } : {}),
-      };
-
-      if (hasFreshEtag(request, etag)) {
-        return new Response(null, {
-          status: 304,
-          headers: baseHeaders,
-        });
-      }
-
-      if (feedTarget === "sonarr") {
-        if (feed.sonarr_cache) {
-          return new Response(feed.sonarr_cache, {
-            headers: {
-              "content-type": "application/json; charset=utf-8",
-              ...baseHeaders,
-            },
-          });
-        }
-
-        const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
-        const payload = buildSonarrCustomListPayload(enrichedItems);
-        return json(payload, {
-          headers: {
-            ...baseHeaders,
-          },
-        });
-      }
-
-      if (feed.radarr_cache) {
-        return new Response(injectPublicOrigin(feed.radarr_cache, publicOrigin), {
-          headers: {
-            "content-type": "application/rss+xml; charset=utf-8",
-            ...baseHeaders,
-          },
-        });
-      }
-
-      const filteredItems = filterItemsForTarget(items, feedTarget);
-      const xml = buildFeedXml(publicOrigin, feed, filteredItems, feedTarget);
-      return new Response(xml, {
-        headers: {
-          "content-type": "application/rss+xml; charset=utf-8",
-          ...baseHeaders,
-        },
-      });
-    }
-
-    const legacyFeedMatch = url.pathname.match(/^\/f\/([a-f0-9]{12})\.xml$/);
-    if ((request.method === "GET" || request.method === "HEAD") && legacyFeedMatch) {
-      const feed = await getFeedBySlug(env.DB, legacyFeedMatch[1]);
-      if (!feed) {
-        return new Response("Feed not found.", { status: 404 });
-      }
-
-      const redirectUrl = `${publicOrigin}${buildPublicFeedPath(getNormalizedFromStoredFeed(feed), "radarr")}`;
-      return Response.redirect(redirectUrl, 302);
-    }
-
-    const metadataMatch = url.pathname.match(/^\/api\/feeds\/([a-f0-9]{12})$/);
-    if (request.method === "GET" && metadataMatch) {
-      const feed = await getFeedBySlug(env.DB, metadataMatch[1]);
-      if (!feed) {
-        return json({ error: "Feed not found." }, { status: 404 });
-      }
-      return json(feed);
     }
 
     // Anything the API did not claim is the SPA's: this Worker runs first on
     // every request, so the static assets are only reached by falling through.
-    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) {
-      return json({ error: "Not found." }, { status: 404 });
+    const unroutedApi = handleUnroutedApiPath(requestContext);
+    if (unroutedApi) {
+      return unroutedApi;
     }
 
     return env.ASSETS.fetch(request);
