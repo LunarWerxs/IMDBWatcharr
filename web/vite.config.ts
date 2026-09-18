@@ -12,7 +12,7 @@ const PROXIED_PATHS = ['/api', '/auth', '/radarr', '/sonarr']
 
 // The published app version, read from the repo root package.json (the one
 // `npm run deploy` / wrangler treat as canonical), not web/package.json's own
-// unused 0.0.0 placeholder. Baked in at build time as an anonymous build
+// version (a private workspace package nothing reads). Baked in at build time as an anonymous build
 // stamp for the visit ping (see src/lib/analytics.ts) - never anything that
 // identifies a person.
 const rootPkg = JSON.parse(

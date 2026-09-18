@@ -13,7 +13,7 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 | Account required | No, for the base feature (creating and using a feed) |
 | Account required for | Automatic feed refresh (~every 15 minutes), via optional sign-in with Connections |
 | Self-hostable | Yes, Cloudflare Worker + D1 database + GitHub Actions sync job |
-| Version | 0.3.0 |
+| Version | 1.0.0 |
 | Intended use | Personal, non-commercial, single-household use |
 
 ## Hosted version (watcharr.lunarwerx.com)

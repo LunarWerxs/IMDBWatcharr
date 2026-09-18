@@ -1,7 +1,7 @@
 # IMDb Watcharr - full brief
 
 > IMDb Watcharr turns a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom
-> list. A LunarWerx product. Free, source-available, version 0.3.0.
+> list. A LunarWerx product. Free, source-available, version 1.0.0.
 
 ## What it is
 

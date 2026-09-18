@@ -36,7 +36,7 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 - **Live at:** https://watcharr.lunarwerx.com
 - **Written in:** TypeScript (22 files), JavaScript (11 files), SQL (5 files)
 - **Built with:** Cloudflare Workers, React, Tailwind, TypeScript, Vite
-- **Package:** `imdbwatch` 0.3.0
+- **Package:** `imdbwatch` 1.0.0
 - **Entry points:** `scripts`, `workspaces`, `wrangler`
 - **Tests:** 3 test file(s)
 - **CI:** `ci.yml`, `deploy-worker.yml`, `sync-feeds.yml`
