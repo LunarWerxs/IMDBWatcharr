@@ -27,6 +27,6 @@
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "wrangler": "^4.131.2"
+    "wrangler": "^4.133.0"
   }
 }
