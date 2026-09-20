@@ -35,7 +35,7 @@ migrations_dir = "migrations"
 
 [vars]
 PUBLIC_ORIGIN = "https://watcharr.lunarwerx.com"
-CONNECTIONS_ISSUER = "https://accounts.connections.icu"
+CONNECTIONS_ISSUER = "https://accounts.connectionsapi.com"
 # Public by definition: it travels in every authorize URL. The client SECRET is
 # a Worker secret and never appears here.
 CONNECTIONS_CLIENT_ID = "eeec5544e6fc778cb8dea9ee3b8b98fe"

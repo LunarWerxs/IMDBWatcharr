@@ -1,6 +1,6 @@
 // Sign in with Connections.
 //
-// A confidential OAuth client against AEGIS (accounts.connections.icu), which is
+// A confidential OAuth client against AEGIS (accounts.connectionsapi.com), which is
 // the canonical identity plane. The Worker holds the client secret and does the
 // code exchange, so nothing sensitive reaches the browser: the SPA only ever
 // sees a session cookie.
@@ -105,7 +105,7 @@ export function isAuthConfigured(env) {
 }
 
 function issuer(env) {
-  return (env.CONNECTIONS_ISSUER ?? "https://accounts.connections.icu").replace(/\/+$/, "");
+  return (env.CONNECTIONS_ISSUER ?? "https://accounts.connectionsapi.com").replace(/\/+$/, "");
 }
 
 function callbackUrl(env, request) {

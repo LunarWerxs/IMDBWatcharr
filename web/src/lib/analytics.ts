@@ -1,5 +1,5 @@
 // Anonymous visit ping to the Studio web-ping endpoint (the AnatomyOf pattern:
-// studio.connections.icu/v1/app/<id>/latest). One fire-and-forget GET per
+// studio.connectionsapi.com/v1/app/<id>/latest). One fire-and-forget GET per
 // browser session. The server derives only coarse geo/network/locale context
 // from the request itself (never an IP address) plus what this file sends:
 // a random visitor id, the app version, and a referrer hostname. No cookies,
@@ -7,7 +7,7 @@
 // localhost, and a failure here can never affect the app.
 
 const APP_ID = 'imdbwatch'
-const PING_URL = `https://studio.connections.icu/v1/app/${APP_ID}/latest`
+const PING_URL = `https://studio.connectionsapi.com/v1/app/${APP_ID}/latest`
 const ID_KEY = `${APP_ID}:visitor-id`
 const SESSION_KEY = `${APP_ID}:pinged`
 
