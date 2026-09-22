@@ -964,6 +964,30 @@ export default {
       return unroutedApi;
     }
 
-    return env.ASSETS.fetch(request);
+    return serveStaticAsset(request, env, url);
   },
 };
+
+// Vite names every file under /assets/ after a hash of its contents, so a given
+// URL there can never change: it is safe for a browser to keep it for a year and
+// never ask again. The asset layer's own default is `max-age=0, must-revalidate`,
+// which cost a repeat visitor one conditional request per script, stylesheet and
+// font. It is set here rather than in a `_headers` file because this Worker runs
+// first on every request and the asset response is the Worker's own response.
+// HTML is never marked immutable, even under /assets/: if a hashed file is ever
+// missing, the SPA fallback answers with index.html, and a year-long cache of
+// that under a script's URL would pin the broken answer in the browser.
+const IMMUTABLE_ASSET_CACHE = "public, max-age=31536000, immutable";
+
+async function serveStaticAsset(request, env, url) {
+  const response = await env.ASSETS.fetch(request);
+  const hashed = url.pathname.startsWith("/assets/");
+  const cacheable = response.status === 200 || response.status === 304;
+  const html = (response.headers.get("content-type") ?? "").startsWith("text/html");
+  if (!hashed || !cacheable || html) {
+    return response;
+  }
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", IMMUTABLE_ASSET_CACHE);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}

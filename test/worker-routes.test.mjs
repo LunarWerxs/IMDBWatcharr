@@ -839,4 +839,34 @@ describe("fetch - fallthrough", () => {
     assert.equal(assets.length, 1);
     assert.equal(assets[0].url, `${ORIGIN}/`);
   });
+
+  test("the index is left on the asset layer's revalidating cache", async () => {
+    const { env } = makeEnv();
+    const { response } = await call(`${ORIGIN}/`, { env });
+
+    assert.equal(response.headers.get("cache-control"), null);
+  });
+
+  test("a content-hashed file under /assets/ is cached for a year, immutable", async () => {
+    const { env } = makeEnv();
+    env.ASSETS.fetch = async () =>
+      new Response("console.log(1)", {
+        status: 200,
+        headers: { "content-type": "text/javascript", "cache-control": "public, max-age=0, must-revalidate" },
+      });
+    const { response, text } = await call(`${ORIGIN}/assets/index-abc123.js`, { env });
+
+    assert.equal(response.status, 200);
+    assert.equal(text, "console.log(1)");
+    assert.equal(response.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.equal(response.headers.get("content-type"), "text/javascript");
+  });
+
+  test("the SPA fallback under /assets/ is never pinned as immutable", async () => {
+    const { env } = makeEnv();
+    const { response } = await call(`${ORIGIN}/assets/missing-abc123.js`, { env });
+
+    assert.equal(response.headers.get("content-type"), "text/html");
+    assert.notEqual(response.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  });
 });

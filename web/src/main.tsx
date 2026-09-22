@@ -1,9 +1,6 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { ThemeProvider } from 'next-themes'
+import { createRoot, hydrateRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
-import { Toaster } from '@/components/ui/sonner'
+import { Root } from './root.tsx'
 import { sendVisitPing } from '@/lib/analytics'
 import { installImeCompositionGuard } from '@/lib/ime-composition-guard'
 
@@ -12,13 +9,14 @@ import { installImeCompositionGuard } from '@/lib/ime-composition-guard'
 // every Enter handler fires on half-typed Chinese, Japanese or Korean text.
 installImeCompositionGuard()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-      <App />
-      <Toaster position="bottom-center" />
-    </ThemeProvider>
-  </StrictMode>,
-)
+// The production build prerenders the first view into #root (see
+// scripts/prerender-web.mjs), so there it is hydrated rather than drawn again.
+// `vite dev` serves the bare index.html, where #root is empty.
+const container = document.getElementById('root')!
+if (container.hasChildNodes()) {
+  hydrateRoot(container, <Root />)
+} else {
+  createRoot(container).render(<Root />)
+}
 
 sendVisitPing()
