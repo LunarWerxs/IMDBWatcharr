@@ -200,11 +200,20 @@ npm run deploy
 That builds the SPA into `web/dist/` and runs `wrangler deploy`, which uploads the assets, the
 Worker, and the `watcharr.lunarwerx.com` custom domain declared in [wrangler.toml](wrangler.toml).
 
-> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **revoked** (corrected 2026-08-24) and it belonged
-> to the old account anyway. [deploy-worker.yml](.github/workflows/deploy-worker.yml) does **not**
-> skip or stay green: it **fails red on every push** with `Authentication error [code: 10000]` then
-> `Invalid access token [code: 9109]`. It will keep failing until a valid `CLOUDFLARE_API_TOKEN` for
-> the Lunawerx account is restored to the repo secrets. Until then deploy with the command above.
+> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **dead** (`Invalid access token [code: 9109]`), so
+> [deploy-worker.yml](.github/workflows/deploy-worker.yml) **fails red on every push** and nothing
+> ships from CI. To fix it, run the wizard in your own terminal:
+>
+> ```bash
+> bash scripts/setup-deploy-token.sh
+> ```
+>
+> It walks you through creating one Cloudflare token (the *Edit Cloudflare Workers* template plus
+> D1 Edit, scoped to this account and the `lunarwerx.com` zone), checks it reaches Workers, Pages
+> and D1, stores it in this repo and in `LunarWerxs/VectorMojo` without printing it, and re-runs
+> both deploys. Never paste wrangler's own login token instead: it expires in about an hour, which
+> is why the secret set on 2026-09-20 worked for one deploy and then died. Until the token is in
+> place, deploy with the command above.
 
 Pushing to `main` runs:
 
