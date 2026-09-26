@@ -257,6 +257,7 @@ say "Both sites deploy from GitHub on every push, and that needs one Cloudflare 
 open_url "https://dash.cloudflare.com/profile/api-tokens"
 step "Click 'Create Token', then 'Use template' on the 'Edit Cloudflare Workers' row."
 step "Under Permissions click '+ Add more' and add:  Account | D1 | Edit"
+step "and once more:                                 Account | Cloudflare Pages | Edit   (VectorMojo deploys to Pages)"
 step "Account Resources:  Include | Lunawerx@gmail.com's Account"
 step "Zone Resources:     Include | Specific zone | lunarwerx.com"
 step "Continue to summary, Create Token, then click Copy."
