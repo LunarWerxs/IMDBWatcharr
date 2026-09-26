@@ -200,25 +200,22 @@ npm run deploy
 That builds the SPA into `web/dist/` and runs `wrangler deploy`, which uploads the assets, the
 Worker, and the `watcharr.lunarwerx.com` custom domain declared in [wrangler.toml](wrangler.toml).
 
-> ⚠️ The repo's `CLOUDFLARE_API_TOKEN` secret is **dead** (`Invalid access token [code: 9109]`), so
-> [deploy-worker.yml](.github/workflows/deploy-worker.yml) **fails red on every push** and nothing
-> ships from CI. To fix it, run the wizard in your own terminal:
->
-> ```bash
-> bash scripts/setup-deploy-token.sh
-> ```
->
-> It walks you through creating one Cloudflare token (the *Edit Cloudflare Workers* template plus
-> D1 Edit, scoped to this account and the `lunarwerx.com` zone), checks it reaches Workers, Pages
-> and D1, stores it in this repo and in `LunarWerxs/VectorMojo` without printing it, and re-runs
-> both deploys. Never paste wrangler's own login token instead: it expires in about an hour, which
-> is why the secret set on 2026-09-20 worked for one deploy and then died. Until the token is in
-> place, deploy with the command above.
+Deploys run from a machine signed in with `wrangler login`, the same way the other LunarWerx
+Cloudflare sites ship; GitHub holds no Cloudflare token. When a change adds a file to
+[migrations/](migrations), apply it before deploying, because the live Worker reads the new
+columns as soon as it ships:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=36d7c731fd0352ef08ea7e46d2d20793 npm run db:migrate:remote
+npm run deploy
+```
+
+(`wrangler d1` ignores the `account_id` in wrangler.toml when a login sees several accounts, hence
+the variable.)
 
 Pushing to `main` runs:
 
 - [ci.yml](.github/workflows/ci.yml) parser checks, web lint, web build
-- [deploy-worker.yml](.github/workflows/deploy-worker.yml) deploys the Worker when a token works
 - [sync-feeds.yml](.github/workflows/sync-feeds.yml) keeps the claimed feeds current
 
 ## Known limits
