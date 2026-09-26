@@ -227,7 +227,7 @@ finish() {
 # Run from anywhere:  bash "D:/PublicProjects/imdbwatch/scripts/setup-deploy-token.sh"
 
 TOTAL_STAGES=3
-ENV_FILE="${ENV_FILE:-D:/PublicProjects/imdbwatch/.env}"   # unused: nothing here is local
+ENV_FILE="${ENV_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env}"   # this repo's; nothing is written to it
 
 CF_ACCOUNT=36d7c731fd0352ef08ea7e46d2d20793   # Lunawerx@gmail.com's Account (not a secret)
 REPOS=(LunarWerxs/IMDBWatcharr LunarWerxs/VectorMojo)
@@ -269,7 +269,7 @@ while :; do
     printf '  %sok%s the token reaches Workers, Pages and D1 on the LunarWerx account\n' "$GREEN" "$RESET"
     break
   fi
-  warn "that token is missing something (workers=$w pages=$p d1=$d; each should be 200)"
+  warn "that token is missing something (workers=$w pages=$p d1=$d; each should be 200, 000 means no connection)"
   confirm "Paste a different token?" || { SKIPPED+=("a working CLOUDFLARE_API_TOKEN"); finish; exit 1; }
 done
 
