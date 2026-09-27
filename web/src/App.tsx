@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -33,83 +33,17 @@ import { GithubLink } from '@/components/github-link'
 import { MyFeeds } from '@/components/my-feeds'
 import { NotificationsBadge } from '@/components/notifications-badge'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import {
-  createFeed,
-  isSupportedImdbUrl,
-  readFeedStatus,
-  readSession,
-  type CreateFeedResponse,
-  type Session,
-} from '@/lib/api'
+  mergeStatus,
+  rememberLastList,
+  rememberSignInList,
+  signInHref,
+  useFeedStatusPoll,
+  useStartingList,
+} from '@/lib/feed-page'
 
 const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
-
-// The query parameter that carries a list across the sign-in round trip, so
-// signing in from a result claims that list instead of landing on a blank form.
-const LIST_PARAM = 'list'
-
-// Set just before leaving for sign-in, so the page that comes back can tell its
-// own round trip (build the list, which claims it) from someone else's link
-// carrying ?list= (fill the field in, and let the visitor decide).
-const SIGN_IN_LIST_KEY = 'imdbwatch:sign-in-list'
-
-/** The sign-in link, coming back to the given list when there is one. */
-function signInHref(listUrl?: string): string {
-  const returnTo = listUrl ? `/?${LIST_PARAM}=${encodeURIComponent(listUrl)}` : '/'
-  return `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
-}
-
-function rememberSignInList(listUrl?: string) {
-  try {
-    if (listUrl) sessionStorage.setItem(SIGN_IN_LIST_KEY, listUrl)
-  } catch {
-    // Storage can be off; the list is still in the address, just not auto-built.
-  }
-}
-
-// The last list this tab built, so coming back from the sign-in page with the
-// Back button (or reopening the site in the same tab) shows it again instead of
-// an empty form: simulated visitors read the empty form as "my feeds are gone".
-const LAST_LIST_KEY = 'imdbwatch:last-list'
-
-function rememberLastList(listUrl: string) {
-  try {
-    sessionStorage.setItem(LAST_LIST_KEY, listUrl)
-  } catch {
-    // Storage can be off; the page just starts empty next time.
-  }
-}
-
-function readLastList(): string | null {
-  try {
-    return sessionStorage.getItem(LAST_LIST_KEY)
-  } catch {
-    return null
-  }
-}
-
-/** True once, for the list this tab itself carried through sign-in. */
-function takeSignInList(listUrl: string): boolean {
-  try {
-    const expected = sessionStorage.getItem(SIGN_IN_LIST_KEY)
-    sessionStorage.removeItem(SIGN_IN_LIST_KEY)
-    return expected === listUrl
-  } catch {
-    return false
-  }
-}
-
-/** A list handed to this page in its address (the sign-in return, or a shared link). */
-function readListFromAddress(): string | null {
-  if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get(LIST_PARAM)
-}
-
-function clearListFromAddress() {
-  const url = new URL(window.location.href)
-  url.searchParams.delete(LIST_PARAM)
-  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
-}
 
 const STEPS = [
   {
@@ -660,75 +594,23 @@ export default function App() {
     }
   }
 
-  // A list in the address is filled in once the session is known. It is built
-  // straight away (which claims it for a signed-in visitor) when this tab
-  // carried it through sign-in, or when nobody is signed in to claim it; a
-  // signed-in visitor following somebody else's link decides for themselves.
-  useEffect(() => {
-    let cancelled = false
-    readSession().then((value) => {
-      if (cancelled) return
-      setSession(value)
-      const listFromAddress = readListFromAddress()
-      if (listFromAddress) {
-        clearListFromAddress()
-        setSourceUrl(listFromAddress)
-        if (takeSignInList(listFromAddress) || !value.signedIn) {
-          void buildFeeds(listFromAddress)
-        }
-        return
-      }
+  useStartingList({
+    onSession: setSession,
+    onList: (list, build) => {
+      setSourceUrl(list)
+      if (build) void buildFeeds(list)
+    },
+  })
 
-      // Back in the same tab: bring the last result back. Rebuilding is only
-      // automatic signed out, where it claims nothing.
-      const lastList = readLastList()
-      if (lastList) {
-        setSourceUrl(lastList)
-        if (!value.signedIn) void buildFeeds(lastList)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // While a read from IMDb is pending, ask where the feed stands at the pace
-  // the API suggests, instead of making the reader click Generate again to see
-  // whether it landed. The status route is read-only and carries the counts,
-  // so a poll never claims or re-queues anything (a list unfollowed mid-poll
-  // stays unfollowed).
-  const pollSlug = result?.syncing ? result.slug : null
-  const pollAfterMs = (result?.pollAfterSeconds ?? 30) * 1000
-  useEffect(() => {
-    if (!pollSlug) return
-
-    let cancelled = false
-    const timer = setInterval(() => {
-      readFeedStatus(pollSlug)
-        .then((status) => {
-          if (!cancelled) setResult((current) => (current ? { ...current, ...status } : current))
-        })
-        .catch(() => {
-          // A transient failure mid-poll is not worth surfacing over the
-          // result already on screen; the next tick tries again.
-        })
-    }, pollAfterMs)
-
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [pollSlug, pollAfterMs])
+  useFeedStatusPoll(result, setResult)
 
   // Unfollowing the list on screen from My feeds re-reads where it stands, so
   // the card stops saying it is being kept up to date.
   function handleUnfollowed(slug: string) {
     if (result?.slug !== slug) return
-    readFeedStatus(slug)
-      .then((status) => setResult((current) => (current ? { ...current, ...status } : current)))
-      .catch(() => {
-        // The card is only out of date; My feeds already shows the change.
-      })
+    mergeStatus(setResult, slug).catch(() => {
+      // The card is only out of date; My feeds already shows the change.
+    })
   }
 
   const trimmed = sourceUrl.trim()
