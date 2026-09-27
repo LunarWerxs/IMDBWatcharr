@@ -7,6 +7,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* The type scale below text-sm (added 2026-09-26, fleet gate burn-down): sizes that were
+     hard-coded as text-[11px] and friends, declared once so they are steps on the scale. No
+     --line-height sub-keys: an arbitrary text-[11px] set only the size, so these must too. */
+  --text-3xs: 0.625rem;
+  --text-2xs: 0.6875rem;
+  --text-ui: 0.8125rem;
     /* LunarWerx house type: Orbitron for display, Inter for everything else. */
     --font-heading: 'Orbitron Variable', sans-serif;
     --font-sans: 'Inter Variable', sans-serif;
@@ -22,6 +28,7 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-success: var(--success);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -65,6 +72,8 @@
     --accent: #fdf3d0;
     --accent-foreground: #121212;
     --destructive: #c62828;
+    /* Confirmation (the copy check), the emerald-500 it was hard-coded as. */
+    --success: oklch(69.6% 0.17 162.48);
     --border: #e2ddcd;
     --input: #d9d4c4;
     --ring: #f5c518;
@@ -97,6 +106,7 @@
     --accent: rgba(255, 255, 255, 0.08);
     --accent-foreground: #ffffff;
     --destructive: #ef4444;
+    --success: oklch(69.6% 0.17 162.48);
     --border: rgba(255, 255, 255, 0.1);
     --input: rgba(255, 255, 255, 0.08);
     --ring: rgba(239, 68, 68, 0.6);
@@ -127,4 +137,12 @@
 .font-display {
     font-family: var(--font-heading);
     letter-spacing: 0.02em;
+}
+
+/* The GitHub link's "Selfhost" label reveals by widening, and max-width is a
+   layout property, so it gets a named transition rather than transition-all. */
+.transition-reveal {
+    transition-property: max-width, opacity;
+    transition-timing-function: var(--default-transition-timing-function);
+    transition-duration: 200ms;
 }

@@ -111,7 +111,7 @@ function AppHeader({ session }: { session: Session | null }) {
     <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
       <a
         href="https://lunarwerx.com"
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-2xs font-medium transition-colors"
       >
         <ArrowLeftIcon className="size-3.5 shrink-0" />
         LunarWerx Studios
@@ -236,8 +236,8 @@ function CreateFeedForm({
 function SyncSkeleton() {
   return (
     <div className="mt-4 grid gap-4">
-      <Skeleton className="h-[132px] w-full rounded-xl" />
-      <Skeleton className="h-[196px] w-full rounded-xl" />
+      <Skeleton shape="card" className="h-33 w-full" />
+      <Skeleton shape="card" className="h-49 w-full" />
     </div>
   )
 }
@@ -304,8 +304,8 @@ function FeedStatusBadge({ result }: { result: CreateFeedResponse }) {
   const state = feedState(result)
 
   return (
-    <Badge variant={state === 'ready' ? 'secondary' : 'outline'} className="font-normal">
-      {FEED_STATE_LABELS[state]}
+    <Badge variant={state === 'ready' ? 'secondary' : 'outline'}>
+      <span className="font-normal">{FEED_STATE_LABELS[state]}</span>
     </Badge>
   )
 }
@@ -370,12 +370,14 @@ function FeedSummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {result.listTitle || 'Your list'}
-          <FeedStatusBadge result={result} />
-          {result.syncing && (
-            <LoaderCircleIcon className="text-muted-foreground size-3.5 animate-spin" />
-          )}
+        <CardTitle>
+          <div className="flex items-center gap-2">
+            {result.listTitle || 'Your list'}
+            <FeedStatusBadge result={result} />
+            {result.syncing && (
+              <LoaderCircleIcon className="text-muted-foreground size-3.5 animate-spin" />
+            )}
+          </div>
         </CardTitle>
         <CardDescription>
           {feedState(result) === 'snapshot'
@@ -394,13 +396,15 @@ function TargetCards({ result }: { result: CreateFeedResponse }) {
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FilmIcon className="text-muted-foreground size-4" />
-            Radarr
-            <Badge variant="outline" className="ml-auto font-normal">
-              <RssIcon className="size-3" />
-              RSS List
-            </Badge>
+          <CardTitle>
+            <div className="flex items-center gap-2">
+              <FilmIcon className="text-muted-foreground size-4" />
+              Radarr
+              <Badge variant="outline" className="ml-auto">
+                <RssIcon className="size-3" />
+                <span className="font-normal">RSS List</span>
+              </Badge>
+            </div>
           </CardTitle>
           <CardDescription>Settings, Lists, Add list, Advanced, RSS List.</CardDescription>
         </CardHeader>
@@ -411,12 +415,14 @@ function TargetCards({ result }: { result: CreateFeedResponse }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TvIcon className="text-muted-foreground size-4" />
-            Sonarr
-            <Badge variant="outline" className="ml-auto font-normal">
-              Custom List
-            </Badge>
+          <CardTitle>
+            <div className="flex items-center gap-2">
+              <TvIcon className="text-muted-foreground size-4" />
+              Sonarr
+              <Badge variant="outline" className="ml-auto">
+                <span className="font-normal">Custom List</span>
+              </Badge>
+            </div>
           </CardTitle>
           <CardDescription>Settings, Import Lists, Add list, Advanced, Custom List.</CardDescription>
         </CardHeader>
@@ -456,16 +462,18 @@ function HowItWorks() {
       <ol className="mt-4 grid gap-3 sm:grid-cols-3">
         {STEPS.map((step, index) => (
           <li key={step.title}>
-            <Card className="h-full gap-2 py-4">
-              <CardHeader className="px-4">
+            {/* A header-only card: the body sits in the header's gap-1 grid with mt-1,
+                which keeps the tight 8px title-to-body step the card's own gap would widen. */}
+            <Card className="h-full">
+              <CardHeader>
                 <div className="bg-muted text-muted-foreground mb-1.5 flex size-6 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
                   {index + 1}
                 </div>
-                <CardTitle className="text-sm">{step.title}</CardTitle>
+                <CardTitle>
+                  <div className="text-sm">{step.title}</div>
+                </CardTitle>
+                <p className="text-muted-foreground mt-1 text-sm text-pretty">{step.body}</p>
               </CardHeader>
-              <CardContent className="px-4">
-                <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
-              </CardContent>
             </Card>
           </li>
         ))}

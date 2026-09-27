@@ -1,0 +1,10 @@
+{
+  "checks": {
+    "account-scoped-storage-keys": {
+      "$reason": "Device-level by design. ${APP_ID}:visitor-id (imdbwatch:visitor-id, web/src/lib/analytics.ts) is the anonymous, random per-browser visitor id sent with the fire-and-forget visit ping; it carries no user data and exists precisely to identify the device, not an account, so it is written before and independently of any sign-in and must not be split per account.",
+      "deviceGlobalAllow": [
+        "${APP_ID}:visitor-id"
+      ]
+    }
+  }
+}

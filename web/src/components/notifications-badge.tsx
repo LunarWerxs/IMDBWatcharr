@@ -44,9 +44,10 @@ export function NotificationsBadge({ signedIn }: { signedIn: boolean }) {
             <BellIcon className="size-4" />
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-4 min-w-4 justify-center px-1 text-[10px]"
+              size="sm"
+              className="absolute -top-1 -right-1 h-4 min-w-4"
             >
-              {count}
+              <span className="text-3xs">{count}</span>
             </Badge>
           </a>
         </Button>

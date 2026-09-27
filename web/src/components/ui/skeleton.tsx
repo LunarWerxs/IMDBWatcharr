@@ -1,10 +1,19 @@
 import { cn } from "@/lib/utils"
 
-function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+function Skeleton({
+  className,
+  shape = "default",
+  ...props
+}: React.ComponentProps<"div"> & { shape?: "default" | "card" }) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      data-shape={shape}
+      className={cn(
+        "animate-pulse rounded-md bg-muted",
+        shape === "card" && "rounded-xl",
+        className
+      )}
       {...props}
     />
   )

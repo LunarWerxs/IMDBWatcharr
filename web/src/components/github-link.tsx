@@ -15,8 +15,8 @@ export function GithubLink() {
     <Button
       asChild
       variant="ghost"
-      size="sm"
-      className="group gap-0 px-2 hover:gap-1.5 focus-visible:gap-1.5"
+      size="reveal"
+      className="group"
     >
       <a href={REPO_URL} target="_blank" rel="noreferrer" aria-label="Selfhost: source on GitHub">
         <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4 shrink-0" fill="currentColor">
@@ -24,7 +24,7 @@ export function GithubLink() {
         </svg>
         <span
           aria-hidden="true"
-          className="max-w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-200 group-hover:max-w-20 group-hover:opacity-100 group-focus-visible:max-w-20 group-focus-visible:opacity-100"
+          className="max-w-0 overflow-hidden text-xs whitespace-nowrap opacity-0 transition-reveal group-hover:max-w-20 group-hover:opacity-100 group-focus-visible:max-w-20 group-focus-visible:opacity-100"
         >
           Selfhost
         </span>

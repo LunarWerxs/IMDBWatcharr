@@ -73,7 +73,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
             aria-label={`Copy ${label}`}
           >
             {copied ? (
-              <CheckIcon className="size-4 text-emerald-500" />
+              <CheckIcon className="text-success size-4" />
             ) : (
               <CopyIcon className="size-4" />
             )}

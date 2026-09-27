@@ -36,35 +36,35 @@ function formatRelativeTime(iso: string | null): string {
 function FeedHealthBadge({ feed }: { feed: MyFeed }) {
   if (feed.alerting) {
     return (
-      <Badge variant="destructive" className="font-normal">
+      <Badge variant="destructive">
         <AlertTriangleIcon className="size-3" />
-        {feed.consecutiveFailures} failed syncs in a row
+        <span className="font-normal">{feed.consecutiveFailures} failed syncs in a row</span>
       </Badge>
     )
   }
 
   if (feed.status === 'error') {
     return (
-      <Badge variant="outline" className="text-destructive font-normal">
-        <AlertTriangleIcon className="size-3" />
-        Last sync failed
+      <Badge variant="outline">
+        <AlertTriangleIcon className="text-destructive size-3" />
+        <span className="text-destructive font-normal">Last sync failed</span>
       </Badge>
     )
   }
 
   if (feed.status === 'ready') {
     return (
-      <Badge variant="secondary" className="font-normal">
+      <Badge variant="secondary">
         <CheckCircle2Icon className="size-3" />
-        Healthy
+        <span className="font-normal">Healthy</span>
       </Badge>
     )
   }
 
   return (
-    <Badge variant="outline" className="font-normal">
+    <Badge variant="outline">
       <LoaderCircleIcon className="size-3 animate-spin" />
-      {feed.status}
+      <span className="font-normal">{feed.status}</span>
     </Badge>
   )
 }
@@ -88,8 +88,7 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
         <Button
           type="button"
           size="sm"
-          variant="ghost"
-          className="text-muted-foreground hover:text-destructive"
+          variant="ghost-destructive-muted"
           onClick={() => onUnfollow(feed)}
           aria-label={`Stop following ${feed.listTitle || feed.sourceUrl}`}
         >
@@ -146,14 +145,18 @@ export function MyFeeds() {
   return (
     <Card id="my-feeds" className="mt-4">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <RefreshCwIcon className="text-muted-foreground size-4" />
-          My feeds
-          {alertingCount > 0 && (
-            <Badge variant="destructive" className="font-normal">
-              {alertingCount} need{alertingCount === 1 ? 's' : ''} attention
-            </Badge>
-          )}
+        <CardTitle>
+          <div className="flex items-center gap-2">
+            <RefreshCwIcon className="text-muted-foreground size-4" />
+            My feeds
+            {alertingCount > 0 && (
+              <Badge variant="destructive">
+                <span className="font-normal">
+                  {alertingCount} need{alertingCount === 1 ? 's' : ''} attention
+                </span>
+              </Badge>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
