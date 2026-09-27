@@ -147,8 +147,8 @@ Optionally give the Worker `GITHUB_DISPATCH_TOKEN`, a fine-grained PAT for this 
 only **Actions: Read and write** (`GITHUB_REPOSITORY` is already in `wrangler.toml`). With it, pasting
 a new list dispatches `sync-feeds.yml` with `scope: requested`, so the list fills in about a minute
 instead of on the next tick. Without it everything still works, just on the schedule.
-[scripts/setup-dispatch-token.sh](scripts/setup-dispatch-token.sh) sets it without the token ever
-being printed.
+`npm run setup:dispatch` ([scripts/setup-dispatch-token.mjs](scripts/setup-dispatch-token.mjs)) sets it
+from any shell without the token ever being printed.
 
 Run a sync by hand from any machine that is not behind Cloudflare:
 

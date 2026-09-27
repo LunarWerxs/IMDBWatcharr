@@ -153,3 +153,9 @@
     transition-timing-function: var(--default-transition-timing-function);
     transition-duration: var(--duration-reveal);
 }
+
+/* The shared Discord badge sits above everything on the page; while the
+   sign-in lightbox dims the page it steps aside rather than glowing over it. */
+body:has([data-sign-in-lightbox]) #lwdc-badge {
+    visibility: hidden;
+}

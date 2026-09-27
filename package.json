@@ -23,7 +23,8 @@
     "deploy": "npm run web:build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply imdbwatcharr-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply imdbwatcharr-db --remote",
-    "og": "node scripts/make-og.mjs"
+    "og": "node scripts/make-og.mjs",
+    "setup:dispatch": "node scripts/setup-dispatch-token.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
