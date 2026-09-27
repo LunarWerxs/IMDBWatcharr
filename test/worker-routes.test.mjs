@@ -129,6 +129,42 @@ describe("fetch - auth and session routes", () => {
     assert.equal(response.status, 503);
     assert.equal(text, "Sign in is not configured.");
   });
+
+  test("a sign-in started in the popup window ends on a page that tells the site and closes, session set", async () => {
+    const { env } = makeEnv({
+      SESSION_SECRET,
+      CONNECTIONS_CLIENT_ID: "client",
+      CONNECTIONS_CLIENT_SECRET: "secret",
+    });
+    const returnTo = "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F";
+    const login = await call(`${ORIGIN}/auth/login?popup=1&returnTo=${encodeURIComponent(returnTo)}`, { env });
+    const stateCookie = login.response.headers.get("set-cookie").split(";")[0];
+    const state = new URL(login.response.headers.get("location")).searchParams.get("state");
+
+    // The token exchange and userinfo are the identity provider's side of the
+    // boundary; everything this app does with their answers runs for real.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/oauth/token")) return Response.json({ access_token: "token" });
+      if (url.endsWith("/oauth/userinfo")) return Response.json({ sub: "user-1", name: "Ada" });
+      throw new Error(`unexpected fetch ${url}`);
+    };
+    try {
+      const { response, text } = await call(`${ORIGIN}/auth/callback?code=c&state=${state}`, {
+        env,
+        headers: { cookie: stateCookie },
+      });
+
+      assert.equal(response.status, 200, "the window gets a closing page, not the whole site");
+      assert.equal(response.headers.get("location"), null);
+      assert.match(response.headers.get("set-cookie"), /iw_session=[^;]+\./);
+      assert.match(text, /new BroadcastChannel\("watcharr-auth"\)/);
+      assert.ok(text.includes(`location.replace(${JSON.stringify(returnTo)})`), "falls back to the list it came from");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 
 describe("fetch - /api/my-feeds", () => {

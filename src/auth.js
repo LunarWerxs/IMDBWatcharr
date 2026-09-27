@@ -156,12 +156,16 @@ export async function startLogin(request, env) {
 
   const url = new URL(request.url);
   const returnTo = safeReturnPath(url.searchParams.get("returnTo"), siteOrigin(env, request));
+  // The page opens sign-in in a small window over itself; the callback then
+  // answers that window with a page that tells the site and closes, instead of
+  // loading the whole site a second time inside it.
+  const popup = url.searchParams.get("popup") === "1";
   const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
 
   // The state lives in a signed cookie rather than server storage: it has to
   // survive a round trip through AEGIS and nothing else needs to read it.
   const stateToken = await sign(
-    { state, returnTo, exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS },
+    { state, returnTo, popup, exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS },
     env.SESSION_SECRET,
   );
 
@@ -224,10 +228,65 @@ export async function completeLogin(request, env) {
     env.SESSION_SECRET,
   );
 
-  const headers = new Headers({ location: safeReturnPath(stored.returnTo, siteOrigin(env, request)) });
+  const returnTo = safeReturnPath(stored.returnTo, siteOrigin(env, request));
+  const headers = new Headers();
   headers.append("set-cookie", cookie(SESSION_COOKIE, session, SESSION_TTL_SECONDS));
   headers.append("set-cookie", cookie(STATE_COOKIE, "", 0));
+
+  if (stored.popup) {
+    headers.set("content-type", "text/html; charset=utf-8");
+    headers.set("cache-control", "no-store");
+    return new Response(popupDonePage(returnTo), { status: 200, headers });
+  }
+
+  headers.set("location", returnTo);
   return new Response(null, { status: 302, headers });
+}
+
+// The sign-in window's last page. Connections' pages send
+// Cross-Origin-Opener-Policy, which cuts the window off from the page that
+// opened it, so window.opener is usually gone by the time it lands back here:
+// a BroadcastChannel, which every tab on this site hears, carries the news
+// instead, and postMessage covers a browser that kept the opener. A window
+// that cannot close itself (one the browser opened as a tab) goes on to the
+// page the visitor came from rather than sitting on this one.
+function popupDonePage(returnTo) {
+  // JSON is a valid script literal once "<" cannot end the script element.
+  const target = JSON.stringify(returnTo).replace(/</g, "\\u003c");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signed in - IMDb Watcharr</title>
+<style>
+  html { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #121212; color: #fff;
+         font: 16px/1.5 Roboto, "Helvetica Neue", Arial, sans-serif; text-align: center; }
+  .mark { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 9999px; display: grid; place-items: center;
+          background: #f5c518; color: #000; font-size: 28px; font-weight: 700; }
+  p { margin: 0; color: rgba(255, 255, 255, 0.7); }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark" aria-hidden="true">&#10003;</div>
+  <h1 style="margin:0 0 4px;font-size:20px">You are signed in</h1>
+  <p>This window closes by itself.</p>
+</main>
+<script>
+(function () {
+  var message = { type: "watcharr:signed-in" };
+  try { new BroadcastChannel("watcharr-auth").postMessage(message); } catch (e) { /* the page's focus check still notices */ }
+  try { if (window.opener) window.opener.postMessage(message, location.origin); } catch (e) { /* cut off by COOP */ }
+  setTimeout(function () {
+    window.close();
+    setTimeout(function () { location.replace(${target}); }, 400);
+  }, 150);
+})();
+</script>
+</body>
+</html>`;
 }
 
 // Prefer userinfo over decoding the access token: the token's shape is the
