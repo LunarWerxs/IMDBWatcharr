@@ -366,6 +366,7 @@ describe("fetch - /api/create", () => {
       sonarrUnresolvedCount: 0,
       totalCount: 0,
       preview: [],
+      skippedShows: [],
       message:
         "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.",
       // No dispatch token, but the read is queued, so the page keeps polling
@@ -652,6 +653,7 @@ describe("fetch - redirects and lookups", () => {
         { imdbId: "tt0903747", title: "Breaking Bad", year: 2008, target: "sonarr" },
         { imdbId: "tt0000003", title: "No TVDB", year: 2008, target: "skipped" },
       ],
+      skippedShows: ["No TVDB"],
     });
     assert.equal(found.find("INSERT OR IGNORE INTO feed_owners").length, 0, "a status read never claims");
     assert.equal(found.find("SET refresh_requested_at").length, 0, "a status read never queues");

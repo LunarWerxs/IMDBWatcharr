@@ -16,6 +16,8 @@ export type FeedStatusResponse = {
   autoRefreshing: boolean
   /** The list's first titles, for the page to show what it read. */
   preview?: PreviewItem[]
+  /** Every show Sonarr's list leaves out for want of a TVDB id, by name. */
+  skippedShows?: string[]
 }
 
 /** One title from the list, and which app it goes to (a show with no TVDB id is skipped). */

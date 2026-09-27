@@ -10,6 +10,7 @@ import {
   normalizeImdbUrl,
   parseFeedRoute,
   previewItems,
+  skippedShowTitles,
   summarizeItemsByTarget,
 } from "./imdb.js";
 import { completeLogin, getSession, isAuthConfigured, logout, startLogin } from "./auth.js";
@@ -308,6 +309,7 @@ async function handleCreateRoute({ request, env, url, publicOrigin }) {
       sonarrUnresolvedCount: counts.sonarr - sonarrPayload.length,
       totalCount: counts.total,
       preview: previewItems(enrichedItems),
+      skippedShows: skippedShowTitles(enrichedItems),
       signedIn: Boolean(session),
     });
   } catch (error) {
@@ -501,6 +503,7 @@ async function handleFeedStatusRoute({ request, env, url }) {
     sonarrUnresolvedCount: counts.sonarr - sonarrCount,
     totalCount: counts.total,
     preview: previewItems(items),
+    skippedShows: skippedShowTitles(items),
   });
 }
 

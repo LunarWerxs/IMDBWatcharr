@@ -232,6 +232,9 @@ function ResultPanel({
         <p className="text-muted-foreground -mt-3 mb-6 text-xs">
           Sonarr needs a TVDB id for every show, and we could not find one for{' '}
           {result.sonarrUnresolvedCount} of them, so we left those out.
+          {result.skippedShows && result.skippedShows.length > 0 && (
+            <span className="text-foreground/80 mt-1 block">Left out: {result.skippedShows.join(', ')}.</span>
+          )}
         </p>
       )}
       <TargetCards result={result} />

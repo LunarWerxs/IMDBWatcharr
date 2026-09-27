@@ -179,6 +179,14 @@ export function previewItems(items) {
   });
 }
 
+// The shows Sonarr's list leaves out for want of a TVDB id, by name, so the
+// page can say which ones rather than only how many.
+export function skippedShowTitles(items) {
+  return filterItemsForTarget(items, "sonarr")
+    .filter((item) => !(Number.isInteger(item.tvdb_id) && item.tvdb_id > 0))
+    .map((item) => item.title);
+}
+
 export function buildSonarrCustomListPayload(items) {
   return filterItemsForTarget(items, "sonarr")
     .filter((item) => Number.isInteger(item.tvdb_id) && item.tvdb_id > 0)
