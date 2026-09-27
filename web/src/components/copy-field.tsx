@@ -58,49 +58,47 @@ export function CopyField({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <div className="bg-muted/40 flex items-center gap-1 rounded-lg border p-1">
-      <code className="min-w-0 flex-1 px-2 py-1 font-mono text-xs break-all sm:text-sm">
+    <div className="grid gap-2">
+      {/* The fresh ring flashes once when a link first appears, so the eye finds it. */}
+      <code className="bg-background ring-foreground/10 block rounded-md px-3 py-2.5 font-mono text-xs leading-relaxed break-all ring-1 motion-safe:animate-fresh">
         {value}
       </code>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="shrink-0"
-            onClick={handleCopy}
-            aria-label={`Copy ${label}`}
-          >
-            {copied ? (
-              <CheckIcon className="text-success size-4" />
-            ) : (
-              <CopyIcon className="size-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Copy {label}</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            asChild
-            size="icon"
-            variant="ghost"
-            className="shrink-0"
-          >
-            <a
-              href={value}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Open ${label} in a new tab`}
-            >
-              <ExternalLinkIcon className="size-4" />
-            </a>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Open {label}</TooltipContent>
-      </Tooltip>
+      <div className="flex items-center justify-end gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild size="icon" variant="ghost" className="shrink-0">
+              <a
+                href={value}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open ${label} in a new tab`}
+              >
+                <ExternalLinkIcon className="size-4" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Open {label}</TooltipContent>
+        </Tooltip>
+        <Button
+          type="button"
+          size="sm"
+          className="min-w-20 font-bold"
+          onClick={handleCopy}
+          aria-label={`Copy ${label}`}
+        >
+          {copied ? (
+            <>
+              <CheckIcon className="size-3.5 motion-safe:animate-pop" />
+              Copied
+            </>
+          ) : (
+            <>
+              <CopyIcon className="size-3.5" />
+              Copy
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   )
 }

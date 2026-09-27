@@ -14,6 +14,16 @@ export type FeedStatusResponse = {
   pollAfterSeconds: number
   owned: boolean
   autoRefreshing: boolean
+  /** The list's first titles, for the page to show what it read. */
+  preview?: PreviewItem[]
+}
+
+/** One title from the list, and which app it goes to (a show with no TVDB id is skipped). */
+export type PreviewItem = {
+  imdbId: string
+  title: string
+  year: number | null
+  target: 'radarr' | 'sonarr' | 'skipped'
 }
 
 export type CreateFeedResponse = FeedStatusResponse & {

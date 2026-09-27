@@ -23,3 +23,6 @@ web/dist/
 # The Architect's own output: reports and per-run artefacts, never source.
 /tmp/
 /.arkitect/reports/
+
+# Local-only: wrangler dev's secrets file. Never committed.
+.dev.vars

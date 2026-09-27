@@ -161,7 +161,7 @@ describe("App - a first look", () => {
     const html = render();
 
     assert.match(html, /Your IMDb list, straight into Radarr and Sonarr\./);
-    assert.match(html, /Create your feeds/);
+    assert.match(html, /IMDb watchlist or list URL/);
     assert.match(html, /Generate feeds/);
     assert.match(html, /How it works/);
     assert.match(html, /Paste a public IMDb link/);
