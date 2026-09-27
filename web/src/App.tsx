@@ -140,8 +140,8 @@ function Hero() {
         Your IMDb list, straight into Radarr and Sonarr.
       </h1>
       <p className="text-muted-foreground mt-3 max-w-xl text-base text-pretty">
-        Free. Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for
-        the movies, one Sonarr uses for the shows. Both read the same list.
+        Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for the
+        movies, one Sonarr uses for the shows. Both read the same list, and it is free.
       </p>
     </section>
   )
