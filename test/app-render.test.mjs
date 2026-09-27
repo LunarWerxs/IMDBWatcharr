@@ -162,7 +162,7 @@ describe("App - a first look", () => {
 
     assert.match(html, /Your IMDb list, straight into <span[^>]*>Radarr and Sonarr<\/span>\./);
     assert.match(html, /IMDb watchlist or list URL/);
-    assert.match(html, /Generate feeds/);
+    assert.match(html, />Generate</);
     assert.match(html, /How it works/);
     assert.match(html, /Paste a public IMDb link/);
     assert.match(html, /IMDb Watcharr/);
@@ -205,7 +205,7 @@ describe("App - while a first sync is in flight", () => {
 
     assert.match(html, /Building/);
     assert.match(html, /animate-spin/);
-    assert.doesNotMatch(html, /Generate feeds/);
+    assert.doesNotMatch(html, />Generate</);
     assert.doesNotMatch(html, /Radarr RSS URL/);
   });
 

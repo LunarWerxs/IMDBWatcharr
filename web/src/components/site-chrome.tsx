@@ -102,15 +102,17 @@ export function SiteHeader({
         </a>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
+          <a
+            href="https://lunarwerx.com"
+            aria-label="LunarWerx Studios"
+            title="LunarWerx Studios"
+            className="hover:ring-primary/70 focus-visible:ring-primary mx-1 flex size-7 shrink-0 items-center justify-center rounded-full ring-2 ring-transparent transition focus-visible:outline-none"
+          >
+            <img src="/lunarwerx-mark.png" alt="" width={28} height={28} className="size-7 rounded-full" />
+          </a>
           <GithubLink />
           <ThemeToggle />
           <AccountControl session={session} listUrl={listUrl} onSignIn={onSignIn} />
-          <a
-            href="https://lunarwerx.com"
-            className="text-muted-foreground hover:text-primary ml-2 hidden text-xs font-medium transition-colors lg:inline"
-          >
-            LunarWerx
-          </a>
         </div>
       </div>
     </header>

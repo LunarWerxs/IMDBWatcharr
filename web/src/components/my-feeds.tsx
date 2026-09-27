@@ -9,15 +9,15 @@ import {
   AlertTriangleIcon,
   CheckCircle2Icon,
   ClockIcon,
+  LinkIcon,
   LoaderCircleIcon,
-  RefreshCwIcon,
   XIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionTitle } from '@/components/site-chrome'
 import { readMyFeeds, unfollowFeed, type MyFeed } from '@/lib/api'
 
 /** "3 minutes ago", "2 hours ago", … - coarse on purpose, this is a glance, not a log. */
@@ -69,7 +69,15 @@ function FeedHealthBadge({ feed }: { feed: MyFeed }) {
   )
 }
 
-function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFeed) => void }) {
+function MyFeedRow({
+  feed,
+  onOpen,
+  onUnfollow,
+}: {
+  feed: MyFeed
+  onOpen: (sourceUrl: string) => void
+  onUnfollow: (feed: MyFeed) => void
+}) {
   return (
     <li className="flex flex-col gap-2 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -88,6 +96,16 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
         <Button
           type="button"
           size="sm"
+          variant="secondary"
+          onClick={() => onOpen(feed.sourceUrl)}
+          aria-label={`Show the links for ${feed.listTitle || feed.sourceUrl}`}
+        >
+          <LinkIcon className="size-3.5" />
+          Show links
+        </Button>
+        <Button
+          type="button"
+          size="sm"
           variant="ghost-destructive-muted"
           onClick={() => onUnfollow(feed)}
           aria-label={`Stop following ${feed.listTitle || feed.sourceUrl}`}
@@ -101,16 +119,20 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
 }
 
 /**
- * Only renders once there is something to show: a signed-out visitor, or one
- * with no claimed feeds yet, sees nothing. `refreshKey` changes whenever the
- * page claims a list or a pending one lands, so the card re-reads instead of
- * missing the list the visitor just added.
+ * Every list a signed-in visitor follows, kept on their account: its health,
+ * and a button that brings its links (and posters) back up in the page. Only
+ * renders once there is something to show: a signed-out visitor, or one with
+ * no claimed feeds yet, sees nothing. `refreshKey` changes whenever the page
+ * claims a list or a pending one lands, so the list re-reads instead of
+ * missing the one the visitor just added.
  */
 export function MyFeeds({
   refreshKey = '',
+  onOpen,
   onUnfollowed,
 }: {
   refreshKey?: string
+  onOpen: (sourceUrl: string) => void
   onUnfollowed?: (slug: string) => void
 }) {
   const [feeds, setFeeds] = useState<MyFeed[] | null>(null)
@@ -155,29 +177,25 @@ export function MyFeeds({
   const alertingCount = feeds.filter((feed) => feed.alerting).length
 
   return (
-    <Card id="my-feeds" className="mt-4">
-      <CardHeader>
-        <CardTitle>
-          <div className="flex items-center gap-2">
-            <RefreshCwIcon className="text-muted-foreground size-4" />
-            My feeds
-            {alertingCount > 0 && (
-              <Badge variant="destructive">
-                <span className="font-normal">
-                  {alertingCount} need{alertingCount === 1 ? 's' : ''} attention
-                </span>
-              </Badge>
-            )}
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <section id="my-feeds" className="mt-12" aria-labelledby="your-lists">
+      <SectionTitle id="your-lists">Your lists</SectionTitle>
+      <p className="text-muted-foreground -mt-2 mb-4 flex flex-wrap items-center gap-2 text-sm">
+        Saved to your account and checked about every fifteen minutes.
+        {alertingCount > 0 && (
+          <Badge variant="destructive">
+            <span className="font-normal">
+              {alertingCount} need{alertingCount === 1 ? 's' : ''} attention
+            </span>
+          </Badge>
+        )}
+      </p>
+      <div className="bg-card ring-foreground/10 rounded-lg px-5 py-2 ring-1 sm:px-6">
         <ul>
           {feeds.map((feed) => (
-            <MyFeedRow key={feed.slug} feed={feed} onUnfollow={handleUnfollow} />
+            <MyFeedRow key={feed.slug} feed={feed} onOpen={onOpen} onUnfollow={handleUnfollow} />
           ))}
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

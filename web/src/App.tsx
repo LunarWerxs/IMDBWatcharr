@@ -9,7 +9,7 @@ import { Reveal } from '@/components/reveal'
 import { SignInLightbox } from '@/components/sign-in-lightbox'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
 import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
-import { mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
+import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
 import { scrollBehavior } from '@/lib/motion'
 import { usePopupSignIn } from '@/lib/sign-in'
 
@@ -91,6 +91,24 @@ export default function App() {
     revealFeeds()
   }
 
+  // The X in the field: back to an empty page, and the list stays gone on the
+  // next visit instead of coming back from this tab's memory.
+  function handleClear() {
+    setSourceUrl('')
+    setActiveUrl('')
+    setResult(null)
+    setError(null)
+    forgetLastList()
+    document.getElementById('source-url')?.focus()
+  }
+
+  // A list saved to the account, brought back up with its links and posters.
+  function openSavedList(listUrl: string) {
+    setSourceUrl(listUrl)
+    void buildFeeds(listUrl)
+    revealFeeds()
+  }
+
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground flex min-h-dvh flex-col overflow-x-clip">
@@ -102,6 +120,7 @@ export default function App() {
           <FeedForm
             sourceUrl={sourceUrl}
             onSourceUrlChange={setSourceUrl}
+            onClear={handleClear}
             looksValid={looksValid}
             pending={pending}
             canSubmit={canSubmit}
@@ -112,6 +131,7 @@ export default function App() {
           {session?.signedIn && (
             <MyFeeds
               refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
+              onOpen={openSavedList}
               onUnfollowed={handleUnfollowed}
             />
           )}

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { ArrowRightIcon, LoaderCircleIcon } from 'lucide-react'
+import { ArrowRightIcon, LoaderCircleIcon, XIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,11 +61,14 @@ export function Hero() {
 
 /**
  * IMDb's search bar, doing this site's one job: a white field joined to a
- * yellow button (stacked on a phone, where a joined pair is too cramped).
+ * yellow button (stacked on a phone, where a joined pair is too cramped). When
+ * either has focus the yellow ring goes around the pair, the way one control
+ * would; the X in the field clears it, and whatever it had built.
  */
 export function FeedForm({
   sourceUrl,
   onSourceUrlChange,
+  onClear,
   looksValid,
   pending,
   canSubmit,
@@ -74,6 +77,7 @@ export function FeedForm({
 }: {
   sourceUrl: string
   onSourceUrlChange: (value: string) => void
+  onClear: () => void
   looksValid: boolean
   pending: boolean
   canSubmit: boolean
@@ -89,26 +93,40 @@ export function FeedForm({
       <Label htmlFor="source-url" className="text-muted-foreground mb-2 block text-sm font-medium">
         IMDb watchlist or list URL
       </Label>
-      <div className="flex flex-col gap-3 sm:flex-row sm:gap-0">
-        <Input
-          id="source-url"
-          name="sourceUrl"
-          type="url"
-          inputMode="url"
-          autoComplete="url"
-          spellCheck={false}
-          placeholder="Paste your IMDb list or watchlist link"
-          value={sourceUrl}
-          onChange={(event) => onSourceUrlChange(event.target.value)}
-          aria-invalid={!looksValid}
-          aria-describedby="source-url-hint"
-          className="h-12 rounded-md border-black/15 bg-white px-4 text-base text-black placeholder:text-black/45 sm:flex-1 sm:rounded-r-none md:text-base dark:border-transparent dark:bg-white"
-          required
-        />
+      <div className="sm:focus-within:ring-primary/70 flex flex-col gap-3 rounded-md transition-shadow sm:h-12 sm:flex-row sm:gap-0 sm:focus-within:ring-3">
+        <div className="relative sm:flex-1">
+          <Input
+            id="source-url"
+            name="sourceUrl"
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            spellCheck={false}
+            placeholder="Paste your IMDb list or watchlist link"
+            value={sourceUrl}
+            onChange={(event) => onSourceUrlChange(event.target.value)}
+            aria-invalid={!looksValid}
+            aria-describedby="source-url-hint"
+            className={`h-12 rounded-md border-black/15 bg-white pl-4 text-base text-black placeholder:text-black/45 sm:h-full sm:rounded-r-none sm:focus-visible:ring-0 md:text-base dark:border-transparent dark:bg-white ${
+              sourceUrl ? 'pr-11' : 'pr-4'
+            }`}
+            required
+          />
+          {sourceUrl && (
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label="Clear the link"
+              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-black/45 transition-colors hover:bg-black/5 hover:text-black motion-safe:animate-pop"
+            >
+              <XIcon className="size-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
         <Button
           type="submit"
           disabled={!canSubmit}
-          className="shine h-12 rounded-md px-6 text-base font-bold sm:rounded-l-none"
+          className="shine h-12 rounded-md border-0 px-7 text-base font-bold sm:h-full sm:rounded-l-none sm:focus-visible:ring-0"
         >
           {pending ? (
             <>
@@ -117,7 +135,7 @@ export function FeedForm({
             </>
           ) : (
             <>
-              Generate feeds
+              Generate
               <ArrowRightIcon className="size-4 transition-transform group-hover/button:translate-x-0.5" />
             </>
           )}

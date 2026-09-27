@@ -134,6 +134,12 @@
   html {
     @apply font-sans;
     }
+  /* Tailwind 4 leaves buttons on the arrow cursor; everything clickable here
+     shows the hand, as a link does. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
 }
 
 /* Motion. Everything rises in once and never loops, except the shimmer on a

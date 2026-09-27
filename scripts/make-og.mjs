@@ -20,15 +20,7 @@ const interDir = path.join(rootDir, "node_modules", "@fontsource-variable", "int
 // The catalog card on lunarwerx.com reads its banner from that site's repo, so
 // the banner is generated here (next to the brand it belongs to) and copied
 // there. Skipped without complaint when the sibling checkout is absent.
-const studioBanners = path.resolve(
-  rootDir,
-  "..",
-  "LunarWerx",
-  "website",
-  "lunarwerx.website.v1.1",
-  "public",
-  "banners",
-);
+const studioBanners = path.resolve(rootDir, "..", "LunarWerx", "site", "public", "banners");
 
 async function render(name, width) {
   const svg = await readFile(path.join(publicDir, `${name}.svg`), "utf8");

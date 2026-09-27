@@ -51,6 +51,11 @@ export function rememberLastList(listUrl: string) {
   store(LAST_LIST_KEY, listUrl)
 }
 
+/** The field was cleared on purpose, so coming back should not bring the list back. */
+export function forgetLastList() {
+  store(LAST_LIST_KEY, null)
+}
+
 /** True once, for the list this tab itself carried through sign-in. */
 function takeSignInList(listUrl: string): boolean {
   const expected = stored(SIGN_IN_LIST_KEY)
