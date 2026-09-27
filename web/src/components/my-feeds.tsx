@@ -76,7 +76,7 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
         <p className="truncate text-sm font-medium">{feed.listTitle || feed.sourceUrl}</p>
         <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-xs">
           <ClockIcon className="size-3" />
-          Synced {formatRelativeTime(feed.lastSyncedAt)} · {feed.itemCount} title
+          Read from IMDb {formatRelativeTime(feed.lastSyncedAt)} · {feed.itemCount} title
           {feed.itemCount === 1 ? '' : 's'}
         </p>
         {feed.status === 'error' && feed.lastError && (

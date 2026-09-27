@@ -20,12 +20,31 @@ function isLocalHost(hostname: string): boolean {
   )
 }
 
+/** A visitor who asked not to be tracked, a local preview, or a tab that already pinged. */
+function shouldSkipPing(): boolean {
+  const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
+  if (nav.doNotTrack === '1' || nav.globalPrivacyControl) return true
+  if (isLocalHost(window.location.hostname)) return true
+  return Boolean(sessionStorage.getItem(SESSION_KEY))
+}
+
+/**
+ * Hostname only - never the full referrer URL (path/query can carry
+ * identifying detail we have no business forwarding). A malformed referrer is
+ * omitted rather than sent unparsed.
+ */
+function referrerHost(): string | null {
+  if (!document.referrer) return null
+  try {
+    return new URL(document.referrer).hostname
+  } catch {
+    return null
+  }
+}
+
 export function sendVisitPing(): void {
   try {
-    const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
-    if (nav.doNotTrack === '1' || nav.globalPrivacyControl) return
-    if (isLocalHost(window.location.hostname)) return
-    if (sessionStorage.getItem(SESSION_KEY)) return
+    if (shouldSkipPing()) return
     sessionStorage.setItem(SESSION_KEY, '1')
 
     // The stored id's mere presence is what marks a visit as not-first, so it
@@ -33,20 +52,12 @@ export function sendVisitPing(): void {
     // gone out (see the .then() below) - otherwise a failed first ping would
     // silently and permanently lose the "new" signal.
     const existingId = localStorage.getItem(ID_KEY)
-    const firstVisit = !existingId
     const id = existingId ?? crypto.randomUUID()
 
     const params = new URLSearchParams({ iid: id, v: __APP_VERSION__ })
-    if (firstVisit) params.set('new', '1')
-    if (document.referrer) {
-      try {
-        // Hostname only - never the full referrer URL (path/query can carry
-        // identifying detail we have no business forwarding).
-        params.set('ref', new URL(document.referrer).hostname)
-      } catch {
-        // malformed referrer: omit rather than send anything unparsed
-      }
-    }
+    if (!existingId) params.set('new', '1')
+    const ref = referrerHost()
+    if (ref) params.set('ref', ref)
 
     // no-cors: the request still reaches the server (that IS the ping); the
     // opaque response can't be read, and no-cors forbids custom headers, so

@@ -140,8 +140,8 @@ function Hero() {
         Your IMDb list, straight into Radarr and Sonarr.
       </h1>
       <p className="text-muted-foreground mt-3 max-w-xl text-base text-pretty">
-        Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for the
-        movies, one Sonarr uses for the shows. Both read the same list.
+        Free. Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for
+        the movies, one Sonarr uses for the shows. Both read the same list.
       </p>
     </section>
   )
@@ -153,6 +153,7 @@ function CreateFeedForm({
   looksValid,
   pending,
   canSubmit,
+  signedIn,
   onSubmit,
 }: {
   sourceUrl: string
@@ -160,6 +161,7 @@ function CreateFeedForm({
   looksValid: boolean
   pending: boolean
   canSubmit: boolean
+  signedIn: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
   return (
@@ -167,8 +169,10 @@ function CreateFeedForm({
       <CardHeader>
         <CardTitle>Create your feeds</CardTitle>
         <CardDescription>
-          Your links never change, so you set them up once and leave them. Sign in and we keep the
-          list up to date for you.
+          Your links never change, so you set them up once and leave them.{' '}
+          {signedIn
+            ? 'You are signed in, so every list you paste here is kept up to date for you.'
+            : 'Sign in and we keep the list up to date for you.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -640,6 +644,7 @@ export default function App() {
             looksValid={looksValid}
             pending={pending}
             canSubmit={canSubmit}
+            signedIn={Boolean(session?.signedIn)}
             onSubmit={handleSubmit}
           />
 
