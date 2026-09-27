@@ -160,7 +160,7 @@ describe("App - a first look", () => {
   test("shows the product, the form, the steps and nothing that needs a session", () => {
     const html = render();
 
-    assert.match(html, /Your IMDb list, straight into Radarr and Sonarr\./);
+    assert.match(html, /Your IMDb list, straight into <span[^>]*>Radarr and Sonarr<\/span>\./);
     assert.match(html, /IMDb watchlist or list URL/);
     assert.match(html, /Generate feeds/);
     assert.match(html, /How it works/);
@@ -172,7 +172,7 @@ describe("App - a first look", () => {
     assert.doesNotMatch(html, /Radarr RSS URL/);
     assert.doesNotMatch(html, /Could not build the feeds/);
     assert.doesNotMatch(html, /Building/);
-    assert.doesNotMatch(html, /This one will not update by itself/);
+    assert.doesNotMatch(html, /Won’t update by itself/);
     assert.doesNotMatch(html, /Sign out/);
   });
 
@@ -247,7 +247,7 @@ describe("App - a finished result", () => {
 
     assert.match(html, />ready</);
     assert.doesNotMatch(html, /animate-spin/);
-    assert.doesNotMatch(html, /This one will not update by itself/);
+    assert.doesNotMatch(html, /Won’t update by itself/);
     assert.match(html, /Shows we skipped/);
   });
 
@@ -323,15 +323,14 @@ describe("App - the signed-out nudge", () => {
       session: { signedIn: false, name: null, authAvailable: true },
     });
 
-    assert.match(html, /This one will not update by itself/);
-    assert.match(html, /Sign in with Connections/);
-    assert.match(html, /Your links work now and keep working\./);
+    // A small note that opens the explanation and the sign-in when clicked.
+    assert.match(html, /aria-haspopup="dialog"[^>]*>[\s\S]{0,400}Won’t update by itself/);
   });
 
   test("a signed-in visitor is not nagged, and gets the account controls instead", () => {
     const html = render({ result: READY_RESULT, session: SIGNED_IN });
 
-    assert.doesNotMatch(html, /This one will not update by itself/);
+    assert.doesNotMatch(html, /Won’t update by itself/);
     assert.match(html, /Ada/);
     assert.match(html, /Sign out/);
   });
@@ -339,6 +338,6 @@ describe("App - the signed-out nudge", () => {
   test("nothing is said about updating before there is a result to update", () => {
     const html = render({ session: { signedIn: false, name: null, authAvailable: true } });
 
-    assert.doesNotMatch(html, /This one will not update by itself/);
+    assert.doesNotMatch(html, /Won’t update by itself/);
   });
 });

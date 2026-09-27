@@ -5,6 +5,7 @@ import { FeedsSection } from '@/components/feed-panel'
 import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/components/home-sections'
 import { MyFeeds } from '@/components/my-feeds'
 import { PosterRow } from '@/components/poster-row'
+import { Reveal } from '@/components/reveal'
 import { SignInLightbox } from '@/components/sign-in-lightbox'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
 import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
@@ -92,7 +93,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="bg-background text-foreground flex min-h-dvh flex-col">
+      <div className="bg-background text-foreground flex min-h-dvh flex-col overflow-x-clip">
         <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
         <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
@@ -115,22 +116,32 @@ export default function App() {
             />
           )}
 
-          <FeedsSection
-            pending={pending}
-            error={error}
-            result={result}
-            session={session}
-            listUrl={activeUrl}
-            onSignIn={handleSignIn}
-          />
+          <Reveal>
+            <FeedsSection
+              pending={pending}
+              error={error}
+              result={result}
+              session={session}
+              listUrl={activeUrl}
+              onSignIn={handleSignIn}
+            />
+          </Reveal>
 
-          <PosterRow pending={pending} result={result} listUrl={activeUrl} />
+          <Reveal>
+            <PosterRow pending={pending} result={result} listUrl={activeUrl} />
+          </Reveal>
 
-          <HowItWorks />
+          <Reveal>
+            <HowItWorks />
+          </Reveal>
 
-          <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+          <Reveal>
+            <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+          </Reveal>
 
-          <AskarrSection />
+          <Reveal>
+            <AskarrSection />
+          </Reveal>
         </main>
 
         <SiteFooter />

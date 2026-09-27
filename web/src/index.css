@@ -144,6 +144,9 @@
     --animate-rise: rise-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
     --animate-pop: pop-in 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
     --animate-fresh: fresh-ring 1.4s ease-out 0.3s both;
+    --animate-fan: fan-in 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    --animate-backdrop: backdrop-in 1.4s ease-out both;
+    --animate-drift: drift 16s ease-in-out infinite alternate;
 
     @keyframes rise-in {
         from {
@@ -155,6 +158,36 @@
         from {
             opacity: 0;
             transform: translateY(14px) scale(0.94);
+        }
+    }
+    /* The covers start stacked in the middle and spread to their own place. */
+    @keyframes fan-in {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -40%) rotate(0deg) scale(0.8);
+        }
+    }
+    @keyframes backdrop-in {
+        from {
+            opacity: 0;
+        }
+    }
+    @keyframes drift {
+        from {
+            transform: translate3d(0, 0, 0) scale(1);
+        }
+        to {
+            transform: translate3d(-12%, 10%, 0) scale(1.2);
+        }
+    }
+    @keyframes underline-grow {
+        from {
+            background-size: 0% 0.12em;
+        }
+    }
+    @keyframes bar-grow {
+        from {
+            transform: scaleY(0);
         }
     }
     @keyframes fresh-ring {
@@ -184,6 +217,77 @@
 
     @media (prefers-reduced-motion: reduce) {
         animation: none;
+    }
+}
+
+/* A cover's place in the result's fan (feed-panel.tsx sets --fan-x and --fan-r). */
+.fan-card {
+    transform: translate(calc(-50% + var(--fan-x, 0%)), -50%) rotate(var(--fan-r, 0deg));
+}
+
+/* The headline's "Radarr and Sonarr" gets a yellow underline that draws itself. */
+.underline-sweep {
+    background-image: linear-gradient(var(--primary), var(--primary));
+    background-repeat: no-repeat;
+    background-position: 0 92%;
+    background-size: 100% 0.12em;
+}
+
+/* A section heading's yellow bar grows down as the heading appears. */
+.title-bar {
+    transform-origin: top;
+}
+
+/* Scroll reveal (reveal.tsx): only a block that started below the fold is ever
+   hidden, and only until it arrives. */
+[data-reveal='hidden'] {
+    opacity: 0;
+    transform: translateY(32px);
+}
+[data-reveal='shown'] {
+    transition:
+        opacity 0.7s ease-out var(--reveal-delay, 0ms),
+        transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) var(--reveal-delay, 0ms);
+}
+[data-reveal='hidden'] .title-bar {
+    transform: scaleY(0);
+}
+[data-reveal='shown'] .title-bar {
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--reveal-delay, 0ms) + 200ms);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .underline-sweep {
+        animation: underline-grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.6s both;
+    }
+    .title-bar {
+        animation: bar-grow 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+    }
+    /* A revealed heading grows its bar on arrival instead of at page load. */
+    [data-reveal] .title-bar {
+        animation: none;
+    }
+}
+
+/* A light sweeping across a primary button on hover. */
+@utility shine {
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.5) 50%, transparent 80%);
+        transform: translateX(-120%);
+        pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        &:hover::after {
+            transform: translateX(120%);
+            transition: transform 0.7s ease;
+        }
     }
 }
 

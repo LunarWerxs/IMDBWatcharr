@@ -4,6 +4,7 @@ import { ArrowRightIcon, LoaderCircleIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Reveal } from '@/components/reveal'
 import { ASKARR_URL, SectionTitle, type SignInClick } from '@/components/site-chrome'
 import { signInHref } from '@/lib/feed-page'
 import type { Session } from '@/lib/api'
@@ -32,7 +33,12 @@ function beat(step: number) {
 
 export function Hero() {
   return (
-    <section className="pt-10 pb-8 sm:pt-16 sm:pb-10">
+    <section className="relative isolate pt-10 pb-8 sm:pt-16 sm:pb-10">
+      {/* A slow yellow glow drifting behind the headline: IMDb's colour as light, not as a block. */}
+      <div
+        aria-hidden="true"
+        className="bg-primary/15 pointer-events-none absolute -top-32 -right-24 -z-10 size-96 rounded-full blur-3xl motion-safe:animate-drift sm:size-160"
+      />
       <p className="text-ink text-ui mb-3 font-bold tracking-wider uppercase motion-safe:animate-rise" style={beat(0)}>
         IMDb lists for Radarr and Sonarr
       </p>
@@ -40,7 +46,7 @@ export function Hero() {
         className="max-w-4xl text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl motion-safe:animate-rise"
         style={beat(1)}
       >
-        Your IMDb list, straight into Radarr and Sonarr.
+        Your IMDb list, straight into <span className="underline-sweep">Radarr and Sonarr</span>.
       </h1>
       <p
         className="text-muted-foreground mt-4 max-w-2xl text-base text-pretty sm:text-lg motion-safe:animate-rise"
@@ -102,7 +108,7 @@ export function FeedForm({
         <Button
           type="submit"
           disabled={!canSubmit}
-          className="h-12 rounded-md px-6 text-base font-bold sm:rounded-l-none"
+          className="shine h-12 rounded-md px-6 text-base font-bold sm:rounded-l-none"
         >
           {pending ? (
             <>
@@ -151,12 +157,16 @@ export function HowItWorks() {
       <SectionTitle id="how-it-works">How it works</SectionTitle>
       <ol className="grid gap-4 sm:grid-cols-3">
         {STEPS.map((step, index) => (
-          <li key={step.title} className="bg-card ring-foreground/10 rounded-lg p-5 ring-1 sm:p-6">
-            <span className="bg-primary text-primary-foreground mb-4 flex size-8 items-center justify-center rounded-full text-sm font-bold tabular-nums">
-              {index + 1}
-            </span>
-            <h3 className="mb-2 text-lg font-bold">{step.title}</h3>
-            <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
+          <li key={step.title}>
+            <Reveal delay={index * 120} className="h-full">
+              <div className="bg-card ring-foreground/10 hover:ring-primary/50 h-full rounded-lg p-5 ring-1 transition duration-300 hover:-translate-y-1 sm:p-6">
+                <span className="bg-primary text-primary-foreground mb-4 flex size-8 items-center justify-center rounded-full text-sm font-bold tabular-nums">
+                  {index + 1}
+                </span>
+                <h3 className="mb-2 text-lg font-bold">{step.title}</h3>
+                <p className="text-muted-foreground text-sm text-pretty">{step.body}</p>
+              </div>
+            </Reveal>
           </li>
         ))}
       </ol>
@@ -187,7 +197,7 @@ export function KeepUpdating({
       <p className="font-medium text-pretty">
         Sign in, free, and we check your list about every fifteen minutes.
       </p>
-      <Button asChild className="h-10 shrink-0 px-5 font-bold">
+      <Button asChild className="shine h-10 shrink-0 px-5 font-bold">
         <a href={signInHref()} onClick={onSignIn}>
           Sign in with Connections
         </a>

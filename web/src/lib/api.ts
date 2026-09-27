@@ -26,6 +26,8 @@ export type PreviewItem = {
   title: string
   year: number | null
   target: 'radarr' | 'sonarr' | 'skipped'
+  /** A small cover from IMDb's image host, or null when IMDb has none. */
+  poster?: string | null
 }
 
 export type CreateFeedResponse = FeedStatusResponse & {

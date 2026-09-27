@@ -1,11 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { FilmIcon, LoaderCircleIcon, TriangleAlertIcon, TvIcon, UserIcon } from 'lucide-react'
+import { FilmIcon, LoaderCircleIcon, TriangleAlertIcon, TvIcon } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/copy-field'
+import { Cover } from '@/components/cover'
 import { SectionTitle, type SignInClick } from '@/components/site-chrome'
-import { signInHref } from '@/lib/feed-page'
+import { UpdateNote } from '@/components/update-note'
 import { useCountUp } from '@/lib/motion'
 import type { CreateFeedResponse, Session } from '@/lib/api'
 
@@ -71,7 +71,9 @@ function riseDelay(order: number): CSSProperties {
 
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`bg-card ring-foreground/10 rounded-lg p-5 ring-1 sm:p-8 ${className}`}>{children}</div>
+    <div className={`bg-card ring-foreground/10 relative overflow-hidden rounded-lg p-5 ring-1 sm:p-8 ${className}`}>
+      {children}
+    </div>
   )
 }
 
@@ -146,50 +148,99 @@ function TargetCards({ result }: { result: CreateFeedResponse | null }) {
   )
 }
 
+// How far each cover in the fan sits from the middle: a share of its own width
+// sideways, a few degrees of tilt, the middle one on top.
+function fanStyle(index: number, count: number): CSSProperties {
+  const offset = index - (count - 1) / 2
+  return {
+    '--fan-x': `${offset * 46}%`,
+    '--fan-r': `${offset * 7}deg`,
+    zIndex: 10 - Math.abs(Math.round(offset)),
+    animationDelay: `${250 + index * 90}ms`,
+  } as CSSProperties
+}
+
 /**
- * A signed-out visitor's feed does not refresh itself, so it says so, and the
- * sign-in it offers comes back to this same list so the list gets claimed.
+ * The list's first covers, fanned out at the top of the result: they start
+ * stacked and spread into place, and lean further apart on hover. While a list
+ * is still waiting for IMDb the fan is placeholders, shimmering.
  */
-function UnsyncedNudge({
-  session,
+function CoverFan({ result }: { result: CreateFeedResponse }) {
+  const covers = (result.preview ?? []).filter((item) => item.poster).slice(0, 5)
+  if (covers.length === 0 && !result.syncing) return null
+
+  const slots = covers.length > 0 ? covers : [null, null, null, null]
+  return (
+    <div className="group/fan relative order-first h-32 w-full shrink-0 sm:order-none sm:h-48 sm:w-80" aria-hidden="true">
+      {slots.map((item, index) => (
+        <div
+          key={item?.imdbId ?? index}
+          className="fan-card absolute top-1/2 left-1/2 w-20 motion-safe:animate-fan sm:w-28"
+          style={fanStyle(index, slots.length)}
+        >
+          <div className="transition-transform duration-300 ease-out group-hover/fan:-translate-y-2">
+            {item ? (
+              <Cover
+                seed={item.imdbId}
+                src={item.poster}
+                eager
+                className="aspect-2/3 rounded-md shadow-2xl ring-1 shadow-black/60 ring-white/15"
+              />
+            ) : (
+              <div className="bg-secondary shimmer aspect-2/3 rounded-md ring-1 ring-white/10" />
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** The top of the result: the list's own covers behind and beside what it is and where it stands. */
+function ResultHeader({
   result,
+  session,
   listUrl,
   onSignIn,
 }: {
-  session: Session | null
   result: CreateFeedResponse
+  session: Session | null
   listUrl: string
   onSignIn: SignInClick
 }) {
-  if (!session?.authAvailable || session.signedIn || result.autoRefreshing) {
-    return null
-  }
-
-  const read = result.lastSyncedAt !== null
-
+  const backdrop = result.preview?.find((item) => item.poster)?.poster
   return (
-    <div className="bg-secondary border-primary mb-6 grid gap-2 rounded-md border-l-4 p-4 text-sm motion-safe:animate-rise">
-      <p className="flex items-center gap-2 font-bold">
-        <UserIcon className="text-ink size-4" aria-hidden="true" />
-        This one will not update by itself
-      </p>
-      <p className="text-muted-foreground">
-        {read
-          ? 'Your links work now and keep working. We only read the list again when you come back and paste it. '
-          : 'Once we have read the list, your links keep working. After that we only read it again when you come back and paste it. '}
-        Sign in, free, and we check it for you about every fifteen minutes.
-      </p>
-      <p className="text-muted-foreground">
-        Connections is the free account every LunarWerx app signs in with. It opens in a small
-        window over this page: type your email, enter the code it sends you, and this list is
-        saved to your account.
-      </p>
-      <div>
-        <Button asChild size="sm" className="font-bold">
-          <a href={signInHref(listUrl)} onClick={onSignIn}>
-            Sign in with Connections
-          </a>
-        </Button>
+    // overflow-hidden keeps the blurred backdrop inside the header, where the
+    // gradient fades it into the panel, instead of spilling onto the counts.
+    <div className="relative -mx-5 -mt-5 mb-6 overflow-hidden px-5 pt-5 pb-2 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-8">
+      {backdrop && (
+        <>
+          <img
+            src={backdrop}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-40 blur-3xl motion-safe:animate-backdrop"
+          />
+          <div className="to-card from-card/20 absolute inset-0 bg-linear-to-b" />
+        </>
+      )}
+      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h3 className="flex min-w-0 items-center gap-2 text-2xl font-bold">
+            <span className="truncate">{result.listTitle || 'Your list'}</span>
+            {result.syncing && <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />}
+          </h3>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <StatusPill result={result} />
+            <UpdateNote session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />
+          </div>
+          <p className="text-muted-foreground mt-3 text-sm text-pretty">
+            {feedState(result) === 'snapshot'
+              ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
+              : result.message}
+          </p>
+        </div>
+        <CoverFan result={result} />
       </div>
     </div>
   )
@@ -209,19 +260,7 @@ function ResultPanel({
   return (
     // Keyed by the list, so a different list rises in afresh.
     <Panel key={result.slug} className="motion-safe:animate-rise">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex min-w-0 items-center gap-2 text-xl font-bold">
-          <span className="truncate">{result.listTitle || 'Your list'}</span>
-          {result.syncing && <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />}
-        </h3>
-        <StatusPill result={result} />
-      </div>
-      <p className="text-muted-foreground mb-6 text-sm text-pretty">
-        {feedState(result) === 'snapshot'
-          ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
-          : result.message}
-      </p>
-      <UnsyncedNudge session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />
+      <ResultHeader result={result} session={session} listUrl={listUrl} onSignIn={onSignIn} />
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile label={STAT_LABELS[0]} value={result.totalCount} order={0} />
         <StatTile label={STAT_LABELS[1]} value={result.radarrCount} order={1} />

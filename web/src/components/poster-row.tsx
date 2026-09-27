@@ -1,29 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, ClapperboardIcon, MinusIcon } from 'lucide-react'
 
+import { Cover } from '@/components/cover'
 import { SectionTitle } from '@/components/site-chrome'
 import type { CreateFeedResponse, PreviewItem } from '@/lib/api'
 import { scrollBehavior } from '@/lib/motion'
-
-// Posters are ours, not IMDb's: a dark duotone per title, picked from its id so
-// the same title always gets the same one. Nothing is fetched from IMDb.
-const DUOTONES = [
-  ['rgba(245,158,11,0.45)', '#b45309', '#2a1205'],
-  ['rgba(20,184,166,0.45)', '#0f766e', '#042f2e'],
-  ['rgba(244,63,94,0.40)', '#be123c', '#4c0519'],
-  ['rgba(234,179,8,0.40)', '#a16207', '#3f1508'],
-  ['rgba(249,115,22,0.45)', '#c2410c', '#301006'],
-  ['rgba(163,163,163,0.35)', '#525252', '#171717'],
-  ['rgba(132,204,22,0.40)', '#4d7c0f', '#1a2e05'],
-  ['rgba(217,70,239,0.35)', '#86198f', '#2e0633'],
-] as const
-
-function posterBackground(imdbId: string): string {
-  let hash = 0
-  for (const char of imdbId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  const [glow, top, bottom] = DUOTONES[hash % DUOTONES.length]
-  return `radial-gradient(circle at 65% 25%, ${glow}, transparent 60%), linear-gradient(160deg, ${top} 0%, ${bottom} 70%, #070707 100%)`
-}
 
 const TARGET_LABELS: Record<PreviewItem['target'], string> = {
   radarr: 'Movie → Radarr',
@@ -39,7 +20,7 @@ const ITEM_WIDTH = 'w-36 shrink-0 snap-start sm:w-44'
 function PosterCard({ item, order }: { item: PreviewItem; order: number }) {
   const sent = item.target !== 'skipped'
   return (
-    <li className={`${ITEM_WIDTH} motion-safe:animate-pop`} style={{ animationDelay: `${Math.min(order, 12) * 45}ms` }}>
+    <li className={`${ITEM_WIDTH} motion-safe:animate-pop`} style={{ animationDelay: `${Math.min(order, 12) * 55}ms` }}>
       <a
         href={`https://www.imdb.com/title/${item.imdbId}/`}
         target="_blank"
@@ -47,10 +28,12 @@ function PosterCard({ item, order }: { item: PreviewItem; order: number }) {
         className="group/poster block rounded-md"
         title={sent ? undefined : 'Sonarr needs a TVDB id for this one, or neither app takes this kind of title.'}
       >
-        <div
-          className="group-hover/poster:ring-primary relative aspect-2/3 overflow-hidden rounded-md shadow-lg ring-1 shadow-black/40 ring-white/10 transition duration-200 group-hover/poster:-translate-y-1"
-          style={{ background: posterBackground(item.imdbId) }}
-        >
+        <div className="group-hover/poster:ring-primary relative aspect-2/3 overflow-hidden rounded-md shadow-lg ring-1 shadow-black/40 ring-white/10 transition duration-300 group-hover/poster:-translate-y-1.5 group-hover/poster:shadow-2xl">
+          <Cover
+            seed={item.imdbId}
+            src={item.poster}
+            className="size-full transition-transform duration-500 group-hover/poster:scale-105"
+          />
           <span
             aria-hidden="true"
             className="absolute top-0 left-3 flex h-11 w-8 justify-center bg-neutral-900/80 pt-1.5 backdrop-blur-sm"
@@ -58,9 +41,12 @@ function PosterCard({ item, order }: { item: PreviewItem; order: number }) {
           >
             {sent ? <CheckIcon className="text-primary size-4" /> : <MinusIcon className="size-4 text-white/60" />}
           </span>
-          <span className="absolute inset-x-0 bottom-0 line-clamp-3 bg-linear-to-t from-black/85 via-black/50 to-transparent p-3 pt-8 text-sm leading-tight font-bold text-white">
-            {item.title}
-          </span>
+          {/* Without a cover, the tile carries the title itself. */}
+          {!item.poster && (
+            <span className="absolute inset-x-0 bottom-0 line-clamp-3 bg-linear-to-t from-black/85 via-black/50 to-transparent p-3 pt-8 text-sm leading-tight font-bold text-white">
+              {item.title}
+            </span>
+          )}
         </div>
         <span className="mt-2 block truncate text-sm font-bold group-hover/poster:underline">{item.title}</span>
         <span className="text-muted-foreground text-ui block">{item.year ?? 'Year unknown'}</span>

@@ -18,19 +18,20 @@ export const PAGE_WIDTH = 'mx-auto w-full max-w-6xl px-4 sm:px-6'
 
 /**
  * IMDb's section heading: a yellow bar, the title, a chevron that leans in on
- * hover. Every section on the page opens with one.
+ * hover. Every section on the page opens with one, and its bar grows in as the
+ * section arrives (index.css, .title-bar).
  */
 export function SectionTitle({ id, children }: { id?: string; children: ReactNode }) {
   return (
-    <h2
-      id={id}
-      className="group/title border-primary mb-5 flex scroll-mt-20 items-center gap-1 border-l-4 pl-3 text-2xl leading-tight font-bold"
-    >
-      {children}
-      <ChevronRightIcon
-        aria-hidden="true"
-        className="size-6 transition-transform group-hover/title:translate-x-0.5 group-hover/title:text-ink"
-      />
+    <h2 id={id} className="group/title mb-5 flex scroll-mt-20 items-stretch gap-3 text-2xl leading-tight font-bold">
+      <span aria-hidden="true" className="title-bar bg-primary w-1 shrink-0 rounded-full" />
+      <span className="flex items-center gap-1">
+        {children}
+        <ChevronRightIcon
+          aria-hidden="true"
+          className="size-6 transition-transform group-hover/title:translate-x-0.5 group-hover/title:text-ink"
+        />
+      </span>
     </h2>
   )
 }
