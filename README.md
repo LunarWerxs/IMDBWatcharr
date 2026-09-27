@@ -55,12 +55,16 @@ every five minutes). Claiming it by signing in is what puts it on the schedule, 
 join table rather than a column, so two people can keep the same public list alive without taking it
 from each other.
 
-**The queue.** `feeds.refresh_requested_at` is the sync job's to-do list. It is set when a feed is
-created or someone asks for a fresh read, served first by `/api/sync-targets` (oldest request first,
-at most 50 per run), and cleared by the next successful read. A private or missing list clears it at
-once, and any other failure clears it after three in a row, so a dead list stops costing every run an
-IMDb call; a claimed feed stays on the schedule regardless and recovers by itself once the list is
-public again.
+**The queue.** `feeds.refresh_requested_at` is the sync job's to-do list. It is set when a list is
+pasted (new, or pasted again) and cleared by the next successful read. `/api/sync-targets` hands the
+runner claimed feeds with a pending request first, then signed-out requests (oldest first, at most 50
+a run), then every other claimed feed, so however long the signed-out queue gets, no claimed feed is
+left out. A private or missing list leaves the queue at once; any other failure leaves it after three
+in a row and a full day of waiting, so an IMDb outage cannot empty the queue. A claimed feed stays on
+the schedule regardless and recovers by itself once the list is public again. Only a paste creates a
+feed: a Radarr or Sonarr URL for a list nobody has pasted answers `404` with instructions, so a
+crawler cannot fill the queue. With `GITHUB_DISPATCH_TOKEN` set, a paste that newly queues a list asks
+GitHub to run the job now, at most once a minute (`sync_dispatch`, migration 0007).
 
 **Why the fetching happens on a GitHub runner and not in the Worker.** IMDb refuses
 Cloudflare's egress outright: `api.graphql.imdb.com` and `caching.graphql.imdb.com` both answer
@@ -107,7 +111,7 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /{radarr,sonarr}/f/:imdbKey`             | Same, inferring the source from `ls…`, `p.…`, or `ur…`               |
 | `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
 | `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
-| `GET /api/feeds/:slug`                        | Where one feed stands (status, message, whether a read is pending); the page polls it |
+| `GET /api/feeds/:slug`                        | Where one feed stands, with its counts (read-only; the page polls it) |
 | `GET /api/sync-targets`                       | The queue, then every claimed feed; `?scope=requested` for the queue only (shared-secret auth) |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
 | `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
