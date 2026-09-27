@@ -93,11 +93,14 @@ export function createFeed(sourceUrl: string): Promise<CreateFeedResponse> {
   return postJson<CreateFeedResponse>('/api/create', { sourceUrl: sourceUrl.trim() })
 }
 
-/** Where one feed stands; the page polls this while a read from IMDb is pending. */
-export async function readFeedStatus(slug: string): Promise<FeedStatusResponse> {
+/** Where one feed stands, with its counts; the page polls this while a read from IMDb is pending. */
+export type FeedStatusWithCounts = FeedStatusResponse &
+  Pick<CreateFeedResponse, 'radarrCount' | 'sonarrCount' | 'sonarrUnresolvedCount' | 'totalCount'>
+
+export async function readFeedStatus(slug: string): Promise<FeedStatusWithCounts> {
   const response = await fetch(`/api/feeds/${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
   if (!response.ok) throw new Error(`Status check failed with status ${response.status}.`)
-  return (await response.json()) as FeedStatusResponse
+  return (await response.json()) as FeedStatusWithCounts
 }
 
 export async function readSession(): Promise<Session> {

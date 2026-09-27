@@ -48,10 +48,34 @@ const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 // signing in from a result claims that list instead of landing on a blank form.
 const LIST_PARAM = 'list'
 
+// Set just before leaving for sign-in, so the page that comes back can tell its
+// own round trip (build the list, which claims it) from someone else's link
+// carrying ?list= (fill the field in, and let the visitor decide).
+const SIGN_IN_LIST_KEY = 'imdbwatch:sign-in-list'
+
 /** The sign-in link, coming back to the given list when there is one. */
 function signInHref(listUrl?: string): string {
   const returnTo = listUrl ? `/?${LIST_PARAM}=${encodeURIComponent(listUrl)}` : '/'
   return `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+}
+
+function rememberSignInList(listUrl?: string) {
+  try {
+    if (listUrl) sessionStorage.setItem(SIGN_IN_LIST_KEY, listUrl)
+  } catch {
+    // Storage can be off; the list is still in the address, just not auto-built.
+  }
+}
+
+/** True once, for the list this tab itself carried through sign-in. */
+function takeSignInList(listUrl: string): boolean {
+  try {
+    const expected = sessionStorage.getItem(SIGN_IN_LIST_KEY)
+    sessionStorage.removeItem(SIGN_IN_LIST_KEY)
+    return expected === listUrl
+  } catch {
+    return false
+  }
 }
 
 /** A list handed to this page in its address (the sign-in return, or a shared link). */
@@ -114,7 +138,7 @@ function AccountControl({ session, listUrl }: { session: Session | null; listUrl
 
   return (
     <Button asChild variant="outline" size="sm">
-      <a href={signInHref(listUrl || undefined)}>
+      <a href={signInHref(listUrl || undefined)} onClick={() => rememberSignInList(listUrl || undefined)}>
         <UserIcon className="size-4" />
         Sign in
       </a>
@@ -369,7 +393,7 @@ function UnsyncedNudge({
   result: CreateFeedResponse
   listUrl: string
 }) {
-  if (!session?.authAvailable || result.autoRefreshing) {
+  if (!session?.authAvailable || session.signedIn || result.autoRefreshing) {
     return null
   }
 
@@ -387,7 +411,9 @@ function UnsyncedNudge({
           Sign in, free, and we check it for you about every fifteen minutes.
         </span>
         <Button asChild size="sm" className="mt-2">
-          <a href={signInHref(listUrl)}>Sign in with Connections</a>
+          <a href={signInHref(listUrl)} onClick={() => rememberSignInList(listUrl)}>
+            Sign in with Connections
+          </a>
         </Button>
       </AlertDescription>
     </Alert>
@@ -608,9 +634,10 @@ export default function App() {
     }
   }
 
-  // A list in the address (coming back from sign-in, or a shared link) is
-  // built straight away once the session is known, which is what claims it
-  // for a visitor who just signed in to keep it up to date.
+  // A list in the address is filled in once the session is known. It is built
+  // straight away (which claims it for a signed-in visitor) when this tab
+  // carried it through sign-in, or when nobody is signed in to claim it; a
+  // signed-in visitor following somebody else's link decides for themselves.
   useEffect(() => {
     let cancelled = false
     readSession().then((value) => {
@@ -620,7 +647,9 @@ export default function App() {
       if (listFromAddress) {
         clearListFromAddress()
         setSourceUrl(listFromAddress)
-        void buildFeeds(listFromAddress)
+        if (takeSignInList(listFromAddress) || !value.signedIn) {
+          void buildFeeds(listFromAddress)
+        }
       }
     })
     return () => {
@@ -630,23 +659,19 @@ export default function App() {
 
   // While a read from IMDb is pending, ask where the feed stands at the pace
   // the API suggests, instead of making the reader click Generate again to see
-  // whether it landed. Once it has landed, one fresh build brings the counts.
+  // whether it landed. The status route is read-only and carries the counts,
+  // so a poll never claims or re-queues anything (a list unfollowed mid-poll
+  // stays unfollowed).
   const pollSlug = result?.syncing ? result.slug : null
   const pollAfterMs = (result?.pollAfterSeconds ?? 30) * 1000
   useEffect(() => {
-    if (!pollSlug || !activeUrl) return
+    if (!pollSlug) return
 
     let cancelled = false
     const timer = setInterval(() => {
       readFeedStatus(pollSlug)
-        .then(async (status) => {
-          if (cancelled) return
-          if (!status.syncing && status.status === 'ready') {
-            const next = await createFeed(activeUrl)
-            if (!cancelled) setResult(next)
-            return
-          }
-          setResult((current) => (current ? { ...current, ...status } : current))
+        .then((status) => {
+          if (!cancelled) setResult((current) => (current ? { ...current, ...status } : current))
         })
         .catch(() => {
           // A transient failure mid-poll is not worth surfacing over the
@@ -658,7 +683,18 @@ export default function App() {
       cancelled = true
       clearInterval(timer)
     }
-  }, [pollSlug, pollAfterMs, activeUrl])
+  }, [pollSlug, pollAfterMs])
+
+  // Unfollowing the list on screen from My feeds re-reads where it stands, so
+  // the card stops saying it is being kept up to date.
+  function handleUnfollowed(slug: string) {
+    if (result?.slug !== slug) return
+    readFeedStatus(slug)
+      .then((status) => setResult((current) => (current ? { ...current, ...status } : current)))
+      .catch(() => {
+        // The card is only out of date; My feeds already shows the change.
+      })
+  }
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
@@ -688,7 +724,10 @@ export default function App() {
           />
 
           {session?.signedIn && (
-            <MyFeeds refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''} />
+            <MyFeeds
+              refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
+              onUnfollowed={handleUnfollowed}
+            />
           )}
 
           <FeedOutcome

@@ -21,6 +21,7 @@ import {
 import { buildSnapshotFingerprintPayload } from "./imdb-graphql.js";
 import { json } from "./http.js";
 import {
+  claimDispatchSlot,
   getFeedByUrl,
   getFeedItems,
   getOrCreateFeed,
@@ -31,13 +32,17 @@ import {
   storeFeedCaches,
   storeFeedSnapshot,
 } from "./store.js";
-import { enrichTvdbIdsForFeed } from "./tvdb.js";
+import { enrichTvdbIdsForFeed, resolveMissingTvdbIds } from "./tvdb.js";
 
 // The workflow a pasted list dispatches. workflow_dispatch needs only the
 // token's Actions permission, where repository_dispatch would need write
 // access to the repository's contents.
 const SYNC_WORKFLOW_FILE = "sync-feeds.yml";
 const SYNC_WORKFLOW_REF = "main";
+
+// At most one dispatch per minute, whoever is pasting: every dispatched run
+// reads the whole queue, so the lists pasted in between ride along.
+const DISPATCH_INTERVAL_MS = 60_000;
 
 // Length-independent comparison, so a wrong secret cannot be narrowed down by
 // timing the reply.
@@ -129,7 +134,12 @@ async function syncFeedFromSnapshot(env, feed, snapshot) {
   const sourceFingerprint = await hashText(buildSnapshotFingerprintPayload(snapshot), 32);
 
   if (sourceFingerprint === feed.source_fingerprint && feed.radarr_cache && feed.sonarr_cache) {
-    return markFeedUnchanged(env.DB, feed, sourceFingerprint);
+    // The list did not change, but a series TVMaze could not answer for last
+    // time may resolve now; without this it stays out of Sonarr until the
+    // list itself changes.
+    const { items, resolvedCount } = await resolveMissingTvdbIds(env, feed, await getFeedItems(env.DB, feed.id));
+    const current = resolvedCount ? await writeFeedCaches(env.DB, feed, items, sourceFingerprint) : feed;
+    return markFeedUnchanged(env.DB, current, sourceFingerprint);
   }
 
   const currentFeed = await storeFeedSnapshot(env.DB, feed, snapshot);
@@ -142,8 +152,8 @@ async function syncFeedFromSnapshot(env, feed, snapshot) {
  * Ask the sync job to run now rather than on its next tick, so a pasted list
  * fills in about a minute instead of a quarter of an hour. Best effort on
  * purpose: without GITHUB_DISPATCH_TOKEN the request still sits in the queue
- * and the scheduled run reads it, so a missing or rejected dispatch must never
- * fail the request it rides on.
+ * and the scheduled run reads it, so a missing, throttled or rejected dispatch
+ * must never fail the request it rides on.
  */
 export async function requestSyncRun(env) {
   if (!env.GITHUB_DISPATCH_TOKEN || !env.GITHUB_REPOSITORY) {
@@ -151,6 +161,10 @@ export async function requestSyncRun(env) {
   }
 
   try {
+    if (!(await claimDispatchSlot(env.DB, DISPATCH_INTERVAL_MS))) {
+      return false;
+    }
+
     const response = await fetch(
       `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/workflows/${SYNC_WORKFLOW_FILE}/dispatches`,
       {

@@ -31,14 +31,14 @@ async function lookupTvdbIdByImdb(imdbId) {
 
 /**
  * Resolve the TVDB id of every series on the feed that does not have one yet,
- * and return the feed's items with whatever was found. A series TVMaze cannot
- * answer for stays unresolved and is simply tried again next time, so one
- * failed lookup never fails the request it rides on.
+ * and return the feed's items with whatever was found, plus how many resolved.
+ * A series TVMaze cannot answer for stays unresolved and is simply tried again
+ * next time, so one failed lookup never fails the request it rides on.
  */
-export async function enrichTvdbIdsForFeed(env, feed, items) {
+export async function resolveMissingTvdbIds(env, feed, items) {
   const seriesItems = filterItemsForTarget(items, "sonarr").filter((item) => !item.tvdb_id);
   if (!seriesItems.length) {
-    return items;
+    return { items, resolvedCount: 0 };
   }
 
   const resolutions = [];
@@ -59,9 +59,13 @@ export async function enrichTvdbIdsForFeed(env, feed, items) {
   }
 
   if (!resolutions.length) {
-    return items;
+    return { items, resolvedCount: 0 };
   }
 
   await saveTvdbIds(env.DB, feed.id, resolutions);
-  return getFeedItems(env.DB, feed.id);
+  return { items: await getFeedItems(env.DB, feed.id), resolvedCount: resolutions.length };
+}
+
+export async function enrichTvdbIdsForFeed(env, feed, items) {
+  return (await resolveMissingTvdbIds(env, feed, items)).items;
 }

@@ -106,7 +106,13 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
  * page claims a list or a pending one lands, so the card re-reads instead of
  * missing the list the visitor just added.
  */
-export function MyFeeds({ refreshKey = '' }: { refreshKey?: string }) {
+export function MyFeeds({
+  refreshKey = '',
+  onUnfollowed,
+}: {
+  refreshKey?: string
+  onUnfollowed?: (slug: string) => void
+}) {
   const [feeds, setFeeds] = useState<MyFeed[] | null>(null)
 
   useEffect(() => {
@@ -135,6 +141,7 @@ export function MyFeeds({ refreshKey = '' }: { refreshKey?: string }) {
     try {
       await unfollowFeed(feed.sourceUrl)
       setFeeds((current) => (current ?? []).filter((item) => item.slug !== feed.slug))
+      onUnfollowed?.(feed.slug)
       toast.success(`Stopped following "${label}".`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not unfollow this feed.')

@@ -50,23 +50,26 @@ async function sign(payload, secret) {
   return `${body}.${base64UrlEncode(signature)}`;
 }
 
+// A cookie is whatever the browser sends, so every step of reading one can
+// fail on garbage (atob throws on a stray character); any failure is simply
+// "not signed in", never a 500 on every request that reads the session.
 async function unsign(token, secret) {
-  const [body, signature] = String(token ?? "").split(".");
-  if (!body || !signature) {
-    return null;
-  }
-
-  const ok = await crypto.subtle.verify(
-    "HMAC",
-    await hmacKey(secret),
-    base64UrlDecodeToBytes(signature),
-    new TextEncoder().encode(body),
-  );
-  if (!ok) {
-    return null;
-  }
-
   try {
+    const [body, signature] = String(token ?? "").split(".");
+    if (!body || !signature) {
+      return null;
+    }
+
+    const ok = await crypto.subtle.verify(
+      "HMAC",
+      await hmacKey(secret),
+      base64UrlDecodeToBytes(signature),
+      new TextEncoder().encode(body),
+    );
+    if (!ok) {
+      return null;
+    }
+
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecodeToBytes(body)));
     // An expiry the holder cannot edit is the point of signing it.
     return payload?.exp && payload.exp * 1000 > Date.now() ? payload : null;

@@ -39,8 +39,9 @@ if [ -z "$TOKEN" ]; then
 fi
 
 # The real check: ask for a queue-only sync run, exactly what the Worker will do.
-status=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-  -H "Authorization: Bearer $TOKEN" \
+# The header goes to curl on stdin (-K -) from printf, a shell builtin, so the
+# token never appears in any process's command line.
+status=$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl -s -K - -o /dev/null -w "%{http_code}" -X POST \
   -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW/dispatches" \
   -d '{"ref":"main","inputs":{"scope":"requested"}}')

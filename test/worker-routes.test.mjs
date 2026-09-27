@@ -227,6 +227,17 @@ describe("fetch - auth and session routes", () => {
     assert.deepEqual(parsed, { signedIn: false, name: null, authAvailable: false });
   });
 
+  test("a malformed session cookie reads as signed out, not as a server error", async () => {
+    const { env } = makeEnv({ SESSION_SECRET });
+    const { response, parsed } = await call(`${ORIGIN}/api/me`, {
+      env,
+      headers: { cookie: "iw_session=not-base64!.%%%" },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(parsed.signedIn, false);
+  });
+
   test("GET /api/me signed in echoes the name and sees the configured client", async () => {
     const { env } = makeEnv({
       SESSION_SECRET,
@@ -441,8 +452,8 @@ describe("fetch - /api/sync-targets", () => {
   };
   const queueDb = () =>
     makeDb([
-      ["WHERE f.refresh_requested_at IS NOT NULL", { results: [REQUESTED_ROW] }],
-      ["WHERE f.refresh_requested_at IS NULL", { results: [SYNC_ROW] }],
+      ["AND NOT EXISTS (SELECT 1 FROM feed_owners", { results: [REQUESTED_ROW] }],
+      ["WHERE EXISTS (SELECT 1 FROM feed_owners", { results: [SYNC_ROW] }],
     ]);
 
   test("with no configured secret the endpoint does not exist, rather than being open", async () => {
@@ -544,7 +555,8 @@ describe("fetch - /api/ingest", () => {
     const [failure] = DB.find("consecutive_failures = consecutive_failures + 1");
     // The message, whether the failure is permanent (so the queue drops it),
     // the give-up threshold, the timestamp, and the feed.
-    assert.deepEqual(failure.args, ["This IMDb list is private.", 1, 3, failure.args[3], 7]);
+    // Then the give-up cutoff (a request waiting a day) and the timestamp.
+    assert.deepEqual(failure.args, ["This IMDb list is private.", 1, 3, failure.args[3], failure.args[4], 7]);
   });
 
   test("an empty snapshot is rejected before it can wipe a feed that has titles", async () => {
@@ -674,6 +686,29 @@ describe("fetch - /api/create", () => {
     });
   });
 
+  test("a list already in the queue does not ask GitHub again, however often it is pasted", async () => {
+    const DB = makeDb([
+      ["SELECT * FROM feeds WHERE source_url = ?", { ...CREATE_ROW, refresh_requested_at: RECENT }],
+      ["FROM feed_items", { results: [] }],
+      ["UPDATE sync_dispatch", { meta: { changes: 1 } }],
+    ]);
+    const { env } = makeEnv({ DB, GITHUB_DISPATCH_TOKEN: "token", GITHUB_REPOSITORY: "owner/repo" });
+    const dispatches = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      dispatches.push(String(url));
+      return new Response(null, { status: 204 });
+    };
+    try {
+      const { parsed } = await call(`${ORIGIN}/api/create`, { method: "POST", body: { sourceUrl: CANONICAL_LIST }, env });
+      assert.equal(parsed.syncing, true, "it is still waiting in the queue");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.deepEqual(dispatches, []);
+  });
+
   test("signed in, an up-to-date feed says it is being kept current and claims it", async () => {
     const DB = makeDb([
       ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
@@ -723,6 +758,16 @@ describe("fetch - feed routes", () => {
     assert.equal(response.status, 200);
     assert.equal(ctx.waited.length, 1);
     await Promise.all(ctx.waited);
+  });
+
+  test("a feed URL nobody has pasted is a 404 that says how to start it, and creates nothing", async () => {
+    const DB = makeDb([["SELECT * FROM feeds WHERE source_url = ?", null]]);
+    const { env } = makeEnv({ DB });
+    const { response, text } = await call(`${ORIGIN}/radarr/l/ls000000077`, { env });
+
+    assert.equal(response.status, 404);
+    assert.match(text, /Paste its IMDb link at/);
+    assert.equal(DB.find("INSERT INTO feeds").length, 0, "a crawler must not be able to fill the read queue");
   });
 
   test("an empty feed answers 503 with the last error, so Radarr sees a reason", async () => {
@@ -903,8 +948,14 @@ describe("fetch - redirects and lookups", () => {
       pollAfterSeconds: 30,
       owned: false,
       autoRefreshing: false,
-      itemCount: 2,
+      itemCount: 0,
+      radarrCount: 0,
+      sonarrCount: 0,
+      sonarrUnresolvedCount: 0,
+      totalCount: 0,
     });
+    assert.equal(found.find("INSERT OR IGNORE INTO feed_owners").length, 0, "a status read never claims");
+    assert.equal(found.find("SET refresh_requested_at").length, 0, "a status read never queues");
 
     const gone = await call(`${ORIGIN}/api/feeds/abcdef012345`, { env: makeEnv({ DB: missing }).env });
     assert.equal(gone.response.status, 404);

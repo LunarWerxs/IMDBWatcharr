@@ -147,25 +147,43 @@ export async function storeFeedCaches(db, feed, { radarrCache, sonarrCache, sour
   };
 }
 
+// How long a request that keeps failing stays in the queue. Measured in time,
+// not in runs: a run-wide IMDb outage fails every read in several runs back to
+// back, and counting those would drop every waiting list for good.
+const GIVE_UP_AFTER_MS = 1000 * 60 * 60 * 24;
+
 /**
  * Record a failed read. consecutive_failures counts up here and only here, so
  * a run of bad syncs is visible even though each overwrites last_error; a
  * successful sync resets it. A pending request is dropped when the failure is
- * permanent (the list is private or gone) or has now happened `giveUpAfter`
- * times in a row, so a dead list stops costing every run an IMDb call. A
- * claimed feed stays on the schedule regardless: its owner is told, and it
- * recovers by itself the moment the list is made public again.
+ * permanent (the list is private or gone), or when it has failed `giveUpAfter`
+ * times in a row AND has been waiting a full day, so a dead list stops costing
+ * every run an IMDb call while an outage does not empty the queue. A claimed
+ * feed stays on the schedule regardless: its owner is told, and it recovers by
+ * itself the moment the list is made public again.
  */
 export async function markFeedFailure(db, feedId, error, { permanent = false, giveUpAfter }) {
+  const now = Date.now();
   await db
     .prepare(
       `UPDATE feeds
        SET status = 'error', last_error = ?, consecutive_failures = consecutive_failures + 1,
-           refresh_requested_at = CASE WHEN ? OR consecutive_failures + 1 >= ? THEN NULL ELSE refresh_requested_at END,
+           refresh_requested_at = CASE
+             WHEN ? THEN NULL
+             WHEN consecutive_failures + 1 >= ? AND refresh_requested_at < ? THEN NULL
+             ELSE refresh_requested_at
+           END,
            updated_at = ?
        WHERE id = ?`
     )
-    .bind(String(error), permanent ? 1 : 0, giveUpAfter, nowIso(), feedId)
+    .bind(
+      String(error),
+      permanent ? 1 : 0,
+      giveUpAfter,
+      new Date(now - GIVE_UP_AFTER_MS).toISOString(),
+      new Date(now).toISOString(),
+      feedId,
+    )
     .run();
 }
 
@@ -195,15 +213,35 @@ export async function markFeedUnchanged(db, feed, sourceFingerprint) {
 
 /**
  * Ask the sync job to read this feed on its next run. An earlier request keeps
- * its place in the queue rather than being pushed to the back.
+ * its place in the queue rather than being pushed to the back. `queued` says
+ * whether this call is what put it there, which is when a dispatch is worth it.
  */
 export async function requestRefresh(db, feed) {
-  const requestedAt = feed.refresh_requested_at ?? nowIso();
+  if (feed.refresh_requested_at) {
+    return { feed, queued: false };
+  }
+
+  const requestedAt = nowIso();
   await db
     .prepare("UPDATE feeds SET refresh_requested_at = COALESCE(refresh_requested_at, ?) WHERE id = ?")
     .bind(requestedAt, feed.id)
     .run();
-  return { ...feed, refresh_requested_at: requestedAt };
+  return { feed: { ...feed, refresh_requested_at: requestedAt }, queued: true };
+}
+
+/**
+ * Claim the one dispatch slot for the next `intervalMs`. True for exactly one
+ * caller per interval, however many pastes arrive at once, so a burst of
+ * visitors (or someone scripting /api/create) cannot turn into a burst of
+ * GitHub API calls on the owner's token.
+ */
+export async function claimDispatchSlot(db, intervalMs) {
+  const now = Date.now();
+  const result = await db
+    .prepare("UPDATE sync_dispatch SET last_at = ? WHERE id = 1 AND last_at < ?")
+    .bind(new Date(now).toISOString(), new Date(now - intervalMs).toISOString())
+    .run();
+  return (result?.meta?.changes ?? 0) === 1;
 }
 
 export async function saveTvdbIds(db, feedId, resolutions) {
@@ -243,41 +281,60 @@ export async function hasAnyOwner(db, feedId) {
 }
 
 const SYNC_TARGET_COLUMNS = `f.source_url, f.source_kind, f.status, f.last_synced_at, f.source_fingerprint,
-       f.refresh_requested_at, EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id) AS owned`;
+       f.refresh_requested_at`;
+
+// A claimed feed read more recently than this is skipped by a dispatched run:
+// the schedule has it in hand, and the dispatched run is about the queue.
+const OWNED_DUE_AFTER_MS = 1000 * 60 * 10;
 
 /**
- * What the sync job should read. Requested reads come first, oldest request
- * first, because a person is waiting on each of them; then every claimed feed,
- * least recently synced first. `scope: "requested"` is the dispatched run a
- * pasted list triggers, which only needs the queue.
+ * What the sync job should read, in order: claimed feeds with a pending
+ * request (a signed-in person is waiting on each), then signed-out requests,
+ * oldest first and at most REQUESTED_FEEDS_PER_RUN of them, then every other
+ * claimed feed, least recently synced first. The cap applies to signed-out
+ * requests only, so however long that queue gets, no claimed feed is ever left
+ * out of a run.
+ *
+ * `scope: "requested"` is the run a pasted list dispatches. It skips claimed
+ * feeds synced in the last ten minutes but keeps the rest, because a dispatch
+ * can replace a scheduled run that was waiting in the same concurrency group,
+ * and the claimed feeds must not miss that tick.
  */
 export async function readSyncTargets(db, { scope = "all" } = {}) {
-  const requested = await db
-    .prepare(
-      `SELECT ${SYNC_TARGET_COLUMNS}
-         FROM feeds f
-        WHERE f.refresh_requested_at IS NOT NULL
-        ORDER BY f.refresh_requested_at ASC
-        LIMIT ?`,
-    )
-    .bind(REQUESTED_FEEDS_PER_RUN)
-    .all();
+  const [owned, guests] = await Promise.all([
+    db
+      .prepare(
+        `SELECT ${SYNC_TARGET_COLUMNS}
+           FROM feeds f
+          WHERE EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+          ORDER BY f.refresh_requested_at IS NULL ASC, f.refresh_requested_at ASC,
+                   f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
+      )
+      .all(),
+    db
+      .prepare(
+        `SELECT ${SYNC_TARGET_COLUMNS}
+           FROM feeds f
+          WHERE f.refresh_requested_at IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+          ORDER BY f.refresh_requested_at ASC
+          LIMIT ?`,
+      )
+      .bind(REQUESTED_FEEDS_PER_RUN)
+      .all(),
+  ]);
+
+  const ownedRows = (owned.results ?? []).map((feed) => ({ ...feed, owned: true }));
+  const guestRows = (guests.results ?? []).map((feed) => ({ ...feed, owned: false }));
+  const ownedRequested = ownedRows.filter((feed) => feed.refresh_requested_at);
+  let ownedRest = ownedRows.filter((feed) => !feed.refresh_requested_at);
 
   if (scope === "requested") {
-    return requested.results ?? [];
+    const dueBefore = Date.now() - OWNED_DUE_AFTER_MS;
+    ownedRest = ownedRest.filter((feed) => !feed.last_synced_at || Date.parse(feed.last_synced_at) < dueBefore);
   }
 
-  const owned = await db
-    .prepare(
-      `SELECT ${SYNC_TARGET_COLUMNS}
-         FROM feeds f
-        WHERE f.refresh_requested_at IS NULL
-          AND EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
-        ORDER BY f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
-    )
-    .all();
-
-  return [...(requested.results ?? []), ...(owned.results ?? [])];
+  return [...ownedRequested, ...guestRows, ...ownedRest];
 }
 
 export async function readOwnedFeeds(db, sub) {

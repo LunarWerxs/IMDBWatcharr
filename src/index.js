@@ -40,6 +40,7 @@ const MANUAL_REFRESH_MIN_MS = 1000 * 60 * 5;
 // run, roughly a quarter of an hour away.
 const POLL_AFTER_DISPATCH_SECONDS = 5;
 const POLL_AFTER_QUEUE_SECONDS = 30;
+const RECENT_DISPATCH_MS = 1000 * 60 * 3;
 
 // Every URL the API hands back is built on the address the request came in on,
 // so a local run or a preview hands back links to itself.
@@ -68,12 +69,16 @@ function canonicalRedirect(request, env, url) {
   return Response.redirect(`${canonical.origin}${url.pathname}${url.search}`, 301);
 }
 
+// The fingerprint says the list is unchanged, but the served body can still
+// change under it (a TVDB id resolved later adds a show to Sonarr), so the
+// ETag also carries when the bodies were last written.
 function buildFeedEtag(feed, feedTarget) {
   if (!feed?.source_fingerprint) {
     return null;
   }
 
-  return `"${feed.source_fingerprint}-${feedTarget}"`;
+  const written = feed.cache_updated_at ? `-${Date.parse(feed.cache_updated_at)}` : "";
+  return `"${feed.source_fingerprint}-${feedTarget}${written}"`;
 }
 
 function hasFreshEtag(request, etag) {
@@ -120,9 +125,13 @@ function describeUnreadFeed(feed, dispatched) {
     : "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.";
 }
 
-function describeReadyFeed(feed, { dispatched, owned }) {
+function describeReadyFeed(feed, { dispatched, owned, signedIn }) {
   if (owned) {
     return "Ready, and we are keeping it up to date.";
+  }
+
+  if (signedIn) {
+    return "Ready. You are not following this list, so it will not update by itself. Paste it again to follow it.";
   }
 
   if (dispatched) {
@@ -134,27 +143,37 @@ function describeReadyFeed(feed, { dispatched, owned }) {
     : "Ready. Sign in and we will keep it up to date.";
 }
 
-function describeFeedState(feed, { dispatched, owned }) {
+// A failed read of a feed that already has titles: the links keep serving the
+// last snapshot either way, but only a pending request means we will try again.
+function describeStaleFeed(feed) {
+  if (feed.refresh_requested_at || !feed.last_error) {
+    return "We could not reach IMDb just now, so your links are still serving what we saw last. We will try again on the next run.";
+  }
+
+  return `The last read did not work: ${feed.last_error} Your links are still serving what we saw last.`;
+}
+
+function describeFeedState(feed, { dispatched, owned, signedIn }) {
   if (feed.status !== "ready" && feed.item_count > 0) {
-    return "We could not reach IMDb just now, so your links are still serving what we saw last.";
+    return describeStaleFeed(feed);
   }
 
   if (feed.status !== "ready") {
     return describeUnreadFeed(feed, dispatched);
   }
 
-  return describeReadyFeed(feed, { dispatched, owned });
+  return describeReadyFeed(feed, { dispatched, owned, signedIn });
 }
 
 /** Where a feed stands, in the shape both /api/create and the status poll return. */
-function feedStatusFields(feed, { dispatched = false, owned }) {
+function feedStatusFields(feed, { dispatched = false, owned, signedIn = owned }) {
   return {
     slug: feed.slug,
     listTitle: feed.list_title || "",
     status: feed.status,
     lastSyncedAt: feed.last_synced_at ?? null,
     lastError: feed.last_error ?? null,
-    message: describeFeedState(feed, { dispatched, owned }),
+    message: describeFeedState(feed, { dispatched, owned, signedIn }),
     // A read is pending, so the page should keep asking; pollAfterSeconds says
     // how often is worth it.
     syncing: dispatched || Boolean(feed.refresh_requested_at),
@@ -254,8 +273,9 @@ async function handleCreateRoute({ request, env, url, publicOrigin }) {
     // sync job's queue, and the job is asked to run now when it can be.
     let dispatched = false;
     if (mayRefreshNow(feed, session)) {
-      feed = await requestRefresh(env.DB, feed);
-      dispatched = await requestSyncRun(env);
+      const refresh = await requestRefresh(env.DB, feed);
+      feed = refresh.feed;
+      dispatched = refresh.queued && (await requestSyncRun(env));
     }
 
     const storedItems = await getFeedItems(env.DB, feed.id);
@@ -274,7 +294,7 @@ async function handleCreateRoute({ request, env, url, publicOrigin }) {
     const radarrPath = buildPublicFeedPath(normalized, "radarr");
     const sonarrPath = buildPublicFeedPath(normalized, "sonarr");
     return json({
-      ...feedStatusFields(feed, { dispatched, owned: Boolean(session) }),
+      ...feedStatusFields(feed, { dispatched, owned: Boolean(session), signedIn: Boolean(session) }),
       routePath: radarrPath,
       feedUrl: `${publicOrigin}${radarrPath}`,
       radarrRoutePath: radarrPath,
@@ -309,7 +329,8 @@ async function handleLegacyPathRedirect({ request, url, publicOrigin }) {
 function nudgeSyncForOwnedFeed(feed, env, ctx) {
   ctx.waitUntil(
     hasAnyOwner(env.DB, feed.id)
-      .then((owned) => (owned ? requestRefresh(env.DB, feed).then(() => requestSyncRun(env)) : null))
+      .then((owned) => (owned ? requestRefresh(env.DB, feed) : null))
+      .then((refresh) => (refresh?.queued ? requestSyncRun(env) : null))
       .catch(() => {
         // The nudge only hurries a sync the schedule runs anyway; a failure to
         // queue it must not surface on a feed poll that has already been served.
@@ -379,7 +400,17 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
   }
 
   const { feedTarget, ...normalizedRoute } = parsedRoute;
-  const feed = await getOrCreateFeed(env.DB, normalizedRoute);
+  const feed = await getFeedByUrl(env.DB, normalizedRoute.canonicalUrl);
+
+  // Pasting a list on the site is the one way a feed starts. Creating (and
+  // queueing a read for) every feed-shaped URL anyone requests would let a
+  // crawler fill the queue with IMDb reads nobody asked for.
+  if (!feed) {
+    return new Response(
+      `This IMDb list has not been set up on IMDb Watcharr yet. Paste its IMDb link at ${publicOrigin} to start it.`,
+      { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
+  }
 
   if (isStale(feed)) {
     nudgeSyncForOwnedFeed(feed, env, ctx);
@@ -448,7 +479,26 @@ async function handleFeedStatusRoute({ request, env, url }) {
 
   const session = await getSession(request, env);
   const owned = await isFeedOwnedBy(env.DB, feed.id, session?.sub);
-  return json({ ...feedStatusFields(feed, { owned }), itemCount: feed.item_count });
+  const items = await getFeedItems(env.DB, feed.id);
+  const counts = summarizeItemsByTarget(items);
+  const sonarrCount = buildSonarrCustomListPayload(items).length;
+
+  // A request queued in the last few minutes on a Worker that can dispatch was
+  // dispatched (or rides a run that was), so the poll keeps the pace and the
+  // words the paste began with instead of dropping to the scheduled ones.
+  const dispatched =
+    Boolean(env.GITHUB_DISPATCH_TOKEN) &&
+    Boolean(feed.refresh_requested_at) &&
+    Date.now() - Date.parse(feed.refresh_requested_at) < RECENT_DISPATCH_MS;
+
+  return json({
+    ...feedStatusFields(feed, { dispatched, owned, signedIn: Boolean(session) }),
+    itemCount: counts.radarr,
+    radarrCount: counts.radarr,
+    sonarrCount,
+    sonarrUnresolvedCount: counts.sonarr - sonarrCount,
+    totalCount: counts.total,
+  });
 }
 
 function handleUnroutedApiPath({ url }) {

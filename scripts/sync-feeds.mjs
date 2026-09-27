@@ -91,10 +91,21 @@ let unavailable = 0;
 let failed = 0;
 let deferred = 0;
 
+// Five failures in a row with nothing read means IMDb (or the Worker) is down
+// for everyone, not that five lists broke. Stop asking: the rest keep their
+// place in the queue, and the red run says what happened.
+const OUTAGE_AFTER_FAILURES = 5;
+
 for (const { sourceUrl, owned, requested } of targets) {
   if (Date.now() - startedAt > TIME_BUDGET_MS) {
     deferred = targets.length - (succeeded + unavailable + failed);
     console.log(`Time budget used; ${deferred} feed${deferred === 1 ? "" : "s"} left for the next run.`);
+    break;
+  }
+
+  if (succeeded === 0 && failed >= OUTAGE_AFTER_FAILURES) {
+    deferred = targets.length - (succeeded + unavailable + failed);
+    console.log(`${failed} reads failed and none worked, so IMDb looks down; ${deferred} left for the next run.`);
     break;
   }
 
