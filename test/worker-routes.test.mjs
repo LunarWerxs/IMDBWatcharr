@@ -365,6 +365,7 @@ describe("fetch - /api/create", () => {
       sonarrCount: 0,
       sonarrUnresolvedCount: 0,
       totalCount: 0,
+      preview: [],
       message:
         "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.",
       // No dispatch token, but the read is queued, so the page keeps polling
@@ -620,8 +621,11 @@ describe("fetch - redirects and lookups", () => {
   });
 
   test("the status route says where a feed stands without its stored bodies, and 404s when it is missing", async () => {
+    // A show with no TVDB id cannot go to Sonarr, so the preview says skipped.
+    const UNRESOLVED_SHOW = { ...SERIES_ITEM, imdb_id: "tt0000003", position: 3, title: "No TVDB", tvdb_id: null };
     const found = makeDb([
       ["SELECT * FROM feeds WHERE slug = ?", feedRow({ radarr_cache: "<rss/>", sonarr_cache: "[]" })],
+      ["FROM feed_items WHERE feed_id", { results: [MOVIE_ITEM, SERIES_ITEM, UNRESOLVED_SHOW] }],
     ]);
     const missing = makeDb([["SELECT * FROM feeds WHERE slug = ?", null]]);
 
@@ -638,11 +642,16 @@ describe("fetch - redirects and lookups", () => {
       pollAfterSeconds: 30,
       owned: false,
       autoRefreshing: false,
-      itemCount: 0,
-      radarrCount: 0,
-      sonarrCount: 0,
-      sonarrUnresolvedCount: 0,
-      totalCount: 0,
+      itemCount: 1,
+      radarrCount: 1,
+      sonarrCount: 1,
+      sonarrUnresolvedCount: 1,
+      totalCount: 3,
+      preview: [
+        { imdbId: "tt0111161", title: "The Shawshank Redemption", year: 1994, target: "radarr" },
+        { imdbId: "tt0903747", title: "Breaking Bad", year: 2008, target: "sonarr" },
+        { imdbId: "tt0000003", title: "No TVDB", year: 2008, target: "skipped" },
+      ],
     });
     assert.equal(found.find("INSERT OR IGNORE INTO feed_owners").length, 0, "a status read never claims");
     assert.equal(found.find("SET refresh_requested_at").length, 0, "a status read never queues");

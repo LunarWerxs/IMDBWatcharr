@@ -161,6 +161,24 @@ export function summarizeItemsByTarget(items) {
   };
 }
 
+// The first titles of a list, for the page to show what it read and where each
+// one goes. A show without a TVDB id is left out of Sonarr's list, so it says
+// "skipped" rather than "sonarr"; so does anything neither app takes.
+const PREVIEW_LIMIT = 24;
+
+export function previewItems(items) {
+  return items.slice(0, PREVIEW_LIMIT).map((item) => {
+    const type = item.titleType ?? item.title_type ?? "unknown";
+    const hasTvdb = Number.isInteger(item.tvdb_id) && item.tvdb_id > 0;
+    const target = MOVIE_TITLE_TYPES.has(type)
+      ? "radarr"
+      : SERIES_TITLE_TYPES.has(type) && hasTvdb
+        ? "sonarr"
+        : "skipped";
+    return { imdbId: item.imdb_id, title: item.title, year: item.year ?? null, target };
+  });
+}
+
 export function buildSonarrCustomListPayload(items) {
   return filterItemsForTarget(items, "sonarr")
     .filter((item) => Number.isInteger(item.tvdb_id) && item.tvdb_id > 0)
