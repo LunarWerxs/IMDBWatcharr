@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type MouseEvent } from 'react'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -32,16 +32,19 @@ import { CopyField } from '@/components/copy-field'
 import { GithubLink } from '@/components/github-link'
 import { MyFeeds } from '@/components/my-feeds'
 import { NotificationsBadge } from '@/components/notifications-badge'
+import { SignInLightbox } from '@/components/sign-in-lightbox'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import {
   mergeStatus,
   rememberLastList,
-  rememberSignInList,
   signInHref,
   useFeedStatusPoll,
   useStartingList,
 } from '@/lib/feed-page'
+import { usePopupSignIn } from '@/lib/sign-in'
+
+type SignInClick = (event: MouseEvent<HTMLAnchorElement>) => void
 
 const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 
@@ -73,7 +76,15 @@ function StatTile({ label, value }: { label: string; value: number }) {
  * Signing in is what turns a one-off fetch into a feed that keeps itself
  * current, so the control says that rather than just "Sign in".
  */
-function AccountControl({ session, listUrl }: { session: Session | null; listUrl: string }) {
+function AccountControl({
+  session,
+  listUrl,
+  onSignIn,
+}: {
+  session: Session | null
+  listUrl: string
+  onSignIn: SignInClick
+}) {
   if (!session?.authAvailable) {
     return null
   }
@@ -93,7 +104,7 @@ function AccountControl({ session, listUrl }: { session: Session | null; listUrl
 
   return (
     <Button asChild variant="outline" size="sm">
-      <a href={signInHref(listUrl || undefined)} onClick={() => rememberSignInList(listUrl || undefined)}>
+      <a href={signInHref(listUrl || undefined)} onClick={onSignIn}>
         <UserIcon className="size-4" />
         Sign in
       </a>
@@ -104,7 +115,15 @@ function AccountControl({ session, listUrl }: { session: Session | null; listUrl
 // Up to the studio. It sits above the product mark rather than beside it so
 // the hierarchy reads in the order it actually is: studio, then product. Same
 // shape the other LunarWerx products use.
-function AppHeader({ session, listUrl }: { session: Session | null; listUrl: string }) {
+function AppHeader({
+  session,
+  listUrl,
+  onSignIn,
+}: {
+  session: Session | null
+  listUrl: string
+  onSignIn: SignInClick
+}) {
   return (
     <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
       <a
@@ -126,7 +145,7 @@ function AppHeader({ session, listUrl }: { session: Session | null; listUrl: str
           <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
           <GithubLink />
           <ThemeToggle />
-          <AccountControl session={session} listUrl={listUrl} />
+          <AccountControl session={session} listUrl={listUrl} onSignIn={onSignIn} />
         </div>
       </div>
     </header>
@@ -265,12 +284,14 @@ function FeedOutcome({
   result,
   session,
   listUrl,
+  onSignIn,
 }: {
   pending: boolean
   error: string | null
   result: CreateFeedResponse | null
   session: Session | null
   listUrl: string
+  onSignIn: SignInClick
 }) {
   if (pending) {
     return <SyncSkeleton />
@@ -280,7 +301,9 @@ function FeedOutcome({
     return <BuildError message={error} />
   }
 
-  return result ? <FeedResult result={result} session={session} listUrl={listUrl} /> : null
+  return result ? (
+    <FeedResult result={result} session={session} listUrl={listUrl} onSignIn={onSignIn} />
+  ) : null
 }
 
 type FeedState = 'ready' | 'snapshot' | 'queued' | 'unreadable'
@@ -347,10 +370,12 @@ function UnsyncedNudge({
   session,
   result,
   listUrl,
+  onSignIn,
 }: {
   session: Session | null
   result: CreateFeedResponse
   listUrl: string
+  onSignIn: SignInClick
 }) {
   if (!session?.authAvailable || session.signedIn || result.autoRefreshing) {
     return null
@@ -370,12 +395,12 @@ function UnsyncedNudge({
           Sign in, free, and we check it for you about every fifteen minutes.
         </span>
         <span className="mt-1 block">
-          Connections is the free account every LunarWerx app signs in with. It opens on its own
-          page: type your email, enter the code it sends you, and you land back here with this list
-          saved.
+          Connections is the free account every LunarWerx app signs in with. It opens in a small
+          window over this page: type your email, enter the code it sends you, and this list is
+          saved to your account.
         </span>
         <Button asChild size="sm" className="mt-2">
-          <a href={signInHref(listUrl)} onClick={() => rememberSignInList(listUrl)}>
+          <a href={signInHref(listUrl)} onClick={onSignIn}>
             Sign in with Connections
           </a>
         </Button>
@@ -388,10 +413,12 @@ function FeedSummaryCard({
   result,
   session,
   listUrl,
+  onSignIn,
 }: {
   result: CreateFeedResponse
   session: Session | null
   listUrl: string
+  onSignIn: SignInClick
 }) {
   return (
     <Card>
@@ -410,7 +437,7 @@ function FeedSummaryCard({
             ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
             : result.message}
         </CardDescription>
-        <UnsyncedNudge session={session} result={result} listUrl={listUrl} />
+        <UnsyncedNudge session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />
       </CardHeader>
       <StatTiles result={result} />
     </Card>
@@ -464,14 +491,16 @@ function FeedResult({
   result,
   session,
   listUrl,
+  onSignIn,
 }: {
   result: CreateFeedResponse
   session: Session | null
   listUrl: string
+  onSignIn: SignInClick
 }) {
   return (
     <div className="mt-4 grid gap-4">
-      <FeedSummaryCard result={result} session={session} listUrl={listUrl} />
+      <FeedSummaryCard result={result} session={session} listUrl={listUrl} onSignIn={onSignIn} />
       <TargetCards result={result} />
     </div>
   )
@@ -608,6 +637,14 @@ export default function App() {
 
   useFeedStatusPoll(result, setResult)
 
+  // Signing in from the window keeps this page as it is; the list on screen is
+  // then built again, which, signed in, follows it.
+  const signIn = usePopupSignIn((next, list) => {
+    setSession(next)
+    if (list) void buildFeeds(list)
+  })
+  const handleSignIn: SignInClick = (event) => signIn.start(event, activeUrl)
+
   // Unfollowing the list on screen from My feeds re-reads where it stands, so
   // the card stops saying it is being kept up to date.
   function handleUnfollowed(slug: string) {
@@ -633,7 +670,7 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
-        <AppHeader session={session} listUrl={activeUrl} />
+        <AppHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
         <main className="mx-auto w-full max-w-3xl px-4 pb-20">
           <Hero />
@@ -661,6 +698,7 @@ export default function App() {
             result={result}
             session={session}
             listUrl={activeUrl}
+            onSignIn={handleSignIn}
           />
 
           <HowItWorks />
@@ -669,6 +707,7 @@ export default function App() {
         </main>
 
         <AppFooter />
+        <SignInLightbox signIn={signIn} />
       </div>
     </TooltipProvider>
   )
