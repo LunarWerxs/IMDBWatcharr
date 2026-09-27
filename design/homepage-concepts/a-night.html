@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IMDb Watcharr — IMDb Lists for Radarr and Sonarr</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-ground: #121212;
+      --bg-nav: #000000;
+      --surface: #1F1F1F;
+      --surface-raised: #2A2A2A;
+      --hairline: rgba(255, 255, 255, 0.12);
+      --text-main: #FFFFFF;
+      --text-secondary: rgba(255, 255, 255, 0.70);
+      --text-tertiary: #A0A0A0;
+      --accent: #F5C518;
+      --accent-hover: #E2B616;
+      --accent-text: #000000;
+      --focus-ring: 2px solid #F5C518;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-ground);
+      color: var(--text-main);
+      font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a {
+      color: var(--text-main);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      transition: color 0.15s ease;
+    }
+
+    a:hover {
+      color: var(--accent);
+    }
+
+    button, input {
+      font-family: inherit;
+    }
+
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      background-color: var(--bg-nav);
+      height: 56px;
+      border-bottom: 1px solid var(--hairline);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+    }
+
+    .nav-container {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .logo-box {
+      width: 36px;
+      height: 36px;
+      background-color: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-box svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--accent-text);
+    }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .logo-subtitle {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      font-weight: 400;
+      margin-left: 4px;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .sign-in-btn {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      font-weight: 500;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .sign-in-btn:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--accent);
+    }
+
+    .lunarwerx-link {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .lunarwerx-link:hover {
+      color: var(--accent);
+    }
+
+    /* Main Container */
+    .main-container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 16px 80px 16px;
+    }
+
+    @media (min-width: 768px) {
+      .main-container {
+        padding: 60px 24px 100px 24px;
+      }
+    }
+
+    /* Hero Section */
+    .hero {
+      margin-bottom: 40px;
+    }
+
+    .eyebrow {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    @media (min-width: 768px) {
+      h1 {
+        font-size: 44px;
+      }
+    }
+
+    .hero p {
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      max-width: 680px;
+    }
+
+    /* Paste Form Section */
+    .form-card {
+      background-color: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 48px;
+    }
+
+    @media (min-width: 768px) {
+      .form-card {
+        padding: 32px;
+      }
+    }
+
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .form-row {
+        flex-direction: row;
+        gap: 0;
+      }
+    }
+
+    .url-input {
+      height: 48px;
+      background-color: #FFFFFF;
+      color: #000000;
+      border: none;
+      border-radius: 4px;
+      padding: 0 16px;
+      font-size: 16px;
+      width: 100%;
+      outline: none;
+    }
+
+    @media (min-width: 640px) {
+      .url-input {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+        flex: 1;
+      }
+    }
+
+    .url-input::placeholder {
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    .generate-btn {
+      height: 48px;
+      background-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+      font-size: 15px;
+      border: none;
+      border-radius: 4px;
+      padding: 0 24px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background-color 0.15s ease;
+    }
+
+    @media (min-width: 640px) {
+      .generate-btn {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+      }
+    }
+
+    .generate-btn:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .form-hint {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      margin-top: 12px;
+    }
+
+    .hint-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+      padding: 0;
+      transition: color 0.15s ease;
+    }
+
+    .hint-btn:hover {
+      color: var(--accent);
+    }
+
+    /* Section Titles */
+    .section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.2;
+      border-left: 4px solid var(--accent);
+      padding-left: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+    }
+
+    .section-title .chevron {
+      color: var(--text-main);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .section-title:hover .chevron {
+      color: var(--accent);
+      transform: translateX(2px);
+    }
+
+    /* Your Feeds Section */
+    .feeds-section {
+      margin-bottom: 48px;
+    }
+
+    .result-panel {
+      background-color: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .result-panel {
+        padding: 32px;
+      }
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .result-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .ready-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 197, 24, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(245, 197, 24, 0.4);
+      border-radius: 999px;
+      padding: 3px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .ready-pill::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .stat-tile {
+      background-color: var(--surface-raised);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .feed-cards-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .feed-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .feed-card {
+      background-color: var(--surface-raised);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .feed-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    .url-box-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .feed-url-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: var(--text-main);
+      background-color: var(--bg-ground);
+      padding: 10px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--hairline);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .copy-btn-row {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .copy-btn {
+      background-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .feed-path {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      border-top: 1px solid var(--hairline);
+      padding-top: 12px;
+    }
+
+    /* On This List Section */
+    .posters-section {
+      margin-bottom: 48px;
+    }
+
+    .posters-scroll-wrap {
+      position: relative;
+    }
+
+    .posters-row {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface-raised) var(--bg-ground);
+    }
+
+    .posters-row::-webkit-scrollbar {
+      height: 6px;
+    }
+    .posters-row::-webkit-scrollbar-track {
+      background: var(--bg-ground);
+    }
+    .posters-row::-webkit-scrollbar-thumb {
+      background: var(--surface-raised);
+      border-radius: 3px;
+    }
+
+    .poster-item {
+      flex: 0 0 170px;
+      scroll-snap-align: start;
+    }
+
+    @media (min-width: 768px) {
+      .poster-item {
+        flex: 0 0 190px;
+      }
+    }
+
+    .poster-tile {
+      aspect-ratio: 2 / 3;
+      width: 100%;
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--hairline);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 12px;
+      cursor: pointer;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .poster-tile:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+    }
+
+    /* Duotone Gradients */
+    .poster-1 { background: radial-gradient(circle at 70% 30%, rgba(245, 158, 11, 0.45), transparent 60%), linear-gradient(160deg, #b45309 0%, #78350f 35%, #2a1205 70%, #0c0502 100%); }
+    .poster-2 { background: radial-gradient(circle at 30% 20%, rgba(20, 184, 166, 0.45), transparent 60%), linear-gradient(160deg, #0f766e 0%, #115e59 35%, #042f2e 70%, #021110 100%); }
+    .poster-3 { background: radial-gradient(circle at 60% 20%, rgba(244, 63, 94, 0.4), transparent 60%), linear-gradient(160deg, #be123c 0%, #881337 35%, #4c0519 70%, #140207 100%); }
+    .poster-4 { background: radial-gradient(circle at 40% 30%, rgba(234, 179, 8, 0.4), transparent 60%), linear-gradient(160deg, #a16207 0%, #713f12 35%, #3f1508 70%, #0d0402 100%); }
+    .poster-5 { background: radial-gradient(circle at 50% 15%, rgba(249, 115, 22, 0.45), transparent 55%), linear-gradient(160deg, #c2410c 0%, #7c2d12 35%, #301006 70%, #080302 100%); }
+    .poster-6 { background: radial-gradient(circle at 65% 25%, rgba(148, 163, 184, 0.35), transparent 60%), linear-gradient(160deg, #475569 0%, #334155 35%, #1e293b 70%, #0b0f19 100%); }
+    .poster-7 { background: radial-gradient(circle at 35% 25%, rgba(132, 204, 22, 0.4), transparent 60%), linear-gradient(160deg, #4d7c0f 0%, #3f6212 35%, #1a2e05 70%, #070d01 100%); }
+    .poster-8 { background: radial-gradient(circle at 50% 30%, rgba(194, 65, 12, 0.45), transparent 60%), linear-gradient(160deg, #9a3412 0%, #651c0a 35%, #2a0b04 70%, #080201 100%); }
+
+    .bookmark-ribbon {
+      position: absolute;
+      top: 0;
+      left: 12px;
+      width: 32px;
+      height: 44px;
+      background-color: rgba(31, 31, 31, 0.82);
+      backdrop-filter: blur(4px);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 6px;
+      z-index: 2;
+    }
+
+    .poster-bottom-title {
+      position: relative;
+      z-index: 2;
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFFFFF;
+      line-height: 1.2;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 60%, transparent 100%);
+      margin: -12px -12px -12px -12px;
+      padding: 24px 12px 12px 12px;
+    }
+
+    .poster-meta-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .poster-meta-line {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+      margin-bottom: 8px;
+    }
+
+    .type-pill {
+      display: inline-block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 999px;
+      padding: 2px 10px;
+      line-height: 1.4;
+      background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    /* How It Works Section */
+    .how-section {
+      margin-bottom: 48px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .steps-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .step-card {
+      background-color: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 900;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .step-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .step-body {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Keep It Updating Strip */
+    .update-strip {
+      background-color: var(--surface);
+      border: 1px solid var(--hairline);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    @media (min-width: 768px) {
+      .update-strip {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+
+    .update-text {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .signin-accent-btn {
+      background-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .signin-accent-btn:hover {
+      background-color: var(--accent-hover);
+    }
+
+    /* More From LunarWerx Section */
+    .lunar-section {
+      margin-bottom: 48px;
+    }
+
+    .lunar-card {
+      background-color: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .lunar-card {
+        padding: 32px;
+      }
+    }
+
+    .lunar-card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .lunar-card-body {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 20px;
+      max-width: 720px;
+    }
+
+    .secondary-btn {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      font-weight: 500;
+      padding: 10px 20px;
+      border-radius: 4px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      border: 1px solid var(--hairline);
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .secondary-btn:hover {
+      background-color: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: var(--text-main);
+    }
+
+    /* Footer */
+    footer {
+      background-color: var(--bg-nav);
+      border-top: 1px solid var(--hairline);
+      padding: 40px 16px 48px 16px;
+    }
+
+    .footer-content {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      color: var(--text-main);
+      text-decoration: underline;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent);
+    }
+
+    /* Modal / Lightbox */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(2px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition: opacity 0.2s ease, visibility 0s;
+    }
+
+    .modal-dialog {
+      background-color: var(--surface);
+      max-width: 420px;
+      width: 100%;
+      border-radius: 8px;
+      border-top: 4px solid var(--accent);
+      border-left: 1px solid var(--hairline);
+      border-right: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      transform: translateY(10px);
+      transition: transform 0.2s ease;
+    }
+
+    .modal-backdrop.open .modal-dialog {
+      transform: translateY(0);
+    }
+
+    .modal-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    .modal-body {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    .modal-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .modal-cancel-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-weight: 500;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+
+    .modal-cancel-btn:hover {
+      color: var(--text-main);
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Top Nav -->
+  <header class="top-nav">
+    <div class="nav-container">
+      <a href="#" class="nav-left">
+        <div class="logo-box" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M19.82 4.18l-1.99-.66 1.16-3.47 1.99.66-1.16 3.47zm-5.48-1.83l-1.99-.66 1.16-3.47 1.99.66-1.16 3.47zm-5.48-1.83l-1.99-.66 1.16-3.47 1.99.66-1.16 3.47zm-4.86-.32l16.03 5.34c.55.18.86.78.68 1.33l-.75 2.26-17.37-5.79.75-2.26c.18-.55.78-.86 1.33-.68zm-2 7.8h20v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V8z"/>
+          </svg>
+        </div>
+        <div>
+          <span class="logo-text">Watcharr</span>
+          <span class="logo-subtitle">for IMDb lists</span>
+        </div>
+      </a>
+      <div class="nav-right">
+        <button type="button" class="sign-in-btn" id="nav-signin-trigger">Sign in</button>
+        <a href="https://lunarwerx.com" target="_blank" rel="noopener" class="lunarwerx-link">LunarWerx</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+
+    <!-- 2. Hero Section -->
+    <section class="hero">
+      <span class="eyebrow">IMDb lists for Radarr and Sonarr</span>
+      <h1>Your IMDb list, straight into Radarr and Sonarr.</h1>
+      <p>
+        Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for the movies, one Sonarr uses for the shows. Both read the same list, and it is free.
+      </p>
+    </section>
+
+    <!-- 3. The Paste Form -->
+    <section class="form-card" aria-label="Create Feeds Form">
+      <form id="feed-form" onsubmit="event.preventDefault();">
+        <label class="form-label" for="source-url">IMDb watchlist or list URL</label>
+        <div class="form-row">
+          <input 
+            type="url" 
+            id="source-url" 
+            class="url-input" 
+            placeholder="Paste your IMDb list or watchlist link" 
+            value="https://www.imdb.com/list/ls006123300/"
+            required
+            spellcheck="false"
+          >
+          <button type="submit" class="generate-btn">
+            Generate feeds
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        </div>
+        <p class="form-hint">
+          Try <button type="button" class="hint-btn" id="try-sample-url">https://www.imdb.com/list/ls006123300/</button>
+        </p>
+      </form>
+    </section>
+
+    <!-- 4. Your Feeds Section -->
+    <section class="feeds-section" aria-labelledby="feeds-title">
+      <div class="section-header">
+        <h2 class="section-title" id="feeds-title">Your feeds <span class="chevron">›</span></h2>
+      </div>
+
+      <div class="result-panel">
+        <div class="result-header">
+          <div class="result-title">Watch next, 2026</div>
+          <div class="ready-pill">ready</div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-tile">
+            <div class="stat-value">24</div>
+            <div class="stat-label">Titles on the list</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-value">15</div>
+            <div class="stat-label">Movies for Radarr</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-value">9</div>
+            <div class="stat-label">Shows for Sonarr</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Shows we skipped</div>
+          </div>
+        </div>
+
+        <div class="feed-cards-grid">
+          <!-- Radarr Card -->
+          <div class="feed-card">
+            <div>
+              <div class="feed-card-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m7 3 3 18"/><path d="m14 3 3 18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>
+                Radarr · RSS List
+              </div>
+              <div class="url-box-wrap">
+                <div class="feed-url-box" id="radarr-url">https://watcharr.lunarwerx.com/radarr/watch-next-2026.json</div>
+                <div class="copy-btn-row">
+                  <button type="button" class="copy-btn" onclick="copyToClipboard('https://watcharr.lunarwerx.com/radarr/watch-next-2026.json', this)">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div class="feed-path">Settings, Lists, Add list, Advanced, RSS List.</div>
+          </div>
+
+          <!-- Sonarr Card -->
+          <div class="feed-card">
+            <div>
+              <div class="feed-card-header">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+                Sonarr · Custom List
+              </div>
+              <div class="url-box-wrap">
+                <div class="feed-url-box" id="sonarr-url">https://watcharr.lunarwerx.com/sonarr/watch-next-2026.json</div>
+                <div class="copy-btn-row">
+                  <button type="button" class="copy-btn" onclick="copyToClipboard('https://watcharr.lunarwerx.com/sonarr/watch-next-2026.json', this)">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div class="feed-path">Settings, Import Lists, Add list, Advanced, Custom List.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. On This List Section -->
+    <section class="posters-section" aria-labelledby="posters-title">
+      <div class="section-header">
+        <h2 class="section-title" id="posters-title">On this list <span class="chevron">›</span></h2>
+      </div>
+
+      <div class="posters-scroll-wrap">
+        <div class="posters-row">
+          
+          <!-- 1. Dune: Part Two -->
+          <div class="poster-item">
+            <div class="poster-tile poster-1">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F5C518" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="poster-bottom-title">Dune: Part Two</div>
+            </div>
+            <div class="poster-meta-title">Dune: Part Two</div>
+            <div class="poster-meta-line">2024</div>
+            <span class="type-pill">Movie → Radarr</span>
+          </div>
+
+          <!-- 2. Severance -->
+          <div class="poster-item">
+            <div class="poster-tile poster-2">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </div>
+              <div class="poster-bottom-title">Severance</div>
+            </div>
+            <div class="poster-meta-title">Severance</div>
+            <div class="poster-meta-line">2022</div>
+            <span class="type-pill">Series → Sonarr</span>
+          </div>
+
+          <!-- 3. Past Lives -->
+          <div class="poster-item">
+            <div class="poster-tile poster-3">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F5C518" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="poster-bottom-title">Past Lives</div>
+            </div>
+            <div class="poster-meta-title">Past Lives</div>
+            <div class="poster-meta-line">2023</div>
+            <span class="type-pill">Movie → Radarr</span>
+          </div>
+
+          <!-- 4. Shogun -->
+          <div class="poster-item">
+            <div class="poster-tile poster-4">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </div>
+              <div class="poster-bottom-title">Shogun</div>
+            </div>
+            <div class="poster-meta-title">Shogun</div>
+            <div class="poster-meta-line">2024</div>
+            <span class="type-pill">Series → Sonarr</span>
+          </div>
+
+          <!-- 5. Oppenheimer -->
+          <div class="poster-item">
+            <div class="poster-tile poster-5">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F5C518" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="poster-bottom-title">Oppenheimer</div>
+            </div>
+            <div class="poster-meta-title">Oppenheimer</div>
+            <div class="poster-meta-line">2023</div>
+            <span class="type-pill">Movie → Radarr</span>
+          </div>
+
+          <!-- 6. The Bear -->
+          <div class="poster-item">
+            <div class="poster-tile poster-6">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </div>
+              <div class="poster-bottom-title">The Bear</div>
+            </div>
+            <div class="poster-meta-title">The Bear</div>
+            <div class="poster-meta-line">2022</div>
+            <span class="type-pill">Series → Sonarr</span>
+          </div>
+
+          <!-- 7. Poor Things -->
+          <div class="poster-item">
+            <div class="poster-tile poster-7">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F5C518" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="poster-bottom-title">Poor Things</div>
+            </div>
+            <div class="poster-meta-title">Poor Things</div>
+            <div class="poster-meta-line">2023</div>
+            <span class="type-pill">Movie → Radarr</span>
+          </div>
+
+          <!-- 8. Andor -->
+          <div class="poster-item">
+            <div class="poster-tile poster-8">
+              <div class="bookmark-ribbon" title="In Watchlist">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </div>
+              <div class="poster-bottom-title">Andor</div>
+            </div>
+            <div class="poster-meta-title">Andor</div>
+            <div class="poster-meta-line">2022</div>
+            <span class="type-pill">Series → Sonarr</span>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. How It Works Section -->
+    <section class="how-section" aria-labelledby="how-title">
+      <div class="section-header">
+        <h2 class="section-title" id="how-title">How it works <span class="chevron">›</span></h2>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <div class="step-title">Paste a public IMDb link</div>
+          <div class="step-body">Open your watchlist (imdb.com/user/ur.../watchlist/) or a list (imdb.com/list/ls...) on IMDb and copy the address from your browser. Make sure it is set to public, or we cannot read it.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <div class="step-title">Copy your two links</div>
+          <div class="step-body">The same IMDb list always gives you the same two links, so you only have to set this up once.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <div class="step-title">Paste them into Radarr and Sonarr</div>
+          <div class="step-body">Radarr takes the movies link as an RSS list. Sonarr takes the shows link as a custom list.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Keep It Updating Strip -->
+    <div class="update-strip">
+      <div class="update-text">Sign in, free, and we check your list about every fifteen minutes.</div>
+      <button type="button" class="signin-accent-btn signin-trigger">Sign in with Connections</button>
+    </div>
+
+    <!-- 8. More From LunarWerx Section -->
+    <section class="lunar-section" aria-labelledby="lunar-title">
+      <div class="section-header">
+        <h2 class="section-title" id="lunar-title">More from LunarWerx <span class="chevron">›</span></h2>
+      </div>
+
+      <div class="lunar-card">
+        <div class="lunar-card-title">Askarr</div>
+        <div class="lunar-card-body">Want one title without editing the list? Search any movie or show from your phone or any browser, tap request, and the Askarr Monitor on your Windows PC adds it to your own Radarr and Sonarr. Free to start.</div>
+        <a href="https://askarr.com/?utm_source=watcharr&utm_medium=referral" target="_blank" rel="noopener" class="secondary-btn">
+          Try Askarr →
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 9. Footer -->
+  <footer>
+    <div class="footer-content">
+      <div>Watcharr · by LunarWerx</div>
+      <div>Not affiliated with IMDb. IMDb is a trademark of IMDb.com, Inc.</div>
+      <div class="footer-links">
+        <a href="https://github.com/LunarWerxs/IMDBWatcharr" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://askarr.com/?utm_source=watcharr&utm_medium=referral" target="_blank" rel="noopener">Askarr</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Sign-In Lightbox Modal -->
+  <div class="modal-backdrop" id="signin-modal" role="dialog" aria-modal="true" aria-labelledby="signin-modal-title">
+    <div class="modal-dialog">
+      <h3 class="modal-title" id="signin-modal-title">Finish signing in</h3>
+      <p class="modal-body">A small Connections window opened. Type your email there, enter the code it sends you, and it closes by itself. Your list stays right here.</p>
+      <div class="modal-actions">
+        <button type="button" class="secondary-btn" id="reopen-window-btn">Reopen the window</button>
+        <button type="button" class="modal-cancel-btn" id="modal-close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inline Script for Interactivity -->
+  <script>
+    // Copy feed URL to clipboard
+    function copyToClipboard(text, btnElement) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btnElement.textContent;
+        btnElement.textContent = 'Copied!';
+        btnElement.style.backgroundColor = '#FFFFFF';
+        btnElement.style.color = '#000000';
+        setTimeout(() => {
+          btnElement.textContent = originalText;
+          btnElement.style.backgroundColor = '';
+          btnElement.style.color = '';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy text: ', err);
+      });
+    }
+
+    // Sample URL button populates input
+    const trySampleBtn = document.getElementById('try-sample-url');
+    const sourceUrlInput = document.getElementById('source-url');
+    if (trySampleBtn && sourceUrlInput) {
+      trySampleBtn.addEventListener('click', () => {
+        sourceUrlInput.value = 'https://www.imdb.com/list/ls006123300/';
+        sourceUrlInput.focus();
+      });
+    }
+
+    // Modal toggle logic
+    const modal = document.getElementById('signin-modal');
+    const signinTriggers = document.querySelectorAll('.sign-in-btn, .signin-trigger');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const reopenWindowBtn = document.getElementById('reopen-window-btn');
+
+    function openModal() {
+      if (modal) {
+        modal.classList.add('open');
+        modalCloseBtn.focus();
+      }
+    }
+
+    function closeModal() {
+      if (modal) {
+        modal.classList.remove('open');
+      }
+    }
+
+    signinTriggers.forEach(btn => {
+      btn.addEventListener('click', openModal);
+    });
+
+    if (modalCloseBtn) {
+      modalCloseBtn.addEventListener('click', closeModal);
+    }
+
+    if (reopenWindowBtn) {
+      reopenWindowBtn.addEventListener('click', () => {
+        alert('Connections auth window simulated.');
+      });
+    }
+
+    // Backdrop click closes modal
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal();
+        }
+      });
+    }
+
+    // Esc key closes modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    });
+  </script>
+</body>
+</html>
