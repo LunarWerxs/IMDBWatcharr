@@ -108,9 +108,12 @@ function issuer(env) {
   return (env.CONNECTIONS_ISSUER ?? "https://accounts.connectionsapi.com").replace(/\/+$/, "");
 }
 
+function siteOrigin(env, request) {
+  return new URL(env.PUBLIC_ORIGIN || request.url).origin;
+}
+
 function callbackUrl(env, request) {
-  const origin = env.PUBLIC_ORIGIN || new URL(request.url).origin;
-  return `${origin.replace(/\/+$/, "")}/auth/callback`;
+  return `${siteOrigin(env, request)}/auth/callback`;
 }
 
 /**
@@ -127,13 +130,20 @@ export async function getSession(request, env) {
 }
 
 /**
- * Where to land after sign-in: a path on this site, or the home page. A bare
- * startsWith("/") would also pass "//evil.example" and "/\evil.example", which
- * browsers read as another host, turning sign-in into an open redirect.
+ * Where to land after sign-in: a path on this site, or the home page. It is
+ * parsed the way a browser parses a Location header, so every spelling of
+ * another host is caught: "//evil.example", "/\evil.example", and a tab or
+ * newline in the middle ("/\t/evil.example"), which browsers strip before
+ * reading "//evil.example". A startsWith("/") check passed all three.
  */
-function safeReturnPath(value) {
-  const path = String(value ?? "");
-  return /^\/(?![/\\])/.test(path) ? path : "/";
+function safeReturnPath(value, origin) {
+  try {
+    const url = new URL(String(value ?? "/"), origin);
+    return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : "/";
+  } catch {
+    // Unparseable is not a place to send anyone.
+    return "/";
+  }
 }
 
 export async function startLogin(request, env) {
@@ -142,7 +152,7 @@ export async function startLogin(request, env) {
   }
 
   const url = new URL(request.url);
-  const returnTo = safeReturnPath(url.searchParams.get("returnTo"));
+  const returnTo = safeReturnPath(url.searchParams.get("returnTo"), siteOrigin(env, request));
   const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
 
   // The state lives in a signed cookie rather than server storage: it has to
@@ -211,7 +221,7 @@ export async function completeLogin(request, env) {
     env.SESSION_SECRET,
   );
 
-  const headers = new Headers({ location: safeReturnPath(stored.returnTo) });
+  const headers = new Headers({ location: safeReturnPath(stored.returnTo, siteOrigin(env, request)) });
   headers.append("set-cookie", cookie(SESSION_COOKIE, session, SESSION_TTL_SECONDS));
   headers.append("set-cookie", cookie(STATE_COOKIE, "", 0));
   return new Response(null, { status: 302, headers });

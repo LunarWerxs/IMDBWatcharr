@@ -258,6 +258,7 @@ describe("fetch - auth and session routes", () => {
     assert.equal(await returnToOf("//evil.example/steal"), "/");
     assert.equal(await returnToOf("/\\evil.example"), "/");
     assert.equal(await returnToOf("https://evil.example/"), "/");
+    assert.equal(await returnToOf("/\t/evil.example"), "/", "browsers strip the tab and read //evil.example");
     assert.equal(await returnToOf("/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F"), "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F");
   });
 
