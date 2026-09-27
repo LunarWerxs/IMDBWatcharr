@@ -18,10 +18,8 @@ export function NotificationsBadge({ signedIn }: { signedIn: boolean }) {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    if (!signedIn) {
-      setCount(0)
-      return
-    }
+    // Signed out renders nothing below, so there is no count to clear.
+    if (!signedIn) return
 
     let cancelled = false
     readNotifications().then((value) => {

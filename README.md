@@ -12,8 +12,10 @@ IMDb Watcharr is a free web tool that turns a public IMDb watchlist or list into
 and a Sonarr custom list, so both apps can pick up the same movies and shows a person already
 tracks on IMDb, refreshing on a schedule once the feed is claimed by signing in.
 
-Anyone can build a feed without an account: both URLs work immediately and keep working. Signing in
-with Connections is what makes a list refresh on its own, about every fifteen minutes.
+Anyone can build a feed without an account: both URLs come back at once, start serving titles as soon
+as the list's first read from IMDb lands (usually within about fifteen minutes), and keep working
+after that. Signing in with Connections, free, is what makes a list refresh on its own, about every
+fifteen minutes.
 
 ## Quick start
 
@@ -22,7 +24,8 @@ with Connections is what makes a list refresh on its own, about every fifteen mi
 3. Copy the two URLs it gives back
 4. Radarr `RSS List` gets the movie URL, Sonarr `Custom List` gets the TV URL
 
-The URLs are derived from the IMDb identifier, so the same list always maps to the same URLs:
+The URLs are derived from the IMDb identifier, so the same list always maps to the same URLs. Links
+from the phone site (`m.imdb.com`) and IMDb's language paths (`imdb.com/de/list/…`) work too:
 
 | IMDb source                                                  | Radarr                                                   | Sonarr                                                   |
 | ------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------- |
@@ -46,10 +49,18 @@ One Worker serves both the site and the API: it runs first on every request and 
 does not answer to the static assets, so there is no proxy in front of the API and a deploy is one
 command.
 
-**Accounts decide what refreshes.** A feed anyone creates works forever off the snapshot it was
-built from. Claiming it by signing in is what puts it on the schedule, and ownership is a join
-table rather than a column, so two people can keep the same public list alive without taking it
+**Accounts decide what refreshes.** Every new feed is queued for one read from IMDb, whoever made
+it, and then works forever off that snapshot; pasting the link again queues another read (at most
+every five minutes). Claiming it by signing in is what puts it on the schedule, and ownership is a
+join table rather than a column, so two people can keep the same public list alive without taking it
 from each other.
+
+**The queue.** `feeds.refresh_requested_at` is the sync job's to-do list. It is set when a feed is
+created or someone asks for a fresh read, served first by `/api/sync-targets` (oldest request first,
+at most 50 per run), and cleared by the next successful read. A private or missing list clears it at
+once, and any other failure clears it after three in a row, so a dead list stops costing every run an
+IMDb call; a claimed feed stays on the schedule regardless and recovers by itself once the list is
+public again.
 
 **Why the fetching happens on a GitHub runner and not in the Worker.** IMDb refuses
 Cloudflare's egress outright: `api.graphql.imdb.com` and `caching.graphql.imdb.com` both answer
@@ -96,8 +107,8 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /{radarr,sonarr}/f/:imdbKey`             | Same, inferring the source from `ls…`, `p.…`, or `ur…`               |
 | `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
 | `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
-| `GET /api/feeds/:slug`                        | Stored feed metadata                                                 |
-| `GET /api/sync-targets`                       | Feeds the sync job should fetch (shared-secret auth)                 |
+| `GET /api/feeds/:slug`                        | Where one feed stands (status, message, whether a read is pending); the page polls it |
+| `GET /api/sync-targets`                       | The queue, then every claimed feed; `?scope=requested` for the queue only (shared-secret auth) |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
 | `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
 | `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed, each with its sync health |
@@ -107,8 +118,9 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 ## The sync job
 
 [sync-feeds.yml](.github/workflows/sync-feeds.yml) runs [scripts/sync-feeds.mjs](scripts/sync-feeds.mjs)
-every 15 minutes, on manual dispatch, and on a `sync-feeds` repository dispatch. It reads the feed
-list from the Worker, fetches each one from IMDb, and posts the snapshots back.
+every 15 minutes and on `workflow_dispatch` (`scope: all` or `scope: requested`). It asks the Worker
+what to read, fetches each list from IMDb, and posts the snapshots back. It stops starting new lists
+after eight minutes, so a long queue is finished by the next run rather than killed mid-list.
 
 Both halves share `INGEST_SECRET` (a Worker secret and a repo secret); `WORKER_ORIGIN` is a repo
 variable. Set the Worker's half with:
@@ -119,7 +131,7 @@ npx wrangler secret put INGEST_SECRET
 
 ### Sign in with Connections
 
-The Worker is a confidential OAuth client against AEGIS (`accounts.connections.icu`), so the client
+The Worker is a confidential OAuth client against AEGIS (`accounts.connectionsapi.com`), so the client
 secret never reaches the browser and the SPA only ever sees a session cookie. It asks for `openid`
 and `profile` only: the opaque subject is all it stores, hung on `feed_owners`.
 
@@ -127,14 +139,17 @@ and `profile` only: the opaque subject is all it stores, hung on `feed_owners`.
 and `SESSION_SECRET` are Worker secrets. With any of them missing the site simply hides the sign-in
 button and behaves as it did before accounts existed.
 
-Optionally give the Worker `GITHUB_DISPATCH_TOKEN` (a fine-grained PAT that may dispatch this repo)
-and `GITHUB_REPOSITORY`. With them, pasting a new list asks the job to run immediately instead of
-waiting for the next tick. Without them everything still works, just on the schedule.
+Optionally give the Worker `GITHUB_DISPATCH_TOKEN`, a fine-grained PAT for this one repository with
+only **Actions: Read and write** (`GITHUB_REPOSITORY` is already in `wrangler.toml`). With it, pasting
+a new list dispatches `sync-feeds.yml` with `scope: requested`, so the list fills in about a minute
+instead of on the next tick. Without it everything still works, just on the schedule.
+[scripts/setup-dispatch-token.sh](scripts/setup-dispatch-token.sh) sets it without the token ever
+being printed.
 
 Run a sync by hand from any machine that is not behind Cloudflare:
 
 ```bash
-WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... node scripts/sync-feeds.mjs
+WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... SYNC_SCOPE=all node scripts/sync-feeds.mjs
 ```
 
 ### My feeds and sync alerts
@@ -155,11 +170,11 @@ updating.
 The site carries two pieces of instrumentation, both owned by LunarWerx's own
 Connections/Studio infrastructure rather than a third party.
 
-**ARGUS pixel** (`web/index.html`), served from `analytics.connections.icu`, gives page-view and
+**ARGUS pixel** (`web/index.html`), served from `analytics.connectionsapi.com`, gives page-view and
 traffic-source analytics. It skips localhost.
 
 **Studio visit ping** (`web/src/lib/analytics.ts`) fires once per browser session on page load:
-a fire-and-forget `GET` to `studio.connections.icu/v1/app/imdbwatch/latest`. What it sends:
+a fire-and-forget `GET` to `studio.connectionsapi.com/v1/app/imdbwatch/latest`. What it sends:
 
 - a random visitor id, generated client-side and kept in `localStorage` (not tied to any account)
 - the app's build version
@@ -220,8 +235,11 @@ Pushing to `main` runs:
 ## Known limits
 
 - **A brand-new feed is not instant.** The Worker cannot fetch IMDb itself, so pasting a URL queues
-  the list and the routes answer `503` until the sync job fills it. With `GITHUB_DISPATCH_TOKEN`
-  configured that is under a minute; without it, up to the next scheduled run.
+  the list and the routes answer `503` (with `Retry-After: 900`) until the sync job fills it. With
+  `GITHUB_DISPATCH_TOKEN` configured that is about a minute; without it, up to the next scheduled run.
+  The page polls and updates by itself when the list lands.
+- **Private lists cannot be read.** IMDb answers a private watchlist or list with a permission error;
+  the page says so and asks the owner to make it public, then paste it again.
 - **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 15 minutes is a floor
   rather than a clock.
 - **IMDb's API carries a usage disclaimer** on every response: public, commercial, and non-private
@@ -253,10 +271,10 @@ it only changes how often the feed refreshes, moving it onto the fifteen-minute 
 of its original snapshot.
 
 **Do I need an account to use it?**
-No. Both links work as soon as IMDb Watcharr builds them, running off the IMDb snapshot taken at
-that moment. Signing in with Connections is optional and free; it claims the feed and puts it on
-the automatic refresh schedule, so the underlying IMDb list is checked again roughly every fifteen
-minutes instead of staying fixed on that first snapshot.
+No. You get both links straight away, and they serve the list from its first read from IMDb, which
+usually lands within about fifteen minutes. Signing in with Connections is optional and free; it
+claims the feed and puts it on the automatic refresh schedule, so the underlying IMDb list is checked
+again roughly every fifteen minutes instead of staying fixed on that first snapshot.
 
 **Does it work offline?**
 No, it is a hosted web service, not a local app: watcharr.lunarwerx.com does the IMDb fetching,
@@ -287,11 +305,16 @@ reports how many titles were skipped.
 
 **Why does a list I just pasted return an error?**
 A brand-new list is not instant: IMDb Watcharr's Worker cannot fetch IMDb directly, so a freshly
-pasted URL is queued and both routes answer `503` until the sync job fills the list in. That is
-usually under a minute, and always by the next scheduled sync, which runs roughly every fifteen
-minutes.
+pasted URL is queued and both routes answer `503` until the sync job fills the list in, which happens
+on the next scheduled sync, roughly every fifteen minutes. If it still fails after that, the list is
+probably private on IMDb: the page says so, and making it public then pasting it again fixes it.
 
 ---
 
-Made by [LunarWerx](https://lunarwerx.com), who also build [RepoYeti](https://repoyeti.com),
-[SageThumbs](https://sagethumbs.lunarwerx.com), and [QuickDictate](https://quickdictate.lunarwerx.com).
+**Want to request a single title from your phone instead?** [Askarr](https://askarr.com), also by
+LunarWerx, lets you search any movie or show from any browser and request it; the Askarr Monitor on
+your Windows PC adds it to your own Radarr and Sonarr, so neither has to face the internet.
+
+Made by [LunarWerx](https://lunarwerx.com), who also build [Askarr](https://askarr.com),
+[RepoYeti](https://repoyeti.com), [SageThumbs](https://sagethumbs.lunarwerx.com), and
+[QuickDictate](https://quickdictate.lunarwerx.com).

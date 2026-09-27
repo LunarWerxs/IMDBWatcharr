@@ -6,7 +6,7 @@
 
 ## What it is
 
-IMDb Watcharr is a free hosted web tool that turns a public IMDb watchlist or list URL into two deterministic feed URLs: a Radarr RSS feed for movies and a Sonarr custom-list JSON feed for TV, so both apps can pick up whatever a person already tracks on IMDb. Anyone can generate the two URLs with no account, and both keep working off the snapshot they were built from. Signing in with LunarWerx's own Connections identity provider claims the feed and puts it on a 15-minute auto-refresh schedule. Because IMDb rate-limits Cloudflare's own egress IPs, the actual IMDb fetching runs on a GitHub Actions runner, which posts snapshots back to the Cloudflare Worker over a shared-secret endpoint.
+IMDb Watcharr is a free hosted web tool that turns a public IMDb watchlist or list URL into two deterministic feed URLs: a Radarr RSS feed for movies and a Sonarr custom-list JSON feed for TV, so both apps can pick up whatever a person already tracks on IMDb. Anyone can generate the two URLs with no account; every new list is queued for one read from IMDb, and both URLs then keep working off that snapshot. Signing in with LunarWerx's own Connections identity provider claims the feed and puts it on a 15-minute auto-refresh schedule. Because IMDb rate-limits Cloudflare's own egress IPs, the actual IMDb fetching runs on a GitHub Actions runner, which posts snapshots back to the Cloudflare Worker over a shared-secret endpoint.
 
 ## Things not to forget
 
@@ -16,11 +16,12 @@ reason lives nowhere else. Odin never overwrites this section._
 - IMDb rate-limits Cloudflare's own egress IPs, so the actual IMDb fetch runs from a GitHub Actions runner that posts snapshots back to the Worker, rather than the Worker fetching IMDb directly. anchors: `scripts/sync-feeds.mjs:34`
 - The watchlist-id regex only accepts IMDb's two real id shapes on purpose; accepting anything looser previously let bogus /p/ URLs create feed rows for lists that cannot exist, which then failed every sync run forever. anchors: `src/imdb.js:1`
 - Failure alerting only fires after FEED_ALERT_FAILURE_THRESHOLD (a bare constant of 3) consecutive sync failures rather than the first miss, so one transient IMDb hiccup does not notify anyone; there is no per-feed override. anchors: `src/imdb.js:19`
-- Instant sync-on-paste is deliberately best-effort: requestSyncRun swallows a missing or rejected GITHUB_DISPATCH_TOKEN so a fresh paste can never fail feed creation, it just falls back to waiting for the next ~15-minute scheduled sync. anchors: `src/index.js:419`
+- Every read goes through one queue, `feeds.refresh_requested_at`: set when a feed is created or someone re-pastes it, served first by /api/sync-targets, cleared by a successful read (or by a permanent failure, or three in a row). Until 2026-09-27 only claimed feeds were ever read and the dispatch token was never set, so 56 of 73 signed-out feeds sat at 'pending' forever; the missing token was misfiled as optional when it was the only path those feeds had. anchors: `src/store.js`, `src/sync.js`
+- Instant sync-on-paste is an accelerator only: requestSyncRun dispatches sync-feeds.yml with scope=requested when GITHUB_DISPATCH_TOKEN (Actions: write) is set, and a missing or rejected token changes nothing but the wait, because the request is already in the queue. anchors: `src/sync.js`
 - Sign-in-with-Connections hides itself entirely (503 'Sign in is not configured') when the OAuth env vars are absent, and the session only ever stores the opaque subject id, never profile data. anchors: `src/auth.js:129`
 - npm run check only exercises src/imdb.js and src/imdb-graphql.js through recorded fixtures, not src/index.js, so a repeat of the 2026-09-04 backslash-corruption bug would not be caught before merge. anchors: `scripts/test-parser.mjs:4`
 - Deploys run from a machine signed in with wrangler (npm run deploy), like the other LunarWerx Cloudflare sites; GitHub holds no Cloudflare token and CI never deploys. Apply a new migration first (npm run db:migrate:remote): on 2026-09-26 migration 0005 had never reached the live database, so every sync write failed and 62 of 68 feeds sat pending from 2026-09-20. anchors: `README.md:191`
-- A brand-new feed is not instant: its Radarr/Sonarr routes answer 503 until the sync job first populates that feed. anchors: `README.md:214`
+- A brand-new feed is not instant: its Radarr/Sonarr routes answer 503 until the sync job first populates that feed, and the page polls /api/feeds/:slug until it lands. A private list is reported as permanent by the runner (NotFoundError) and leaves the queue at once. anchors: `src/index.js`, `scripts/sync-feeds.mjs`
 
 <!-- odin:about GENERATED BEGIN - rewritten by `odin codex about --publish`; edit the Codex, not this -->
 

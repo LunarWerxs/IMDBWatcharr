@@ -9,7 +9,7 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 | Product | IMDb Watcharr |
 | Price | $0 (free) |
 | Paid tier | None, no payment integration exists anywhere in the app |
-| License | Source-available on GitHub (`github.com/LunarWerxs/IMDBWatcharr`); no formal OSI license file is published in the repository, so it is not certified "open source" in the OSI sense, but the code is publicly readable and free to self-host |
+| License | MIT (`github.com/LunarWerxs/IMDBWatcharr`, see its LICENSE file); free to read, run and self-host |
 | Account required | No, for the base feature (creating and using a feed) |
 | Account required for | Automatic feed refresh (~every 15 minutes), via optional sign-in with Connections |
 | Self-hostable | Yes, Cloudflare Worker + D1 database + GitHub Actions sync job |
@@ -18,7 +18,8 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 
 ## Hosted version (watcharr.lunarwerx.com)
 
-- **$0.** Paste a public IMDb watchlist or list URL, get two working links back. No signup, no
+- **$0.** Paste a public IMDb watchlist or list URL, get two links back that fill in on the list's
+  first read from IMDb. No signup, no
   card, no trial period, no usage cap enforced by pricing.
 - Optional sign-in with Connections (LunarWerx's own account system) is also free and only
   changes whether the feed is refreshed automatically.

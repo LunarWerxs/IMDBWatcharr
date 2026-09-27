@@ -145,7 +145,11 @@ const READY_RESULT = {
   sonarrUnresolvedCount: 2,
   totalCount: 17,
   message: "Ready, and we are keeping it up to date.",
+  lastSyncedAt: "2026-09-27T12:00:00.000Z",
+  lastError: null,
   syncing: false,
+  pollAfterSeconds: 30,
+  owned: true,
   signedIn: true,
   autoRefreshing: true,
 };
@@ -167,7 +171,7 @@ describe("App - a first look", () => {
     // Nothing has been asked of the API yet, so none of the outcome UI exists.
     assert.doesNotMatch(html, /Radarr RSS URL/);
     assert.doesNotMatch(html, /Could not build the feeds/);
-    assert.doesNotMatch(html, /Reading IMDb/);
+    assert.doesNotMatch(html, /Building/);
     assert.doesNotMatch(html, /This one will not update by itself/);
     assert.doesNotMatch(html, /Sign out/);
   });
@@ -199,7 +203,7 @@ describe("App - while a first sync is in flight", () => {
   test("pending replaces the button label, shows skeletons, and claims no result", () => {
     const html = render({ sourceUrl: "https://www.imdb.com/list/ls006123300/", pending: true });
 
-    assert.match(html, /Reading IMDb/);
+    assert.match(html, /Building/);
     assert.match(html, /animate-spin/);
     assert.doesNotMatch(html, /Generate feeds/);
     assert.doesNotMatch(html, /Radarr RSS URL/);
@@ -217,7 +221,7 @@ describe("App - while a first sync is in flight", () => {
     const html = render({ error: "Old news.", pending: true });
 
     assert.doesNotMatch(html, /Could not build the feeds/);
-    assert.match(html, /Reading IMDb/);
+    assert.match(html, /Building/);
   });
 });
 
@@ -263,14 +267,33 @@ describe("App - a finished result", () => {
     assert.match(html, />0<\/div><div class="[^"]*">Shows we skipped</);
   });
 
-  test("a feed still fetching is badged as fetching, not by its raw status", () => {
+  test("a feed still in the queue is badged as waiting, not by its raw status", () => {
     const html = render({
       result: { ...READY_RESULT, status: "pending", totalCount: 0, radarrCount: 0, sonarrCount: 0, syncing: true },
     });
 
-    assert.match(html, />fetching</);
+    assert.match(html, />waiting for IMDb</);
     assert.match(html, /animate-spin/);
     assert.doesNotMatch(html, />pending</);
+  });
+
+  test("a list that could not be read says so and why, instead of waiting forever", () => {
+    const html = render({
+      result: {
+        ...READY_RESULT,
+        status: "error",
+        totalCount: 0,
+        radarrCount: 0,
+        sonarrCount: 0,
+        syncing: false,
+        lastSyncedAt: null,
+        message: "This IMDb list is private, so we cannot read it.",
+      },
+    });
+
+    assert.match(html, />could not read</);
+    assert.match(html, /This IMDb list is private, so we cannot read it\./);
+    assert.doesNotMatch(html, /animate-spin/);
   });
 
   test("a failed sync that still has items says it is serving the last good snapshot", () => {
@@ -302,7 +325,7 @@ describe("App - the signed-out nudge", () => {
 
     assert.match(html, /This one will not update by itself/);
     assert.match(html, /Sign in with Connections/);
-    assert.match(html, /Your links work now and will keep working\./);
+    assert.match(html, /Your links work now and keep working\./);
   });
 
   test("a signed-in visitor is not nagged, and gets the account controls instead", () => {

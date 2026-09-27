@@ -50,7 +50,7 @@
                     if (w.console && typeof w.console.warn === 'function') {
                         if (err) { w.console.warn(msg, err); } else { w.console.warn(msg); }
                     }
-                } catch (e0) { }
+                } catch (e0) { /* a console that throws has nowhere left to report to */ }
             }
             try {
                 var key = (typeof k === 'string') ? k.replace(/^\s+|\s+$/g, '') : '';
@@ -98,7 +98,7 @@
             "browserRequirements": "Requires JavaScript",
             "featureList": [
               "Turns a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom list",
-              "No account required: paste a public IMDb list URL and get two working links back immediately",
+              "No account required: paste a public IMDb list URL and get two links back at once, serving the list as soon as its first read from IMDb lands, usually within about fifteen minutes",
               "The two links are derived from the IMDb list, so the same list always maps to the same URLs",
               "Sign in with Connections to have the list checked and refreshed automatically, about every fifteen minutes",
               "If a scheduled refresh fails, the feeds keep serving the last good snapshot instead of breaking",
@@ -163,7 +163,7 @@
                 "name": "Do I need an account to use IMDb Watcharr?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. Paste a public IMDb watchlist or list URL and get two working links back immediately, no sign-up required. Signing in with Connections is optional, and it only changes one thing: it puts that feed on the automatic refresh schedule, re-checked roughly every fifteen minutes instead of staying on its original snapshot."
+                  "text": "No. Paste a public IMDb watchlist or list URL and get two links back straight away, no sign-up required; they serve the list from its first read from IMDb, which usually lands within about fifteen minutes. Signing in with Connections is optional and free, and it only changes one thing: it puts that feed on the automatic refresh schedule, re-checked roughly every fifteen minutes instead of staying on its first snapshot."
                 }
               },
               {
@@ -211,7 +211,7 @@
                 "name": "Why does a list I just pasted return an error?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly pasted URL is queued, and the Radarr and Sonarr routes answer 503 until the next sync fills the list in. Once it has synced, the two links keep serving that snapshot even if a later sync fails."
+                  "text": "A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly pasted URL is queued, and the Radarr and Sonarr routes answer 503 until the next sync fills the list in, usually within about fifteen minutes. Once it has synced, the two links keep serving that snapshot even if a later sync fails. If it never fills in, the list is probably private on IMDb: make it public and paste it again."
                 }
               }
             ]
@@ -241,7 +241,10 @@
             IMDb list, so the same list always gives you the same two links.
           </p>
           <ul>
-            <li>Works without an account: both links work immediately and keep working</li>
+            <li>
+              Works without an account: both links come back at once and keep working once the
+              list's first read from IMDb lands, usually within about fifteen minutes
+            </li>
             <li>
               Sign in with Connections and the list is checked and refreshed automatically, about
               every fifteen minutes
@@ -297,10 +300,11 @@
 
           <h3>Do I need an account to use IMDb Watcharr?</h3>
           <p>
-            No. Paste a public IMDb watchlist or list URL and get two working links back
-            immediately, no sign-up required. Signing in with Connections is optional, and it only
-            changes one thing: it puts that feed on the automatic refresh schedule, re-checked
-            roughly every fifteen minutes instead of staying on its original snapshot.
+            No. Paste a public IMDb watchlist or list URL and get two links back straight away, no
+            sign-up required; they serve the list from its first read from IMDb, which usually lands
+            within about fifteen minutes. Signing in with Connections is optional and free, and it
+            only changes one thing: it puts that feed on the automatic refresh schedule, re-checked
+            roughly every fifteen minutes instead of staying on its first snapshot.
           </p>
 
           <h3>How do I add an IMDb list to Radarr?</h3>
@@ -346,8 +350,9 @@
           <p>
             A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly
             pasted URL is queued, and the Radarr and Sonarr routes answer 503 until the next sync
-            fills the list in. Once it has synced, the two links keep serving that snapshot even if
-            a later sync fails.
+            fills the list in, usually within about fifteen minutes. Once it has synced, the two
+            links keep serving that snapshot even if a later sync fails. If it never fills in, the
+            list is probably private on IMDb: make it public and paste it again.
           </p>
         </section>
       </main>

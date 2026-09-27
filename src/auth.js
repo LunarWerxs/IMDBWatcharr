@@ -126,19 +126,29 @@ export async function getSession(request, env) {
   return payload?.sub ? { sub: payload.sub, name: payload.name ?? null } : null;
 }
 
+/**
+ * Where to land after sign-in: a path on this site, or the home page. A bare
+ * startsWith("/") would also pass "//evil.example" and "/\evil.example", which
+ * browsers read as another host, turning sign-in into an open redirect.
+ */
+function safeReturnPath(value) {
+  const path = String(value ?? "");
+  return /^\/(?![/\\])/.test(path) ? path : "/";
+}
+
 export async function startLogin(request, env) {
   if (!isAuthConfigured(env)) {
     return new Response("Sign in is not configured.", { status: 503 });
   }
 
   const url = new URL(request.url);
-  const returnTo = url.searchParams.get("returnTo") ?? "/";
+  const returnTo = safeReturnPath(url.searchParams.get("returnTo"));
   const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
 
   // The state lives in a signed cookie rather than server storage: it has to
   // survive a round trip through AEGIS and nothing else needs to read it.
   const stateToken = await sign(
-    { state, returnTo: returnTo.startsWith("/") ? returnTo : "/", exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS },
+    { state, returnTo, exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS },
     env.SESSION_SECRET,
   );
 
@@ -201,7 +211,7 @@ export async function completeLogin(request, env) {
     env.SESSION_SECRET,
   );
 
-  const headers = new Headers({ location: stored.returnTo || "/" });
+  const headers = new Headers({ location: safeReturnPath(stored.returnTo) });
   headers.append("set-cookie", cookie(SESSION_COOKIE, session, SESSION_TTL_SECONDS));
   headers.append("set-cookie", cookie(STATE_COOKIE, "", 0));
   return new Response(null, { status: 302, headers });
@@ -224,7 +234,10 @@ async function readSubject(tokens, env) {
         return { sub: String(info.sub), name: info.name ?? info.preferred_username ?? null };
       }
     }
-  } catch {}
+  } catch {
+    // An unreachable or malformed userinfo answer is not fatal: the id_token
+    // below carries the same subject.
+  }
 
   // Fall back to the id_token's subject claim if userinfo is unavailable.
   try {

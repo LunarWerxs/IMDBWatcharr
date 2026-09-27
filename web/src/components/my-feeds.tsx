@@ -64,7 +64,7 @@ function FeedHealthBadge({ feed }: { feed: MyFeed }) {
   return (
     <Badge variant="outline">
       <LoaderCircleIcon className="size-3 animate-spin" />
-      <span className="font-normal">{feed.status}</span>
+      <span className="font-normal">Waiting for IMDb</span>
     </Badge>
   )
 }
@@ -100,8 +100,13 @@ function MyFeedRow({ feed, onUnfollow }: { feed: MyFeed; onUnfollow: (feed: MyFe
   )
 }
 
-/** Only renders once there is something to show: a signed-out visitor, or one with no claimed feeds yet, sees nothing. */
-export function MyFeeds() {
+/**
+ * Only renders once there is something to show: a signed-out visitor, or one
+ * with no claimed feeds yet, sees nothing. `refreshKey` changes whenever the
+ * page claims a list or a pending one lands, so the card re-reads instead of
+ * missing the list the visitor just added.
+ */
+export function MyFeeds({ refreshKey = '' }: { refreshKey?: string }) {
   const [feeds, setFeeds] = useState<MyFeed[] | null>(null)
 
   useEffect(() => {
@@ -112,9 +117,9 @@ export function MyFeeds() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshKey])
 
-  // Unfollowing only stops the schedule (releaseFeed in src/index.js) - it
+  // Unfollowing only stops the schedule (releaseFeed in src/store.js) - it
   // never deletes the feed row or its cached snapshot, so the confirm below
   // is honest about what stays working afterward.
   async function handleUnfollow(feed: MyFeed) {

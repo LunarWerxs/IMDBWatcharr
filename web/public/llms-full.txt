@@ -27,14 +27,15 @@ built and licensed for personal, non-commercial, single-household use; see Limit
 3. In Radarr: Settings → Lists → Add List → Advanced → RSS List → paste the Radarr URL.
 4. In Sonarr: Settings → Import Lists → Add List → Advanced → Custom List → paste the Sonarr URL.
 
-Both links work immediately off the first snapshot and keep working with no account. Signing in
+Both links come back at once and serve the list from its first read from IMDb, which usually lands
+within about fifteen minutes, then keep working with no account. Signing in
 with Connections (LunarWerx's own OAuth) claims the feed and puts it on an automatic refresh
 schedule, checked again roughly every 15 minutes by a GitHub Actions job, not by the website
 itself.
 
 ## Every feature
 
-- No account required to generate or use a feed; two working links come back immediately.
+- No account required to generate or use a feed; two links come back at once and fill in on the list's first read.
 - Deterministic URLs: the same IMDb list always maps to the same Radarr/Sonarr links.
 - Optional sign-in (via Connections) claims a feed for automatic ~15-minute refresh.
 - If a scheduled refresh ever fails, the feeds keep serving the last good snapshot instead of
@@ -77,8 +78,8 @@ including self-hosting costs.
 **Is IMDb Watcharr free?** Yes, no paid tier, no payment set up anywhere in the app, and
 source-available on GitHub for free self-hosting too.
 
-**Do I need an account?** No. A feed works immediately without one; signing in with Connections
-only adds automatic ~15-minute refresh.
+**Do I need an account?** No. A feed works without one from the list's first read (usually within
+about fifteen minutes); signing in with Connections, free, only adds automatic ~15-minute refresh.
 
 **How does this compare to Radarr's/Sonarr's own IMDb list import, or Trakt-based syncing?**
 Sonarr removed its built-in IMDb list import in 2025, and Radarr's IMDb list-ID import stopped
@@ -89,7 +90,8 @@ IMDb Watcharr skips the Trakt account.
 
 **Why does a freshly pasted list return an error?** A brand-new list is not instant. The site
 cannot fetch IMDb itself, so a new URL is queued and the Radarr/Sonarr routes answer `503` until
-the next sync fills the list in.
+the next sync fills the list in, usually within about fifteen minutes. If it never fills in, the
+list is probably private on IMDb: make it public and paste it again.
 
 ## Limitations
 

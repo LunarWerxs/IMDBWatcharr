@@ -1,21 +1,31 @@
 export type FeedStatus = 'pending' | 'syncing' | 'ready' | 'error'
 
-export type CreateFeedResponse = {
+/** Where a feed stands. Both /api/create and the status poll return these fields. */
+export type FeedStatusResponse = {
   slug: string
   listTitle: string
+  status: FeedStatus
+  lastSyncedAt: string | null
+  lastError: string | null
+  message: string
+  /** A read from IMDb is pending, so the page keeps asking. */
+  syncing: boolean
+  /** How long to wait before asking again while `syncing`. */
+  pollAfterSeconds: number
+  owned: boolean
+  autoRefreshing: boolean
+}
+
+export type CreateFeedResponse = FeedStatusResponse & {
   radarrRoutePath: string
   radarrFeedUrl: string
   sonarrRoutePath: string
   sonarrFeedUrl: string
-  status: FeedStatus
   radarrCount: number
   sonarrCount: number
   sonarrUnresolvedCount: number
   totalCount: number
-  message: string
-  syncing: boolean
   signedIn: boolean
-  autoRefreshing: boolean
 }
 
 export type Session = {
@@ -49,9 +59,10 @@ export type NotificationsResponse = {
   }>
 }
 
-const IMDB_LIST_RE = /^https?:\/\/(?:www\.)?imdb\.com\/list\/ls\d+\/?(?:[?#].*)?$/i
+const IMDB_LIST_RE =
+  /^https?:\/\/(?:www\.|m\.)?imdb\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/list\/ls\d+\/?(?:[?#].*)?$/i
 const IMDB_WATCHLIST_RE =
-  /^https?:\/\/(?:www\.)?imdb\.com\/user\/(?:p\.[a-z0-9]+|ur\d+)\/watchlist\/?(?:[?#].*)?$/i
+  /^https?:\/\/(?:www\.|m\.)?imdb\.com(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/user\/(?:p\.[a-z0-9]+|ur\d+)\/watchlist\/?(?:[?#].*)?$/i
 
 /** Mirrors the Worker's `normalizeImdbUrl` so the field can validate before a round trip. */
 export function isSupportedImdbUrl(value: string): boolean {
@@ -59,11 +70,12 @@ export function isSupportedImdbUrl(value: string): boolean {
   return IMDB_LIST_RE.test(trimmed) || IMDB_WATCHLIST_RE.test(trimmed)
 }
 
-export async function createFeed(sourceUrl: string): Promise<CreateFeedResponse> {
-  const response = await fetch('/api/create', {
+/** POST a JSON body to one of the Worker's routes; a non-2xx answer throws its `error` text. */
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sourceUrl: sourceUrl.trim() }),
+    body: JSON.stringify(body),
   })
 
   const payload = await response.json().catch(() => null)
@@ -74,7 +86,18 @@ export async function createFeed(sourceUrl: string): Promise<CreateFeedResponse>
     )
   }
 
-  return payload as CreateFeedResponse
+  return payload as T
+}
+
+export function createFeed(sourceUrl: string): Promise<CreateFeedResponse> {
+  return postJson<CreateFeedResponse>('/api/create', { sourceUrl: sourceUrl.trim() })
+}
+
+/** Where one feed stands; the page polls this while a read from IMDb is pending. */
+export async function readFeedStatus(slug: string): Promise<FeedStatusResponse> {
+  const response = await fetch(`/api/feeds/${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`Status check failed with status ${response.status}.`)
+  return (await response.json()) as FeedStatusResponse
 }
 
 export async function readSession(): Promise<Session> {
@@ -115,17 +138,5 @@ export async function readNotifications(): Promise<NotificationsResponse> {
 // "My feeds" but had no way to stop auto-refreshing it short of the raw API.
 /** Stops auto-refreshing a claimed feed. The feed's Radarr/Sonarr URLs keep serving its last snapshot. */
 export async function unfollowFeed(sourceUrl: string): Promise<void> {
-  const response = await fetch('/api/unfollow', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sourceUrl }),
-  })
-
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) {
-    throw new Error(
-      (payload as { error?: string } | null)?.error ??
-        `Request failed with status ${response.status}.`,
-    )
-  }
+  await postJson<{ ok: boolean }>('/api/unfollow', { sourceUrl })
 }

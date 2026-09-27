@@ -140,9 +140,16 @@
 }
 
 /* The GitHub link's "Selfhost" label reveals by widening, and max-width is a
-   layout property, so it gets a named transition rather than transition-all. */
+   layout property, so it gets a named transition rather than transition-all,
+   and layout containment so the widening span is the only box that re-lays out
+   on each frame. */
+:root {
+    --duration-reveal: 200ms;
+}
+
 .transition-reveal {
+    contain: layout style;
     transition-property: max-width, opacity;
     transition-timing-function: var(--default-transition-timing-function);
-    transition-duration: 200ms;
+    transition-duration: var(--duration-reveal);
 }

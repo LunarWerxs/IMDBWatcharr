@@ -7,6 +7,7 @@ import {
   FilmIcon,
   LoaderCircleIcon,
   RssIcon,
+  SparklesIcon,
   TriangleAlertIcon,
   TvIcon,
   UserIcon,
@@ -35,6 +36,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import {
   createFeed,
   isSupportedImdbUrl,
+  readFeedStatus,
   readSession,
   type CreateFeedResponse,
   type Session,
@@ -42,10 +44,27 @@ import {
 
 const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
 
-// How often to re-ask the API while a first sync is still running. The sync
-// job itself takes a few seconds to a couple of minutes, so this only needs
-// to be fast enough to feel live, not fast enough to catch every tick.
-const SYNC_POLL_INTERVAL_MS = 4000
+// The query parameter that carries a list across the sign-in round trip, so
+// signing in from a result claims that list instead of landing on a blank form.
+const LIST_PARAM = 'list'
+
+/** The sign-in link, coming back to the given list when there is one. */
+function signInHref(listUrl?: string): string {
+  const returnTo = listUrl ? `/?${LIST_PARAM}=${encodeURIComponent(listUrl)}` : '/'
+  return `/auth/login?returnTo=${encodeURIComponent(returnTo)}`
+}
+
+/** A list handed to this page in its address (the sign-in return, or a shared link). */
+function readListFromAddress(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(LIST_PARAM)
+}
+
+function clearListFromAddress() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete(LIST_PARAM)
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+}
 
 const STEPS = [
   {
@@ -75,7 +94,7 @@ function StatTile({ label, value }: { label: string; value: number }) {
  * Signing in is what turns a one-off fetch into a feed that keeps itself
  * current, so the control says that rather than just "Sign in".
  */
-function AccountControl({ session }: { session: Session | null }) {
+function AccountControl({ session, listUrl }: { session: Session | null; listUrl: string }) {
   if (!session?.authAvailable) {
     return null
   }
@@ -95,7 +114,7 @@ function AccountControl({ session }: { session: Session | null }) {
 
   return (
     <Button asChild variant="outline" size="sm">
-      <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
+      <a href={signInHref(listUrl || undefined)}>
         <UserIcon className="size-4" />
         Sign in
       </a>
@@ -106,7 +125,7 @@ function AccountControl({ session }: { session: Session | null }) {
 // Up to the studio. It sits above the product mark rather than beside it so
 // the hierarchy reads in the order it actually is: studio, then product. Same
 // shape the other LunarWerx products use.
-function AppHeader({ session }: { session: Session | null }) {
+function AppHeader({ session, listUrl }: { session: Session | null; listUrl: string }) {
   return (
     <header className="mx-auto w-full max-w-3xl px-4 pt-3 pb-5">
       <a
@@ -128,7 +147,7 @@ function AppHeader({ session }: { session: Session | null }) {
           <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
           <GithubLink />
           <ThemeToggle />
-          <AccountControl session={session} />
+          <AccountControl session={session} listUrl={listUrl} />
         </div>
       </div>
     </header>
@@ -196,7 +215,7 @@ function CreateFeedForm({
               {pending ? (
                 <>
                   <LoaderCircleIcon className="size-4 animate-spin" />
-                  Reading IMDb
+                  Building
                 </>
               ) : (
                 <>
@@ -262,11 +281,13 @@ function FeedOutcome({
   error,
   result,
   session,
+  listUrl,
 }: {
   pending: boolean
   error: string | null
   result: CreateFeedResponse | null
   session: Session | null
+  listUrl: string
 }) {
   if (pending) {
     return <SyncSkeleton />
@@ -276,28 +297,34 @@ function FeedOutcome({
     return <BuildError message={error} />
   }
 
-  return result ? <FeedResult result={result} session={session} /> : null
+  return result ? <FeedResult result={result} session={session} listUrl={listUrl} /> : null
 }
 
-type FeedState = 'ready' | 'snapshot' | 'fetching'
+type FeedState = 'ready' | 'snapshot' | 'queued' | 'unreadable'
 
 const FEED_STATE_LABELS: Record<FeedState, string> = {
   ready: 'ready',
   snapshot: 'last good snapshot',
-  fetching: 'fetching',
+  queued: 'waiting for IMDb',
+  unreadable: 'could not read',
 }
 
 /**
  * The routes keep serving the stored snapshot when a sync fails, so a feed with
- * items behind it is stale rather than broken; a brand-new list has nothing
- * stored yet, so its sync job still has to fetch it.
+ * items behind it is stale rather than broken. A list with nothing stored is
+ * either still in the queue, or was tried and given up on (usually private),
+ * which only the list's owner can change.
  */
 function feedState(result: CreateFeedResponse): FeedState {
   if (result.status === 'ready') {
     return 'ready'
   }
 
-  return result.totalCount > 0 ? 'snapshot' : 'fetching'
+  if (result.totalCount > 0) {
+    return 'snapshot'
+  }
+
+  return result.syncing ? 'queued' : 'unreadable'
 }
 
 function FeedStatusBadge({ result }: { result: CreateFeedResponse }) {
@@ -329,17 +356,24 @@ function StatTiles({ result }: { result: CreateFeedResponse }) {
   )
 }
 
-/** A signed-out visitor's feed does not refresh itself, so it says so. */
+/**
+ * A signed-out visitor's feed does not refresh itself, so it says so, and the
+ * sign-in it offers comes back to this same list so the list gets claimed.
+ */
 function UnsyncedNudge({
   session,
-  autoRefreshing,
+  result,
+  listUrl,
 }: {
   session: Session | null
-  autoRefreshing: boolean
+  result: CreateFeedResponse
+  listUrl: string
 }) {
-  if (!session?.authAvailable || autoRefreshing) {
+  if (!session?.authAvailable || result.autoRefreshing) {
     return null
   }
+
+  const read = result.lastSyncedAt !== null
 
   return (
     <Alert className="mt-3">
@@ -347,13 +381,13 @@ function UnsyncedNudge({
       <AlertTitle>This one will not update by itself</AlertTitle>
       <AlertDescription>
         <span>
-          Your links work now and will keep working. We only read the list again when you come
-          back and ask. Sign in and we check it for you about every fifteen minutes.
+          {read
+            ? 'Your links work now and keep working. We only read the list again when you come back and paste it. '
+            : 'Once we have read the list, your links keep working. After that we only read it again when you come back and paste it. '}
+          Sign in, free, and we check it for you about every fifteen minutes.
         </span>
         <Button asChild size="sm" className="mt-2">
-          <a href={`/auth/login?returnTo=${encodeURIComponent('/')}`}>
-            Sign in with Connections
-          </a>
+          <a href={signInHref(listUrl)}>Sign in with Connections</a>
         </Button>
       </AlertDescription>
     </Alert>
@@ -363,9 +397,11 @@ function UnsyncedNudge({
 function FeedSummaryCard({
   result,
   session,
+  listUrl,
 }: {
   result: CreateFeedResponse
   session: Session | null
+  listUrl: string
 }) {
   return (
     <Card>
@@ -384,7 +420,7 @@ function FeedSummaryCard({
             ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
             : result.message}
         </CardDescription>
-        <UnsyncedNudge session={session} autoRefreshing={result.autoRefreshing} />
+        <UnsyncedNudge session={session} result={result} listUrl={listUrl} />
       </CardHeader>
       <StatTiles result={result} />
     </Card>
@@ -437,15 +473,54 @@ function TargetCards({ result }: { result: CreateFeedResponse }) {
 function FeedResult({
   result,
   session,
+  listUrl,
 }: {
   result: CreateFeedResponse
   session: Session | null
+  listUrl: string
 }) {
   return (
     <div className="mt-4 grid gap-4">
-      <FeedSummaryCard result={result} session={session} />
+      <FeedSummaryCard result={result} session={session} listUrl={listUrl} />
       <TargetCards result={result} />
+      <AskarrCard />
     </div>
+  )
+}
+
+const ASKARR_URL = 'https://askarr.com/?utm_source=watcharr&utm_medium=referral'
+
+/**
+ * Askarr is LunarWerx's other Radarr and Sonarr product, and the visitor who
+ * has just wired up both apps is exactly who it is for: the list feed covers
+ * what they planned on IMDb, Askarr covers the one title they think of on the
+ * go.
+ */
+function AskarrCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="text-muted-foreground size-4" />
+            Want one title without editing the list?
+          </div>
+        </CardTitle>
+        <CardDescription>
+          Askarr, also by LunarWerx: search any movie or show from your phone or any browser, tap
+          request, and the Askarr Monitor on your Windows PC adds it to your own Radarr and Sonarr.
+          Nothing on your network has to face the internet. Free to start.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild variant="outline" size="sm">
+          <a href={ASKARR_URL}>
+            Try Askarr
+            <ArrowRightIcon className="size-4" />
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -494,6 +569,16 @@ function AppFooter() {
           LunarWerx
         </a>
       </p>
+      <p className="mt-2">
+        Also for Radarr and Sonarr:{' '}
+        <a
+          href={ASKARR_URL}
+          className="text-foreground underline underline-offset-2 transition-colors hover:text-primary"
+        >
+          Askarr
+        </a>
+        , request any movie or show from anywhere and it lands at home.
+      </p>
     </footer>
   )
 }
@@ -508,56 +593,14 @@ export default function App() {
   // editing the input mid-sync cannot redirect a poll already in flight.
   const [activeUrl, setActiveUrl] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
-    readSession().then((value) => {
-      if (!cancelled) setSession(value)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // The API reports `syncing` while the first fetch from IMDb is still in
-  // flight, so poll it instead of making the reader click Generate again to
-  // see whether it landed. Stops itself the moment a response comes back
-  // with `syncing: false`.
-  useEffect(() => {
-    if (!result?.syncing || !activeUrl) return
-
-    let cancelled = false
-    const timer = setInterval(() => {
-      createFeed(activeUrl)
-        .then((next) => {
-          if (!cancelled) setResult(next)
-        })
-        .catch(() => {
-          // A transient failure mid-poll is not worth surfacing over the
-          // result already on screen; the next tick tries again.
-        })
-    }, SYNC_POLL_INTERVAL_MS)
-
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [result?.syncing, activeUrl])
-
-  const trimmed = sourceUrl.trim()
-  const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
-  const canSubmit = !pending && trimmed.length > 0
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (pending) return
-
+  async function buildFeeds(listUrl: string) {
     setPending(true)
     setError(null)
     setResult(null)
-    setActiveUrl(trimmed)
+    setActiveUrl(listUrl)
 
     try {
-      setResult(await createFeed(trimmed))
+      setResult(await createFeed(listUrl))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Something went wrong.')
     } finally {
@@ -565,10 +608,72 @@ export default function App() {
     }
   }
 
+  // A list in the address (coming back from sign-in, or a shared link) is
+  // built straight away once the session is known, which is what claims it
+  // for a visitor who just signed in to keep it up to date.
+  useEffect(() => {
+    let cancelled = false
+    readSession().then((value) => {
+      if (cancelled) return
+      setSession(value)
+      const listFromAddress = readListFromAddress()
+      if (listFromAddress) {
+        clearListFromAddress()
+        setSourceUrl(listFromAddress)
+        void buildFeeds(listFromAddress)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // While a read from IMDb is pending, ask where the feed stands at the pace
+  // the API suggests, instead of making the reader click Generate again to see
+  // whether it landed. Once it has landed, one fresh build brings the counts.
+  const pollSlug = result?.syncing ? result.slug : null
+  const pollAfterMs = (result?.pollAfterSeconds ?? 30) * 1000
+  useEffect(() => {
+    if (!pollSlug || !activeUrl) return
+
+    let cancelled = false
+    const timer = setInterval(() => {
+      readFeedStatus(pollSlug)
+        .then(async (status) => {
+          if (cancelled) return
+          if (!status.syncing && status.status === 'ready') {
+            const next = await createFeed(activeUrl)
+            if (!cancelled) setResult(next)
+            return
+          }
+          setResult((current) => (current ? { ...current, ...status } : current))
+        })
+        .catch(() => {
+          // A transient failure mid-poll is not worth surfacing over the
+          // result already on screen; the next tick tries again.
+        })
+    }, pollAfterMs)
+
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [pollSlug, pollAfterMs, activeUrl])
+
+  const trimmed = sourceUrl.trim()
+  const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
+  const canSubmit = !pending && trimmed.length > 0
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (pending) return
+    void buildFeeds(trimmed)
+  }
+
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-dvh">
-        <AppHeader session={session} />
+        <AppHeader session={session} listUrl={activeUrl} />
 
         <main className="mx-auto w-full max-w-3xl px-4 pb-20">
           <Hero />
@@ -582,9 +687,17 @@ export default function App() {
             onSubmit={handleSubmit}
           />
 
-          {session?.signedIn && <MyFeeds />}
+          {session?.signedIn && (
+            <MyFeeds refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''} />
+          )}
 
-          <FeedOutcome pending={pending} error={error} result={result} session={session} />
+          <FeedOutcome
+            pending={pending}
+            error={error}
+            result={result}
+            session={session}
+            listUrl={activeUrl}
+          />
 
           <HowItWorks />
         </main>

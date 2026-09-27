@@ -8,17 +8,23 @@ on:
     # freshness the feeds already promised. GitHub delays scheduled runs under
     # load, so treat the cadence as a floor rather than a clock.
     - cron: "*/15 * * * *"
+  # The Worker dispatches this with scope=requested when someone pastes a list,
+  # so a new list fills in about a minute instead of on the next tick. By hand,
+  # leave it on `all`.
   workflow_dispatch:
     inputs:
-      sourceUrl:
-        description: "Sync only this IMDb URL (leave blank for all feeds)"
+      scope:
+        description: "all = every claimed feed plus the queue; requested = the queue only"
         required: false
-  repository_dispatch:
-    types: [sync-feeds]
+        default: all
+        type: choice
+        options: [all, requested]
 
 concurrency:
   # Snapshots are last-writer-wins per feed, so overlapping runs would just
-  # duplicate work. Never cancel a run in flight: it may be mid-ingest.
+  # duplicate work. Never cancel a run in flight: it may be mid-ingest. A burst
+  # of dispatches collapses into one pending run, which is enough: every run
+  # reads the whole queue.
   group: sync-feeds
   cancel-in-progress: false
 
@@ -40,5 +46,5 @@ jobs:
         env:
           WORKER_ORIGIN: ${{ vars.WORKER_ORIGIN || 'https://watcharr.lunarwerx.com' }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          ONLY_SOURCE_URL: ${{ github.event.inputs.sourceUrl || github.event.client_payload.sourceUrl }}
+          SYNC_SCOPE: ${{ github.event.inputs.scope || 'all' }}
         run: node scripts/sync-feeds.mjs

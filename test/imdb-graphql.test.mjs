@@ -175,6 +175,19 @@ describe("fetchImdbList - failure modes", () => {
     );
   });
 
+  test("a private watchlist is a NotFoundError that tells its owner what to change", async () => {
+    const error = await fetchImdbList(
+      normalizeImdbUrl("https://www.imdb.com/user/ur12345678/watchlist/"),
+      stubFetch([
+        { errors: [{ message: "FORBIDDEN exception code while fetching data (/predefinedList) : Permission denied" }] },
+      ]),
+    ).catch((caught) => caught);
+
+    assert.ok(error instanceof NotFoundError, "a private list is permanent, so the runner can stop re-queueing it");
+    assert.match(error.message, /private/);
+    assert.match(error.message, /public/);
+  });
+
   test("rejects a non-2xx HTTP response", async () => {
     await assert.rejects(
       fetchImdbList(

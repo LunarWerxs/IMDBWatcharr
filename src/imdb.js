@@ -3,9 +3,12 @@
 // create feed rows for lists that cannot exist, which then failed on every
 // single sync run forever.
 const WATCHLIST_KEY = String.raw`(?:p\.[a-z0-9]+|ur\d+)`;
-const LIST_URL_RE = /^https?:\/\/(?:www\.)?imdb\.com\/list\/(ls\d+)(?:\/)?(?:[?#].*)?$/i;
+// The phone site (m.imdb.com) and IMDb's language paths (/de/, /es-es/) show the
+// same list, and people paste whichever one their browser was on.
+const IMDB_PAGE_PREFIX = String.raw`^https?://(?:www\.|m\.)?imdb\.com(?:/[a-z]{2}(?:-[a-z]{2})?)?`;
+const LIST_URL_RE = new RegExp(String.raw`${IMDB_PAGE_PREFIX}/list/(ls\d+)(?:/)?(?:[?#].*)?$`, "i");
 const WATCHLIST_URL_RE = new RegExp(
-  String.raw`^https?://(?:www\.)?imdb\.com/user/(${WATCHLIST_KEY})/watchlist(?:/)?(?:[?#].*)?$`,
+  String.raw`${IMDB_PAGE_PREFIX}/user/(${WATCHLIST_KEY})/watchlist(?:/)?(?:[?#].*)?$`,
   "i",
 );
 

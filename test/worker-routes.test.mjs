@@ -241,6 +241,26 @@ describe("fetch - auth and session routes", () => {
     assert.deepEqual(parsed, { signedIn: true, name: "Ada", authAvailable: true });
   });
 
+  test("GET /auth/login only ever returns to a path on this site, never another host", async () => {
+    const { env } = makeEnv({
+      SESSION_SECRET,
+      CONNECTIONS_CLIENT_ID: "client",
+      CONNECTIONS_CLIENT_SECRET: "secret",
+    });
+    // The return path rides in the signed state cookie's readable body.
+    const returnToOf = async (returnTo) => {
+      const { response } = await call(`${ORIGIN}/auth/login?returnTo=${encodeURIComponent(returnTo)}`, { env });
+      assert.equal(response.status, 302);
+      const body = response.headers.get("set-cookie").match(/^iw_oauth_state=([^.]+)\./)[1];
+      return JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/"))).returnTo;
+    };
+
+    assert.equal(await returnToOf("//evil.example/steal"), "/");
+    assert.equal(await returnToOf("/\\evil.example"), "/");
+    assert.equal(await returnToOf("https://evil.example/"), "/");
+    assert.equal(await returnToOf("/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F"), "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F");
+  });
+
   test("GET /auth/login without a configured client answers 503 rather than a broken redirect", async () => {
     const { env } = makeEnv();
     const { response, text } = await call(`${ORIGIN}/auth/login`, { env });
@@ -404,7 +424,25 @@ describe("fetch - /api/sync-targets", () => {
     status: "ready",
     last_synced_at: RECENT,
     source_fingerprint: "a".repeat(32),
+    refresh_requested_at: null,
+    owned: 1,
   };
+  // A list a signed-out visitor pasted: nobody owns it, and it has never been read.
+  const GUEST_LIST = "https://www.imdb.com/list/ls000000042/";
+  const REQUESTED_ROW = {
+    ...SYNC_ROW,
+    source_url: GUEST_LIST,
+    status: "pending",
+    last_synced_at: null,
+    source_fingerprint: null,
+    refresh_requested_at: RECENT,
+    owned: 0,
+  };
+  const queueDb = () =>
+    makeDb([
+      ["WHERE f.refresh_requested_at IS NOT NULL", { results: [REQUESTED_ROW] }],
+      ["WHERE f.refresh_requested_at IS NULL", { results: [SYNC_ROW] }],
+    ]);
 
   test("with no configured secret the endpoint does not exist, rather than being open", async () => {
     const { env } = makeEnv();
@@ -424,9 +462,10 @@ describe("fetch - /api/sync-targets", () => {
     assert.equal(response.status, 401);
   });
 
-  test("the shared secret returns each feed with its staleness already decided", async () => {
-    const DB = makeDb([["FROM feeds f", { results: [SYNC_ROW, { ...SYNC_ROW, last_synced_at: null }] }]]);
-    const { env } = makeEnv({ DB, INGEST_SECRET });
+  // The 2026-09 outage: only claimed feeds were ever handed to the runner, so a
+  // list pasted by a signed-out visitor was never read and served 503 forever.
+  test("the queue comes first, owned or not, then every claimed feed", async () => {
+    const { env } = makeEnv({ DB: queueDb(), INGEST_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/sync-targets`, {
       env,
       headers: { authorization: `Bearer ${INGEST_SECRET}` },
@@ -435,22 +474,39 @@ describe("fetch - /api/sync-targets", () => {
     assert.equal(response.status, 200);
     assert.deepEqual(parsed.feeds, [
       {
+        sourceUrl: GUEST_LIST,
+        sourceKind: "list",
+        status: "pending",
+        lastSyncedAt: null,
+        fingerprint: null,
+        stale: true,
+        owned: false,
+        requested: true,
+      },
+      {
         sourceUrl: CANONICAL_LIST,
         sourceKind: "list",
         status: "ready",
         lastSyncedAt: RECENT,
         fingerprint: "a".repeat(32),
         stale: false,
-      },
-      {
-        sourceUrl: CANONICAL_LIST,
-        sourceKind: "list",
-        status: "ready",
-        lastSyncedAt: null,
-        fingerprint: "a".repeat(32),
-        stale: true,
+        owned: true,
+        requested: false,
       },
     ]);
+  });
+
+  test("scope=requested is the queue alone, which is all a dispatched run needs", async () => {
+    const { env } = makeEnv({ DB: queueDb(), INGEST_SECRET });
+    const { parsed } = await call(`${ORIGIN}/api/sync-targets?scope=requested`, {
+      env,
+      headers: { authorization: `Bearer ${INGEST_SECRET}` },
+    });
+
+    assert.deepEqual(
+      parsed.feeds.map((feed) => feed.sourceUrl),
+      [GUEST_LIST],
+    );
   });
 });
 
@@ -477,7 +533,7 @@ describe("fetch - /api/ingest", () => {
     const { env } = makeEnv({ DB, INGEST_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/ingest`, {
       method: "POST",
-      body: { sourceUrl: CANONICAL_LIST, error: "IMDb timed out." },
+      body: { sourceUrl: CANONICAL_LIST, error: "This IMDb list is private.", permanent: true },
       env,
       headers: { authorization: `Bearer ${INGEST_SECRET}` },
     });
@@ -485,11 +541,13 @@ describe("fetch - /api/ingest", () => {
     assert.equal(response.status, 200);
     assert.deepEqual(parsed, { ok: true, recorded: "error" });
     const [failure] = DB.find("consecutive_failures = consecutive_failures + 1");
-    assert.deepEqual(failure.args, ["IMDb timed out.", failure.args[1], 7]);
+    // The message, whether the failure is permanent (so the queue drops it),
+    // the give-up threshold, the timestamp, and the feed.
+    assert.deepEqual(failure.args, ["This IMDb list is private.", 1, 3, failure.args[3], 7]);
   });
 
-  test("an empty snapshot is rejected before it can wipe a feed down to zero items", async () => {
-    const DB = makeDb();
+  test("an empty snapshot is rejected before it can wipe a feed that has titles", async () => {
+    const DB = makeDb([["SELECT * FROM feeds WHERE source_url = ?", feedRow({ item_count: 2 })]]);
     const { env } = makeEnv({ DB, INGEST_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/ingest`, {
       method: "POST",
@@ -499,8 +557,26 @@ describe("fetch - /api/ingest", () => {
     });
 
     assert.equal(response.status, 400);
-    assert.deepEqual(parsed, { error: "Snapshot has no items." });
+    assert.match(parsed.error, /empty list for a feed that had titles/);
     assert.equal(DB.find("FROM feed_items").length, 0, "a rejected snapshot must not reach the table");
+  });
+
+  test("an empty list is a real answer for a feed that has never had anything", async () => {
+    const DB = makeDb([
+      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0, last_synced_at: null })],
+      ["FROM feed_items", { results: [] }],
+    ]);
+    const { env } = makeEnv({ DB, INGEST_SECRET });
+    const { response, parsed } = await call(`${ORIGIN}/api/ingest`, {
+      method: "POST",
+      body: { sourceUrl: CANONICAL_LIST, snapshot: { listTitle: "Empty", items: [] } },
+      env,
+      headers: { authorization: `Bearer ${INGEST_SECRET}` },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(parsed.status, "ready");
+    assert.equal(parsed.itemCount, 0);
   });
 
   test("a well-formed snapshot is stored and the new state is reported back", async () => {
@@ -563,9 +639,17 @@ describe("fetch - /api/create", () => {
     });
 
     assert.equal(response.status, 200);
+    assert.equal(
+      DB.find("SET refresh_requested_at = COALESCE").length,
+      1,
+      "a signed-out paste must queue the list's first read, or nothing ever reads it",
+    );
     assert.deepEqual(parsed, {
       slug: "abcdef012345",
       listTitle: "My List",
+      lastSyncedAt: null,
+      lastError: null,
+      pollAfterSeconds: 30,
       routePath: "/radarr/l/ls006123300",
       feedUrl: `${ORIGIN}/radarr/l/ls006123300`,
       radarrRoutePath: "/radarr/l/ls006123300",
@@ -578,10 +662,11 @@ describe("fetch - /api/create", () => {
       sonarrCount: 0,
       sonarrUnresolvedCount: 0,
       totalCount: 0,
-      message: "This list is in the queue and we will pick it up shortly.",
-      // No dispatch token configured and the row is not mid-sync, so the poll
-      // is told to stop rather than re-asking forever.
-      syncing: false,
+      message:
+        "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.",
+      // No dispatch token, but the read is queued, so the page keeps polling
+      // at the queue's pace until it lands.
+      syncing: true,
       owned: false,
       signedIn: false,
       autoRefreshing: false,
@@ -798,13 +883,27 @@ describe("fetch - redirects and lookups", () => {
     assert.equal(text, "Feed not found.");
   });
 
-  test("the metadata route returns the raw feed row, and 404s when it is missing", async () => {
-    const found = makeDb([["SELECT * FROM feeds WHERE slug = ?", feedRow()]]);
+  test("the status route says where a feed stands without its stored bodies, and 404s when it is missing", async () => {
+    const found = makeDb([
+      ["SELECT * FROM feeds WHERE slug = ?", feedRow({ radarr_cache: "<rss/>", sonarr_cache: "[]" })],
+    ]);
     const missing = makeDb([["SELECT * FROM feeds WHERE slug = ?", null]]);
 
     const ok = await call(`${ORIGIN}/api/feeds/abcdef012345`, { env: makeEnv({ DB: found }).env });
     assert.equal(ok.response.status, 200);
-    assert.deepEqual(ok.parsed, feedRow());
+    assert.deepEqual(ok.parsed, {
+      slug: "abcdef012345",
+      listTitle: "My List",
+      status: "ready",
+      lastSyncedAt: RECENT,
+      lastError: null,
+      message: "Ready. Sign in and we will keep it up to date.",
+      syncing: false,
+      pollAfterSeconds: 30,
+      owned: false,
+      autoRefreshing: false,
+      itemCount: 2,
+    });
 
     const gone = await call(`${ORIGIN}/api/feeds/abcdef012345`, { env: makeEnv({ DB: missing }).env });
     assert.equal(gone.response.status, 404);

@@ -76,11 +76,16 @@ export class NotFoundError extends Error {
   }
 }
 
+// One page of one list. IMDb answers in well under a second; a request that
+// hangs would otherwise hold the whole sync run until the job's own timeout.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function imdbGraphql(query, variables, fetchImpl = fetch) {
   const response = await fetchImpl(IMDB_GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: IMDB_GRAPHQL_HEADERS,
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -105,6 +110,14 @@ function throwGraphqlError(error) {
 
   if (/RESOURCE_NOT_FOUND|Not found/i.test(message)) {
     throw new NotFoundError("IMDb has nothing public at that link. It may be private, or the id may be wrong.");
+  }
+
+  // What IMDb answers for a watchlist its owner has not made public. Watchlists
+  // are the common case, and the fix is theirs to make, so the message says how.
+  if (/FORBIDDEN|Permission denied/i.test(message)) {
+    throw new NotFoundError(
+      "This IMDb list is private, so we cannot read it. Set it to public on IMDb (open the list and edit its privacy), then paste the link here again.",
+    );
   }
 
   throw new Error(`IMDb GraphQL error: ${message}`);
