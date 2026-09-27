@@ -67,6 +67,27 @@ function rememberSignInList(listUrl?: string) {
   }
 }
 
+// The last list this tab built, so coming back from the sign-in page with the
+// Back button (or reopening the site in the same tab) shows it again instead of
+// an empty form: simulated visitors read the empty form as "my feeds are gone".
+const LAST_LIST_KEY = 'imdbwatch:last-list'
+
+function rememberLastList(listUrl: string) {
+  try {
+    sessionStorage.setItem(LAST_LIST_KEY, listUrl)
+  } catch {
+    // Storage can be off; the page just starts empty next time.
+  }
+}
+
+function readLastList(): string | null {
+  try {
+    return sessionStorage.getItem(LAST_LIST_KEY)
+  } catch {
+    return null
+  }
+}
+
 /** True once, for the list this tab itself carried through sign-in. */
 function takeSignInList(listUrl: string): boolean {
   try {
@@ -93,7 +114,7 @@ function clearListFromAddress() {
 const STEPS = [
   {
     title: 'Paste a public IMDb link',
-    body: 'A watchlist (imdb.com/user/ur…/watchlist/) or a list (imdb.com/list/ls…). Make sure it is set to public, or we cannot read it.',
+    body: 'Open your watchlist (imdb.com/user/ur…/watchlist/) or a list (imdb.com/list/ls…) on IMDb and copy the address from your browser. Make sure it is set to public, or we cannot read it.',
   },
   {
     title: 'Copy your two links',
@@ -227,7 +248,7 @@ function CreateFeedForm({
               inputMode="url"
               autoComplete="url"
               spellCheck={false}
-              placeholder={EXAMPLE_URL}
+              placeholder="Paste your IMDb list or watchlist link"
               value={sourceUrl}
               onChange={(event) => onSourceUrlChange(event.target.value)}
               aria-invalid={!looksValid}
@@ -252,7 +273,7 @@ function CreateFeedForm({
           <p
             id="source-url-hint"
             className={
-              looksValid ? 'text-muted-foreground text-xs' : 'text-destructive text-xs'
+              looksValid ? 'text-muted-foreground text-sm' : 'text-destructive text-sm'
             }
           >
             {looksValid ? (
@@ -410,6 +431,11 @@ function UnsyncedNudge({
             : 'Once we have read the list, your links keep working. After that we only read it again when you come back and paste it. '}
           Sign in, free, and we check it for you about every fifteen minutes.
         </span>
+        <span className="mt-1 block">
+          Connections is the free account every LunarWerx app signs in with. It opens on its own
+          page: type your email, enter the code it sends you, and you land back here with this list
+          saved.
+        </span>
         <Button asChild size="sm" className="mt-2">
           <a href={signInHref(listUrl)} onClick={() => rememberSignInList(listUrl)}>
             Sign in with Connections
@@ -509,7 +535,6 @@ function FeedResult({
     <div className="mt-4 grid gap-4">
       <FeedSummaryCard result={result} session={session} listUrl={listUrl} />
       <TargetCards result={result} />
-      <AskarrCard />
     </div>
   )
 }
@@ -524,7 +549,7 @@ const ASKARR_URL = 'https://askarr.com/?utm_source=watcharr&utm_medium=referral'
  */
 function AskarrCard() {
   return (
-    <Card>
+    <Card className="mt-8">
       <CardHeader>
         <CardTitle>
           <div className="flex items-center gap-2">
@@ -627,6 +652,7 @@ export default function App() {
 
     try {
       setResult(await createFeed(listUrl))
+      rememberLastList(listUrl)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Something went wrong.')
     } finally {
@@ -650,6 +676,15 @@ export default function App() {
         if (takeSignInList(listFromAddress) || !value.signedIn) {
           void buildFeeds(listFromAddress)
         }
+        return
+      }
+
+      // Back in the same tab: bring the last result back. Rebuilding is only
+      // automatic signed out, where it claims nothing.
+      const lastList = readLastList()
+      if (lastList) {
+        setSourceUrl(lastList)
+        if (!value.signedIn) void buildFeeds(lastList)
       }
     })
     return () => {
@@ -698,7 +733,10 @@ export default function App() {
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
-  const canSubmit = !pending && trimmed.length > 0
+  // The button stays live on an empty field (the field is `required`, so the
+  // browser says what is missing): a disabled primary button read as "greyed
+  // out and red at once" to a simulated visitor, who could not tell if it worked.
+  const canSubmit = !pending
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -739,6 +777,8 @@ export default function App() {
           />
 
           <HowItWorks />
+
+          <AskarrCard />
         </main>
 
         <AppFooter />

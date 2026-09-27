@@ -139,7 +139,7 @@ function describeReadyFeed(feed, { dispatched, owned, signedIn }) {
   }
 
   return feed.refresh_requested_at
-    ? "Ready. A fresh read from IMDb is queued and lands within about fifteen minutes."
+    ? "Ready, and we will read it again from IMDb within about fifteen minutes."
     : "Ready. Sign in and we will keep it up to date.";
 }
 
