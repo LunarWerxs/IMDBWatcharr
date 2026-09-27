@@ -1,5 +1,5 @@
 // Give the Worker GITHUB_DISPATCH_TOKEN, so a pasted list fills in about a
-// minute instead of on the next scheduled sync (roughly fifteen minutes).
+// minute instead of on the next queue run (roughly five minutes).
 //
 //   npm run setup:dispatch
 //

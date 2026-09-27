@@ -161,6 +161,22 @@ export function summarizeItemsByTarget(items) {
   };
 }
 
+// A cover URL is kept only when it points at IMDb's own image host: it ends up
+// in an <img> on the page, so nothing else gets to choose where that loads from.
+const IMDB_IMAGE_URL = /^https:\/\/m\.media-amazon\.com\/images\/[\w@.,%+-]+(?:\/[\w@.,%+-]+)*$/;
+
+export function imdbPosterUrl(value) {
+  return typeof value === "string" && IMDB_IMAGE_URL.test(value) ? value : null;
+}
+
+// IMDb's image host scales on request, the size riding in the file name
+// (._V1_UX380_.jpg is 380 pixels wide): enough for a 190-pixel poster on a
+// sharp screen, a fraction of the original's weight.
+function posterThumbnail(url) {
+  const safe = imdbPosterUrl(url);
+  return safe ? safe.replace(/\._V1_[^/]*?(\.\w+)$/, "._V1_QL75_UX380_$1") : null;
+}
+
 // The first titles of a list, for the page to show what it read and where each
 // one goes. A show without a TVDB id is left out of Sonarr's list, so it says
 // "skipped" rather than "sonarr"; so does anything neither app takes.
@@ -175,7 +191,13 @@ export function previewItems(items) {
       : SERIES_TITLE_TYPES.has(type) && hasTvdb
         ? "sonarr"
         : "skipped";
-    return { imdbId: item.imdb_id, title: item.title, year: item.year ?? null, target };
+    return {
+      imdbId: item.imdb_id,
+      title: item.title,
+      year: item.year ?? null,
+      target,
+      poster: posterThumbnail(item.poster_url),
+    };
   });
 }
 

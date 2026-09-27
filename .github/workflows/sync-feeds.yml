@@ -4,10 +4,13 @@ name: Sync feeds
 # This runner does the fetching and pushes snapshots to the Worker's /api/ingest.
 on:
   schedule:
-    # Every 15 minutes. Free on a public repo, and well inside the six-hour
-    # freshness the feeds already promised. GitHub delays scheduled runs under
-    # load, so treat the cadence as a floor rather than a clock.
+    # Every claimed feed plus the queue, every 15 minutes. Free on a public repo.
     - cron: "*/15 * * * *"
+    # The queue alone (lists just pasted) in the five-minute gaps between, so a
+    # new list is read within about five minutes without a dispatch token. A run
+    # with an empty queue asks the Worker once and stops. GitHub delays scheduled
+    # runs under load, so treat both cadences as floors rather than a clock.
+    - cron: "5,10,20,25,35,40,50,55 * * * *"
   # The Worker dispatches this with scope=requested when someone pastes a list,
   # so a new list fills in about a minute instead of on the next tick. By hand,
   # leave it on `all`.
@@ -46,5 +49,7 @@ jobs:
         env:
           WORKER_ORIGIN: ${{ vars.WORKER_ORIGIN || 'https://watcharr.lunarwerx.com' }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          SYNC_SCOPE: ${{ github.event.inputs.scope || 'all' }}
+          # The 15-minute schedule reads everything, the gaps between read the
+          # queue, and a dispatch says which it wants (by hand: all).
+          SYNC_SCOPE: ${{ github.event_name == 'schedule' && (github.event.schedule == '*/15 * * * *' && 'all' || 'requested') || github.event.inputs.scope || 'all' }}
         run: node scripts/sync-feeds.mjs

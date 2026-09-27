@@ -60,7 +60,9 @@ export async function getOrCreateFeed(db, normalized) {
 
 export async function getFeedItems(db, feedId) {
   const result = await db
-    .prepare("SELECT imdb_id, tvdb_id, position, title, year, title_type, added_at FROM feed_items WHERE feed_id = ? ORDER BY position ASC")
+    .prepare(
+      "SELECT imdb_id, tvdb_id, position, title, year, title_type, added_at, poster_url FROM feed_items WHERE feed_id = ? ORDER BY position ASC",
+    )
     .bind(feedId)
     .all();
   return result.results ?? [];
@@ -84,9 +86,20 @@ export async function storeFeedSnapshot(db, feed, snapshot) {
     const tvdbId = item.tvdbId ?? knownTvdbIds.get(item.imdbId) ?? null;
     statements.push(
       db.prepare(
-        `INSERT INTO feed_items (feed_id, imdb_id, tvdb_id, position, title, year, title_type, added_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(feed.id, item.imdbId, tvdbId, item.position, item.title, item.year, item.titleType, item.addedAt, timestamp)
+        `INSERT INTO feed_items (feed_id, imdb_id, tvdb_id, position, title, year, title_type, added_at, poster_url, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        feed.id,
+        item.imdbId,
+        tvdbId,
+        item.position,
+        item.title,
+        item.year,
+        item.titleType,
+        item.addedAt,
+        item.posterUrl ?? null,
+        timestamp,
+      )
     );
   }
 

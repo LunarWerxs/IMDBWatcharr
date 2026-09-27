@@ -13,7 +13,7 @@ and a Sonarr custom list, so both apps can pick up the same movies and shows a p
 tracks on IMDb, refreshing on a schedule once the feed is claimed by signing in.
 
 Anyone can build a feed without an account: both URLs come back at once, start serving titles as soon
-as the list's first read from IMDb lands (usually within about fifteen minutes), and keep working
+as the list's first read from IMDb lands (usually within about five minutes), and keep working
 after that. Signing in with Connections, free, is what makes a list refresh on its own, about every
 fifteen minutes.
 
@@ -122,7 +122,9 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 ## The sync job
 
 [sync-feeds.yml](.github/workflows/sync-feeds.yml) runs [scripts/sync-feeds.mjs](scripts/sync-feeds.mjs)
-every 15 minutes and on `workflow_dispatch` (`scope: all` or `scope: requested`). It asks the Worker
+every 15 minutes for every claimed feed (`scope: all`), every 5 minutes in between for the queue alone
+(`scope: requested`, so a list just pasted is read within about five minutes), and on
+`workflow_dispatch`. It asks the Worker
 what to read, fetches each list from IMDb, and posts the snapshots back. It stops starting new lists
 after eight minutes, so a long queue is finished by the next run rather than killed mid-list.
 
@@ -244,8 +246,8 @@ Pushing to `main` runs:
   The page polls and updates by itself when the list lands.
 - **Private lists cannot be read.** IMDb answers a private watchlist or list with a permission error;
   the page says so and asks the owner to make it public, then paste it again.
-- **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 15 minutes is a floor
-  rather than a clock.
+- **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 5 and 15 minutes are
+  floors rather than a clock.
 - **IMDb's API carries a usage disclaimer** on every response: public, commercial, and non-private
   use of the data is not allowed. This is a personal, non-commercial tool feeding one household's
   Radarr and Sonarr, which is the lane that language leaves open.
@@ -276,7 +278,7 @@ of its original snapshot.
 
 **Do I need an account to use it?**
 No. You get both links straight away, and they serve the list from its first read from IMDb, which
-usually lands within about fifteen minutes. Signing in with Connections is optional and free; it
+usually lands within about five minutes. Signing in with Connections is optional and free; it
 claims the feed and puts it on the automatic refresh schedule, so the underlying IMDb list is checked
 again roughly every fifteen minutes instead of staying fixed on that first snapshot.
 
@@ -310,7 +312,7 @@ reports how many titles were skipped.
 **Why does a list I just pasted return an error?**
 A brand-new list is not instant: IMDb Watcharr's Worker cannot fetch IMDb directly, so a freshly
 pasted URL is queued and both routes answer `503` until the sync job fills the list in, which happens
-on the next scheduled sync, roughly every fifteen minutes. If it still fails after that, the list is
+on the next queue run, roughly every five minutes. If it still fails after that, the list is
 probably private on IMDb: the page says so, and making it public then pasting it again fixes it.
 
 ---

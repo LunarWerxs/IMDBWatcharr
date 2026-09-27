@@ -124,7 +124,7 @@ function describeUnreadFeed(feed, dispatched) {
 
   return dispatched
     ? "We are reading this list from IMDb now. This page updates by itself, usually within a minute."
-    : "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.";
+    : "Your list is in the queue. We read queued lists from IMDb about every five minutes, and this page updates by itself when it lands.";
 }
 
 function describeReadyFeed(feed, { dispatched, owned, signedIn }) {
@@ -141,7 +141,7 @@ function describeReadyFeed(feed, { dispatched, owned, signedIn }) {
   }
 
   return feed.refresh_requested_at
-    ? "Ready, and we will read it again from IMDb within about fifteen minutes."
+    ? "Ready, and we will read it again from IMDb within about five minutes."
     : "Ready. Sign in and we will keep it up to date.";
 }
 
@@ -385,7 +385,7 @@ function serveRadarrFeed(feed, items, feedTarget, baseHeaders, publicOrigin) {
 // this body, so it says what is happening rather than just failing.
 function notReadYet(feed) {
   const queued = feed.refresh_requested_at
-    ? " It is in the queue, and the next sync run (about every fifteen minutes) will read it."
+    ? " It is in the queue, and the next sync run (about every five minutes) will read it."
     : "";
   return new Response(`${feed.last_error || "We have not managed to read this list from IMDb yet."}${queued}`, {
     status: 503,

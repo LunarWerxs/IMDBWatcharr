@@ -368,7 +368,7 @@ describe("fetch - /api/create", () => {
       preview: [],
       skippedShows: [],
       message:
-        "Your list is in the queue. We read queued lists from IMDb about every fifteen minutes, and this page updates by itself when it lands.",
+        "Your list is in the queue. We read queued lists from IMDb about every five minutes, and this page updates by itself when it lands.",
       // No dispatch token, but the read is queued, so the page keeps polling
       // at the queue's pace until it lands.
       syncing: true,
@@ -623,10 +623,22 @@ describe("fetch - redirects and lookups", () => {
 
   test("the status route says where a feed stands without its stored bodies, and 404s when it is missing", async () => {
     // A show with no TVDB id cannot go to Sonarr, so the preview says skipped.
+    // Covers: IMDb's image host is kept and asked for a small size; any other
+    // host never reaches the page's <img>.
+    const COVER = "https://m.media-amazon.com/images/M/MV5BMDAyY2FhYjctNDc5OS00MDNlLThiMGUtY2UxYWVkNGY2ZjljXkEyXkFqcGc@._V1_.jpg";
     const UNRESOLVED_SHOW = { ...SERIES_ITEM, imdb_id: "tt0000003", position: 3, title: "No TVDB", tvdb_id: null };
     const found = makeDb([
       ["SELECT * FROM feeds WHERE slug = ?", feedRow({ radarr_cache: "<rss/>", sonarr_cache: "[]" })],
-      ["FROM feed_items WHERE feed_id", { results: [MOVIE_ITEM, SERIES_ITEM, UNRESOLVED_SHOW] }],
+      [
+        "FROM feed_items WHERE feed_id",
+        {
+          results: [
+            { ...MOVIE_ITEM, poster_url: COVER },
+            { ...SERIES_ITEM, poster_url: "https://evil.example/tracker.gif" },
+            UNRESOLVED_SHOW,
+          ],
+        },
+      ],
     ]);
     const missing = makeDb([["SELECT * FROM feeds WHERE slug = ?", null]]);
 
@@ -649,9 +661,15 @@ describe("fetch - redirects and lookups", () => {
       sonarrUnresolvedCount: 1,
       totalCount: 3,
       preview: [
-        { imdbId: "tt0111161", title: "The Shawshank Redemption", year: 1994, target: "radarr" },
-        { imdbId: "tt0903747", title: "Breaking Bad", year: 2008, target: "sonarr" },
-        { imdbId: "tt0000003", title: "No TVDB", year: 2008, target: "skipped" },
+        {
+          imdbId: "tt0111161",
+          title: "The Shawshank Redemption",
+          year: 1994,
+          target: "radarr",
+          poster: COVER.replace("._V1_.jpg", "._V1_QL75_UX380_.jpg"),
+        },
+        { imdbId: "tt0903747", title: "Breaking Bad", year: 2008, target: "sonarr", poster: null },
+        { imdbId: "tt0000003", title: "No TVDB", year: 2008, target: "skipped", poster: null },
       ],
       skippedShows: ["No TVDB"],
     });

@@ -40,6 +40,7 @@ const LIST_ITEM_FIELDS = `
       originalTitleText { text }
       titleType { id }
       releaseYear { year }
+      primaryImage { url }
     }
   }`;
 
@@ -155,6 +156,7 @@ function mapEdge(edge, index) {
     titleType: title?.titleType?.id ?? "unknown",
     position: Number.isFinite(position) ? position : index + 1,
     addedAt: node?.createdDate ?? null,
+    posterUrl: title?.primaryImage?.url ?? null,
   };
 }
 
@@ -279,6 +281,9 @@ export function buildSnapshotFingerprintPayload(snapshot) {
       titleType: item.titleType,
       position: item.position,
       addedAt: item.addedAt,
+      // A new cover is a change worth one rebuild, and it is what gets the
+      // covers of every feed read before covers existed stored at all.
+      posterUrl: item.posterUrl ?? null,
     })),
   });
 }

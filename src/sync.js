@@ -16,6 +16,7 @@ import {
   FEED_ALERT_FAILURE_THRESHOLD,
   filterItemsForTarget,
   hashText,
+  imdbPosterUrl,
   normalizeImdbUrl,
 } from "./imdb.js";
 import { buildSnapshotFingerprintPayload } from "./imdb-graphql.js";
@@ -91,6 +92,7 @@ function normalizeSnapshotItem(item, index) {
     titleType: item.titleType ?? "unknown",
     position: Number.isFinite(item.position) ? item.position : index + 1,
     addedAt: item.addedAt ?? null,
+    posterUrl: imdbPosterUrl(item.posterUrl),
   };
 }
 
