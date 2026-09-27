@@ -152,11 +152,11 @@ updating.
 
 ## Analytics
 
-The site carries two anonymous, privacy-respecting pieces of instrumentation, both owned by
-LunarWerx's own Connections/Studio infrastructure rather than a third party.
+The site carries two pieces of instrumentation, both owned by LunarWerx's own
+Connections/Studio infrastructure rather than a third party.
 
 **ARGUS pixel** (`web/index.html`), served from `analytics.connections.icu`, gives page-view and
-traffic-source analytics. It honours Do Not Track and Sec-GPC itself and skips localhost.
+traffic-source analytics. It skips localhost.
 
 **Studio visit ping** (`web/src/lib/analytics.ts`) fires once per browser session on page load:
 a fire-and-forget `GET` to `studio.connections.icu/v1/app/imdbwatch/latest`. What it sends:
@@ -169,9 +169,8 @@ a fire-and-forget `GET` to `studio.connections.icu/v1/app/imdbwatch/latest`. Wha
 What the server derives from the request itself and stores: coarse geo (country, region, city,
 timezone), the network ASN, locale, and a truncated user agent. It never stores an IP address.
 
-The ping is skipped entirely when Do Not Track or Global Privacy Control is set, and when the page
-is loaded from localhost or a `.local` host. It never blocks rendering, never retries, and a failed
-ping is swallowed silently.
+The ping is skipped entirely when the page is loaded from localhost or a `.local` host. It never
+blocks rendering, never retries, and a failed ping is swallowed silently.
 
 ## Local development
 
@@ -279,9 +278,7 @@ Trakt account, no extra script to run.
 
 **Is my data sent anywhere?**
 No personal data is required to build a feed: it only needs a public IMDb URL. Signing in adds a
-Connections session cookie and an opaque subject id used to claim ownership, nothing else. The
-site's two analytics pings are anonymous, honor Do Not Track and Global Privacy Control, and never
-store an IP address.
+Connections session cookie and an opaque subject id used to claim ownership, nothing else.
 
 **Why is a show missing from my Sonarr list?**
 Sonarr needs a TVDB id for every show, and not every IMDb title resolves to one. Any show IMDb
