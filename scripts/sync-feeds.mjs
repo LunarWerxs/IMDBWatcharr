@@ -25,6 +25,14 @@ if (!WORKER_ORIGIN || !INGEST_SECRET) {
   process.exit(1);
 }
 
+// One origin. The repository variable once listed two (the move to
+// lunarwerx.com), and a list here fails as a baffling DNS error on a host
+// named "watcharr.lunarwerx.com,https".
+if (!/^https?:\/\/[^,\s/]+$/.test(WORKER_ORIGIN)) {
+  console.error(`WORKER_ORIGIN must be a single origin such as https://watcharr.lunarwerx.com, got "${WORKER_ORIGIN}".`);
+  process.exit(1);
+}
+
 const authHeaders = { authorization: `Bearer ${INGEST_SECRET}` };
 
 async function readSyncTargets() {
