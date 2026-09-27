@@ -19,7 +19,7 @@ pasting it again never changes them.
 - A brand-new list is not instant: the site cannot fetch IMDb itself, so a freshly pasted URL queues the list and the routes answer 503 until the next sync fills it in, usually within about five minutes. The page updates by itself when it lands.
 - Only public lists can be read. A private watchlist or list gets a message saying to make it public on IMDb and paste it again.
 - Links from www.imdb.com, the phone site m.imdb.com, and IMDb's language paths (imdb.com/de/list/...) all work.
-- Source-available on GitHub, so it can be self-hosted.
+- Source-available on GitHub under PolyForm Noncommercial 1.0.0, so it can be self-hosted for personal and other noncommercial use. Commercial use is not licensed, and no commercial license is sold.
 - Free to use, and deliberately personal and non-commercial: IMDb attaches a usage disclaimer to every API response forbidding public and commercial use of the data, so this feeds one household rather than a business.
 
 ## Common questions

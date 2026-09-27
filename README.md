@@ -5,7 +5,7 @@ Turn a public IMDb watchlist or list into a **Radarr RSS feed** and a **Sonarr c
 A [LunarWerx](https://lunarwerx.com) product, live at
 [watcharr.lunarwerx.com](https://watcharr.lunarwerx.com).
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-f5c518)](LICENSING.md)
 [![Discord](https://img.shields.io/badge/Discord-join_the_community-5865F2?logo=discord&logoColor=white)](https://discord.gg/PsWpeNUzhk)
 
 IMDb Watcharr is a free web tool that turns a public IMDb watchlist or list into a Radarr RSS feed
@@ -320,6 +320,15 @@ probably private on IMDb: the page says so, and making it public then pasting it
 **Want to request a single title from your phone instead?** [Askarr](https://askarr.com), also by
 LunarWerx, lets you search any movie or show from any browser and request it; the Askarr Monitor on
 your Windows PC adds it to your own Radarr and Sonarr, so neither has to face the internet.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE), copyright LunarWerx Studios, from 2026-09-27 on. The site
+is free, and so is running your own copy for yourself, your household or any other noncommercial
+purpose. Commercial use (selling it, charging for access, bundling it into a paid service, running
+it for a business) is not licensed, and there is no commercial license for sale: IMDb's API says
+commercial use of its data is not allowed. [LICENSING.md](LICENSING.md) has the details; versions up
+to commit `25bc710` stay under [MIT](LICENSES/MIT-legacy.txt).
 
 Made by [LunarWerx](https://lunarwerx.com), who also build [Askarr](https://askarr.com),
 [RepoYeti](https://repoyeti.com), [SageThumbs](https://sagethumbs.lunarwerx.com), and

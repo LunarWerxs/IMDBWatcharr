@@ -138,9 +138,12 @@ export function SiteFooter() {
           , request any movie or show from anywhere and it lands at home.
         </p>
         <p className="text-xs">Not affiliated with IMDb. IMDb is a trademark of IMDb.com, Inc.</p>
-        <p className="flex gap-4 text-xs">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
           <a href={REPO_URL} className={link} target="_blank" rel="noreferrer">
             GitHub
+          </a>
+          <a href={`${REPO_URL}/blob/main/LICENSING.md`} className={link} target="_blank" rel="noreferrer">
+            Free for noncommercial use (PolyForm Noncommercial)
           </a>
           <a href="https://lunarwerx.com" className={link}>
             LunarWerx Studios

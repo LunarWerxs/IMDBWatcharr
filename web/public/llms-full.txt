@@ -44,8 +44,10 @@ itself.
   left out of the Sonarr list (not passed along broken), and the app reports how many were
   skipped.
 - ETag-based caching: an unchanged list re-serves the cached body instead of being rebuilt.
-- Source-available on GitHub (github.com/LunarWerxs/IMDBWatcharr) and self-hostable end to end:
-  Cloudflare Worker, D1 database, and the GitHub Actions sync job.
+- Source-available on GitHub (github.com/LunarWerxs/IMDBWatcharr) under PolyForm Noncommercial
+  1.0.0 and self-hostable end to end for noncommercial use: Cloudflare Worker, D1 database, and
+  the GitHub Actions sync job. Commercial use is not licensed and no commercial license is sold,
+  because IMDb's API forbids commercial use of its data.
 - One Worker serves both the static site and the API, so a deploy is a single command.
 
 ## Install / self-hosting
@@ -76,7 +78,8 @@ including self-hosting costs.
 ## FAQ
 
 **Is IMDb Watcharr free?** Yes, no paid tier, no payment set up anywhere in the app, and
-source-available on GitHub for free self-hosting too.
+source-available on GitHub (PolyForm Noncommercial 1.0.0) for free noncommercial self-hosting too.
+Commercial use is not licensed.
 
 **Do I need an account?** No. A feed works without one from the list's first read (usually within about five minutes); signing in with Connections, free, only adds automatic ~15-minute refresh.
 

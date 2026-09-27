@@ -9,7 +9,8 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 | Product | IMDb Watcharr |
 | Price | $0 (free) |
 | Paid tier | None, no payment integration exists anywhere in the app |
-| License | MIT (`github.com/LunarWerxs/IMDBWatcharr`, see its LICENSE file); free to read, run and self-host |
+| License | PolyForm Noncommercial 1.0.0 (`github.com/LunarWerxs/IMDBWatcharr`, see LICENSING.md); free to read, run and self-host for personal and other noncommercial use |
+| Commercial use | Not licensed, and not for sale: IMDb's API forbids commercial use of its data, so there is no commercial license to buy |
 | Account required | No, for the base feature (creating and using a feed) |
 | Account required for | Automatic feed refresh (~every 15 minutes), via optional sign-in with Connections |
 | Self-hostable | Yes, Cloudflare Worker + D1 database + GitHub Actions sync job |
@@ -26,7 +27,8 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 
 ## Self-hosted version
 
-The software itself costs nothing. There is no license fee to run your own copy. Running it
+The software itself costs nothing. There is no license fee to run your own copy for personal or
+other noncommercial use (PolyForm Noncommercial 1.0.0; commercial use is not licensed). Running it
 does require your own accounts with third-party infrastructure the software depends on:
 
 - **Cloudflare account** (Workers + D1 database) to host the Worker that serves the site and API.
