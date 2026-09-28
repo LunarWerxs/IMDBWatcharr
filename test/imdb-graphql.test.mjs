@@ -76,6 +76,7 @@ describe("fetchImdbList - watchlists", () => {
     const result = await fetchImdbList(normalized, fetchStub);
 
     assert.equal(fetchStub.calls.length, 2, "a p. watchlist should resolve the profile, then fetch the list");
+    assert.equal(fetchStub.calls[0].variables.profileId, "p.kdbeq6dtmzzpiin4k7t4fnunf4");
     assert.equal(fetchStub.calls[1].variables.userId, "ur15738437");
     assert.equal(result.items.length, 3);
   });
@@ -88,6 +89,7 @@ describe("fetchImdbList - watchlists", () => {
     await fetchImdbList(normalized, fetchStub);
 
     assert.equal(fetchStub.calls.length, 1, "a ur watchlist should query directly, with no profile lookup");
+    assert.equal(fetchStub.calls[0].variables.userId, "ur15738437");
   });
 });
 
