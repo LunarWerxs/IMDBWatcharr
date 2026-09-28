@@ -1,5 +1,5 @@
 import { Suspense, type MouseEvent, type ReactNode } from 'react'
-import { ChevronRightIcon, ClapperboardIcon, UserIcon } from 'lucide-react'
+import { ChevronRightIcon, UserIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { GithubLink, REPO_URL } from '@/components/github-link'
@@ -104,8 +104,8 @@ function LunarWerxLink() {
 
 /**
  * IMDb's bar: black whatever the theme (the `dark` class gives everything in
- * it the dark tokens), sticky, with the product mark on the left. The mark is
- * our own clapperboard on IMDb yellow, never IMDb's logo.
+ * it the dark tokens), sticky, with the product mark on the left: the Watcharr
+ * mark in its on-dark colours, the same mark as the favicon, never IMDb's logo.
  */
 export function SiteHeader({
   session,
@@ -120,9 +120,7 @@ export function SiteHeader({
     <header className="dark text-foreground sticky top-0 z-40 border-b border-white/10 bg-black">
       <div className={`${PAGE_WIDTH} flex h-14 items-center justify-between gap-3`}>
         <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="IMDb Watcharr home">
-          <span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
-            <ClapperboardIcon className="size-5" aria-hidden="true" />
-          </span>
+          <img src="/brand/watcharr-mark-on-dark.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
           <span className="truncate text-xl font-black tracking-tight">Watcharr</span>
           <span className="text-muted-foreground hidden text-sm md:inline">for IMDb lists</span>
         </a>

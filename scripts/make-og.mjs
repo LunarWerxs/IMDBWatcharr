@@ -2,8 +2,9 @@
 //
 // Most platforms refuse to render an SVG og:image, so the PNG is what actually
 // ships and the SVG stays as the editable original. Run `npm run og` after
-// editing web/art/og-image.svg, web/art/banner.svg or web/public/favicon.svg. The
-// two in web/art are only ever inputs here, so they are not served with the site.
+// editing web/art/og-image.svg, web/art/banner.svg, web/art/app-icon.svg or
+// web/public/favicon.svg. The ones in web/art are only ever inputs here, so they
+// are not served with the site.
 //
 // The card embeds Inter, the same face the site uses, rather than trusting
 // whatever the rasteriser finds installed: a machine without Inter would
@@ -47,7 +48,10 @@ async function render(name, width) {
 
 // The icons for places that will not take the SVG favicon: /favicon.ico, which
 // browsers and crawlers ask for whatever the page says, and the home-screen
-// icon, full-bleed because iOS rounds the corners itself.
+// icon, drawn from web/art/app-icon.svg: the mark on a full-bleed light square,
+// because iOS rounds the corners itself and paints a transparent icon black.
+// The mark, the favicon and app-icon.svg come from the logo repo's
+// tools/marks_watcharr.py (--site), so none of them is edited by hand.
 function renderIcon(svg, size) {
   return new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
 }
@@ -76,7 +80,7 @@ async function renderIcons() {
   const svg = await readFile(path.join(publicDir, "favicon.svg"), "utf8");
   const ico = icoOf([16, 32, 48].map((size) => ({ size, png: renderIcon(svg, size) })));
   await writeFile(path.join(publicDir, "favicon.ico"), ico);
-  const touch = renderIcon(svg.replace(/ rx="\d+"/, ""), 180);
+  const touch = renderIcon(await readFile(path.join(artDir, "app-icon.svg"), "utf8"), 180);
   await writeFile(path.join(publicDir, "apple-touch-icon.png"), touch);
   console.log(`Wrote web/public/favicon.ico (${(ico.length / 1024).toFixed(1)} KB) and apple-touch-icon.png (${(touch.length / 1024).toFixed(1)} KB)`);
 }
