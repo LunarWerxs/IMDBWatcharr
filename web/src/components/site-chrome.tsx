@@ -120,7 +120,7 @@ export function SiteHeader({
   return (
     <header className="dark text-foreground bg-chrome lift-on-scroll sticky top-0 z-40 border-b border-white/10">
       <div className={`${PAGE_WIDTH} flex h-14 items-center justify-between gap-3`}>
-        <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="IMDb Watcharr home">
+        <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="Watcharr home">
           <img src="/brand/watcharr-mark-on-dark.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
           <span className="truncate text-xl font-black tracking-tight">
             Watch<span className="text-primary">arr</span>
@@ -149,7 +149,7 @@ export function SiteFooter() {
     <footer className="dark text-muted-foreground bg-chrome border-t border-white/10 text-sm">
       <div className={`${PAGE_WIDTH} grid gap-2 py-10`}>
         <p>
-          <span className="text-foreground font-bold">IMDb Watcharr</span>
+          <span className="text-foreground font-bold">Watcharr</span>
           <span aria-hidden="true"> · </span>
           by{' '}
           <a href={STUDIO_URL} className={link}>

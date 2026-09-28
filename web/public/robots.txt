@@ -1,4 +1,4 @@
-# IMDb Watcharr - https://watcharr.lunarwerx.com/
+# Watcharr - https://watcharr.lunarwerx.com/
 
 # Answer / search assistants (cite us, drive traffic).
 # Named one by one rather than left to the wildcard: a citation is a reader,

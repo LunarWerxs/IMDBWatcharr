@@ -1,4 +1,4 @@
-# IMDb Watcharr - pricing
+# Watcharr - pricing
 
 Machine-readable pricing summary for agentic buyers and shopping/comparison agents.
 
@@ -6,7 +6,7 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 
 | | |
 |---|---|
-| Product | IMDb Watcharr |
+| Product | Watcharr |
 | Price | $0 (free) |
 | Paid tier | None, no payment integration exists anywhere in the app |
 | License | PolyForm Noncommercial 1.0.0 (`github.com/LunarWerxs/IMDBWatcharr`, see LICENSING.md); free to read, run and self-host for personal and other noncommercial use |
@@ -32,7 +32,7 @@ does require your own accounts with third-party infrastructure the software depe
 
 - **Cloudflare account** (Workers + D1 database) to host the Worker that serves the site and API.
   Cloudflare's own free tier is what LunarWerx uses for the hosted instance; any cost beyond that
-  tier is Cloudflare's pricing, not IMDb Watcharr's.
+  tier is Cloudflare's pricing, not Watcharr's.
 - **GitHub account** to run the scheduled Actions job that fetches IMDb data (GitHub Actions has
   its own free minutes allowance for public repositories).
 - **Connections OAuth credentials**, optional. Omit them and the site runs with sign-in hidden
@@ -40,7 +40,7 @@ does require your own accounts with third-party infrastructure the software depe
 
 ## Bring-your-own-API-key costs
 
-**None.** IMDb Watcharr does not call any metered, key-gated API that the user pays for directly:
+**None.** Watcharr does not call any metered, key-gated API that the user pays for directly:
 
 - IMDb's own GraphQL API is called without a user-supplied API key (no key exists for it).
 - TVMaze, used to resolve TVDB ids for Sonarr, is called without a user-supplied API key.
@@ -57,10 +57,9 @@ does require your own accounts with third-party infrastructure the software depe
 
 ## Fair use note
 
-IMDb's own API terms carry a disclaimer forbidding public and commercial use of the data IMDb
-Watcharr reads. The product is built and offered for personal, non-commercial, single-household
+IMDb's own API terms carry a disclaimer forbidding public and commercial use of the data Watcharr reads. The product is built and offered for personal, non-commercial, single-household
 use in line with that language, not as a resale product or a public index.
 
 ---
 
-Last updated: 2026-08-23. See [llms-full.txt](./llms-full.txt) for the complete product brief.
+Last updated: 2026-09-28. See [llms-full.txt](./llms-full.txt) for the complete product brief.

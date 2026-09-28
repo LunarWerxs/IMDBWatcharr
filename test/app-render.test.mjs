@@ -185,7 +185,7 @@ describe("App - a first look", () => {
     assert.match(html, />Generate</);
     assert.match(html, /How it works/);
     assert.match(html, /Paste a public IMDb link/);
-    assert.match(html, /IMDb Watcharr/);
+    assert.match(html, />Watcharr</);
     assert.match(html, /LunarWerx/);
 
     // Nothing has been asked of the API yet, so none of the outcome UI exists.

@@ -1,6 +1,6 @@
-# IMDb Watcharr
+# Watcharr
 
-Turn a public IMDb watchlist or list into a **Radarr RSS feed** and a **Sonarr custom list**.
+Turn a public IMDb watchlist or list into lists **Radarr** and **Sonarr** pick up within minutes.
 
 A [LunarWerx](https://lunarwerx.com) product, live at
 [watcharr.lunarwerx.com](https://watcharr.lunarwerx.com).
@@ -8,9 +8,9 @@ A [LunarWerx](https://lunarwerx.com) product, live at
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-f5c518)](LICENSING.md)
 [![Discord](https://img.shields.io/badge/Discord-join_the_community-5865F2?logo=discord&logoColor=white)](https://discord.gg/PsWpeNUzhk)
 
-IMDb Watcharr is a free web tool that turns a public IMDb watchlist or list into a Radarr RSS feed
-and a Sonarr custom list, so both apps can pick up the same movies and shows a person already
-tracks on IMDb, refreshing on a schedule once the feed is claimed by signing in.
+Watcharr is a free web tool that turns a public IMDb watchlist or list into a list Radarr checks
+every 15 minutes and one Sonarr checks every 5, so both apps pick up the same movies and shows a
+person already tracks on IMDb, refreshing on a schedule once the feed is claimed by signing in.
 
 Anyone can build a feed without an account: both URLs come back at once, start serving titles as soon
 as the list's first read from IMDb lands (usually within a few minutes), and keep working
@@ -324,22 +324,21 @@ Pushing to `main` runs:
 
 - **Trakt-based bridges** (Radarr's own Trakt list support, or scripts like Traktarr): these
   route an IMDb list through a separate Trakt account, and often a self-hosted
-  script that has to keep running, before Radarr or Sonarr ever see it. IMDb Watcharr reads IMDb's
+  script that has to keep running, before Radarr or Sonarr ever see it. Watcharr reads IMDb's
   own API directly and hands back a Radarr feed and a Sonarr feed from the same URL, no Trakt
   account and no extra script to host.
 - **mdblist.com**: a general-purpose list aggregator that can also take an IMDb list URL and hand
-  Radarr or Sonarr something to import, alongside Trakt, Rotten Tomatoes, and other sources. IMDb
-  Watcharr is narrower on purpose: it is built only around IMDb's own GraphQL API, and it is the
+  Radarr or Sonarr something to import, alongside Trakt, Rotten Tomatoes, and other sources. Watcharr is narrower on purpose: it is built only around IMDb's own GraphQL API, and it is the
   one that also resolves each show to a TVDB id for Sonarr and reports how many titles it could
   not match.
-- **Copying an IMDb list by hand**: works, but it is a one-time snapshot. IMDb Watcharr's two URLs
+- **Copying an IMDb list by hand**: works, but it is a one-time snapshot. Watcharr's two URLs
   stay pointed at the same IMDb list, and once a feed is claimed by signing in, the list behind it
   is checked again roughly every fifteen minutes.
 
 ## FAQ
 
-**Is IMDb Watcharr free?**
-IMDb Watcharr is free. Anyone can paste a public IMDb watchlist or list URL and get back a Radarr
+**Is Watcharr free?**
+Watcharr is free. Anyone can paste a public IMDb watchlist or list URL and get back a Radarr
 feed and a Sonarr feed with no account and no payment. Signing in with Connections is also free;
 it only changes how often the feed refreshes, moving it onto the fifteen-minute schedule instead
 of its original snapshot.
@@ -357,14 +356,14 @@ feed. The source code is on GitHub, so it can be self-hosted instead if a fully 
 deployment is needed.
 
 **What are the system requirements?**
-None on the reader's side. IMDb Watcharr is a website: open it in a browser, paste a public IMDb
+None on the reader's side. Watcharr is a website: open it in a browser, paste a public IMDb
 watchlist or list URL, and copy the two links it returns into Radarr and Sonarr. All the fetching,
-TVDB matching, and feed hosting runs on IMDb Watcharr's own Cloudflare Worker, not on the machine
+TVDB matching, and feed hosting runs on Watcharr's own Cloudflare Worker, not on the machine
 running Radarr and Sonarr.
 
 **How is it different from Trakt-based bridges like Traktarr?**
 Tools like Traktarr, or Radarr's own Trakt list support, route an IMDb list through a separate
-Trakt account, and often a self-hosted script, before Radarr or Sonarr ever see it. IMDb Watcharr
+Trakt account, and often a self-hosted script, before Radarr or Sonarr ever see it. Watcharr
 reads IMDb's own API directly and hands back a Radarr feed and a Sonarr feed from the same URL, no
 Trakt account, no extra script to run.
 
@@ -373,12 +372,11 @@ No personal data is required to build a feed: it only needs a public IMDb URL. S
 Connections session cookie and an opaque subject id used to claim ownership, nothing else.
 
 **Why is a show missing from my Sonarr list?**
-Sonarr needs a TVDB id for every show, and not every IMDb title resolves to one. Any show IMDb
-Watcharr cannot match is left out of the Sonarr list rather than passed along broken, and the app
+Sonarr needs a TVDB id for every show, and not every IMDb title resolves to one. Any show Watcharr cannot match is left out of the Sonarr list rather than passed along broken, and the app
 reports how many titles were skipped.
 
 **Why does a list I just pasted return an error?**
-A brand-new list is not instant: IMDb Watcharr's Worker cannot fetch IMDb directly, so a freshly
+A brand-new list is not instant: Watcharr's Worker cannot fetch IMDb directly, so a freshly
 pasted URL is queued and both routes answer `503` until the sync job fills the list in, which happens
 on the next queue run, roughly every five minutes. If it still fails after that, the list is
 probably private on IMDb: the page says so, and making it public then pasting it again fixes it.

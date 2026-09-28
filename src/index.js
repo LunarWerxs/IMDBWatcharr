@@ -394,7 +394,7 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
   // crawler fill the queue with IMDb reads nobody asked for.
   if (!feed) {
     return new Response(
-      `This IMDb list has not been set up on IMDb Watcharr yet. Paste its IMDb link at ${publicOrigin} to start it.`,
+      `This IMDb list has not been set up on Watcharr yet. Paste its IMDb link at ${publicOrigin} to start it.`,
       { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
@@ -546,7 +546,7 @@ async function handleArrApiRoute({ request, env, ctx, url, publicOrigin }) {
   const feed = await getFeedByUrl(env.DB, canonicalUrl);
   if (!feed) {
     return arrJson(
-      { message: `This IMDb list has not been set up on IMDb Watcharr yet. Paste its IMDb link at ${publicOrigin} to start it.` },
+      { message: `This IMDb list has not been set up on Watcharr yet. Paste its IMDb link at ${publicOrigin} to start it.` },
       404,
     );
   }

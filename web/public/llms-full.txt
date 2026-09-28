@@ -1,11 +1,11 @@
-# IMDb Watcharr - full brief
+# Watcharr - full brief
 
-> IMDb Watcharr turns a public IMDb watchlist or list into lists your Radarr and Sonarr pick up
+> Watcharr turns a public IMDb watchlist or list into lists your Radarr and Sonarr pick up
 > within minutes. A LunarWerx product. Free, source-available, version 1.0.0.
 
 ## What it is
 
-IMDb Watcharr is a small web tool. Paste a public IMDb watchlist or list URL and get back two
+Watcharr (first published as IMDb Watcharr) is a small web tool. Paste a public IMDb watchlist or list URL and get back two
 deterministic links, one for Radarr with the movies on that list and one for Sonarr with the
 shows. Each app adds its link as a list of its own kind, which it checks every 15 (Radarr) and 5
 (Sonarr) minutes; the same links also work as an RSS List and a Custom List. It does not host movies or shows, does not touch IMDb credentials, and does not
@@ -21,7 +21,7 @@ built and licensed for personal, non-commercial, single-household use; see Limit
 
 1. Paste a public IMDb watchlist (`imdb.com/user/ur.../watchlist/`) or list
    (`imdb.com/list/ls.../`) URL into the site.
-2. IMDb Watcharr returns two URLs, derived deterministically from the IMDb id, so the same list
+2. Watcharr returns two URLs, derived deterministically from the IMDb id, so the same list
    always produces the same two links:
    - Radarr: `/radarr/l/:listId` or `/radarr/p/:profileId`
    - Sonarr: `/sonarr/l/:listId` or `/sonarr/p/:profileId`
@@ -54,6 +54,10 @@ itself.
   1.0.0 and self-hostable end to end for noncommercial use: Cloudflare Worker, D1 database, and
   the GitHub Actions sync job. Commercial use is not licensed and no commercial license is sold,
   because IMDb's API forbids commercial use of its data.
+- Each link answers as a small Radarr or Sonarr v3 API, so the apps read it as their own list
+  type (every 15 and 5 minutes) instead of an RSS List or Custom List (every 12 and 6 hours).
+- On a computer, an Add to Radarr / Sonarr bookmark sets the list up in one click, inside the
+  user's own Radarr or Sonarr, with that app's own API key, which never leaves the app.
 - One Worker serves both the static site and the API, so a deploy is a single command.
 
 ## Install / self-hosting
@@ -83,7 +87,7 @@ including self-hosting costs.
 
 ## FAQ
 
-**Is IMDb Watcharr free?** Yes, no paid tier, no payment set up anywhere in the app, and
+**Is Watcharr free?** Yes, no paid tier, no payment set up anywhere in the app, and
 source-available on GitHub (PolyForm Noncommercial 1.0.0) for free noncommercial self-hosting too.
 Commercial use is not licensed.
 
@@ -91,10 +95,10 @@ Commercial use is not licensed.
 
 **How does this compare to Radarr's/Sonarr's own IMDb list import, or Trakt-based syncing?**
 Sonarr removed its built-in IMDb list import in 2025, and Radarr's IMDb list-ID import stopped
-working after IMDb changed its export format; IMDb Watcharr fills that gap via a GitHub Actions fetch and gives back one Radarr feed and one Sonarr
-feed from a single pasted URL, with last-good-snapshot fallback. Trakt-based syncing (IMDb to
+working after IMDb changed its export format; Watcharr fills that gap via a GitHub Actions fetch and gives back one Radarr list and one Sonarr
+list from a single pasted URL, with last-good-snapshot fallback. Trakt-based syncing (IMDb to
 Trakt to Radarr/Sonarr) is a common alternative that adds a second account and an extra hop;
-IMDb Watcharr skips the Trakt account.
+Watcharr skips the Trakt account.
 
 **Why does a freshly pasted list return an error?** A brand-new list is not instant. The site
 cannot fetch IMDb itself, so a new URL is queued and the Radarr/Sonarr routes answer `503` until

@@ -258,7 +258,7 @@ function popupDonePage(returnTo) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Signed in - IMDb Watcharr</title>
+<title>Signed in - Watcharr</title>
 <style>
   html { color-scheme: dark; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #121212; color: #fff;

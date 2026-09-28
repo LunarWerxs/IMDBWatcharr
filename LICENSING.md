@@ -1,6 +1,6 @@
-# IMDb Watcharr licensing
+# Watcharr licensing
 
-From 2026-09-27 on, IMDb Watcharr's code is offered under the
+From 2026-09-27 on, Watcharr's code is offered under the
 [PolyForm Noncommercial License 1.0.0](LICENSE) (`PolyForm-Noncommercial-1.0.0`).
 Copyright 2026 LunarWerx Studios.
 
@@ -12,7 +12,7 @@ Copyright 2026 LunarWerx Studios.
   self-hosting it for yourself, your household, a hobby, learning, research, a charity or another
   noncommercial purpose is allowed, and every feature is included. The license itself defines the
   permitted purposes and organizations; it governs where this summary is short.
-- **Commercial use is not licensed.** You may not sell IMDb Watcharr, charge for access to a copy
+- **Commercial use is not licensed.** You may not sell Watcharr, charge for access to a copy
   of it, bundle it into a paid product or service (a seedbox, a hosted media server, a managed
   \*arr setup), or run it for a business.
 
@@ -21,7 +21,7 @@ This is a source-available license with a noncommercial restriction, not an open
 ## Why there is no commercial license to buy
 
 The other LunarWerx tools under this license sell a commercial license. This one does not, on
-purpose. IMDb Watcharr's whole job is reading lists from IMDb's API, and every answer from that API
+purpose. Watcharr's whole job is reading lists from IMDb's API, and every answer from that API
 carries IMDb's own notice that public, commercial or non-private use of its data is not allowed.
 A commercial license from us would be permission IMDb has not given. If you have a written
 agreement with IMDb that covers your use, ask on
@@ -39,4 +39,4 @@ Dependencies and fonts keep their own licenses, which travel with them in `node_
 the built site. Title details and images in the poster popup come from TMDB under TMDB's own terms;
 this product uses the TMDB API but is not endorsed or certified by TMDB. Two small patterns (the failure alert threshold and the live feed list) were
 adapted from PostHog's MIT-licensed source; the comments where they are used say so. None of this
-changes or is changed by the IMDb Watcharr license.
+changes or is changed by the Watcharr license.

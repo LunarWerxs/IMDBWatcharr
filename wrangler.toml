@@ -11,7 +11,7 @@ workers_dev = true
 pattern = "watcharr.lunarwerx.com"
 custom_domain = true
 
-# The product is IMDb Watcharr; `watcharr` is only the short label. Both spellings
+# The product is Watcharr; `imdbwatcharr` is its first, longer name. Both spellings
 # resolve, and everything redirects to PUBLIC_ORIGIN so feed URLs have one form.
 [[routes]]
 pattern = "imdbwatcharr.lunarwerx.com"

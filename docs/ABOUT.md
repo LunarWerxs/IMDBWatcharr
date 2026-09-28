@@ -1,12 +1,12 @@
-# IMDb Watcharr
+# Watcharr
 
-> Turns a public IMDb watchlist into deterministic Radarr RSS and Sonarr JSON feed URLs, no account needed.
+> Turns a public IMDb watchlist or list into lists Radarr and Sonarr pick up within minutes, no account needed.
 
 <!-- odin:about HAND-OWNED above the GENERATED marker. Edit freely; `odin codex about --ingest` carries it back into Odin's Codex. -->
 
 ## What it is
 
-IMDb Watcharr is a free hosted web tool that turns a public IMDb watchlist or list URL into two deterministic feed URLs: a Radarr RSS feed for movies and a Sonarr custom-list JSON feed for TV, so both apps can pick up whatever a person already tracks on IMDb. Anyone can generate the two URLs with no account; every new list is queued for one read from IMDb, and both URLs then keep working off that snapshot. Signing in with LunarWerx's own Connections identity provider claims the feed and puts it on a 15-minute auto-refresh schedule. Because IMDb rate-limits Cloudflare's own egress IPs, the actual IMDb fetching runs on a GitHub Actions runner, which posts snapshots back to the Cloudflare Worker over a shared-secret endpoint.
+Watcharr is a free hosted web tool that turns a public IMDb watchlist or list URL into two deterministic links, one for Radarr with the movies and one for Sonarr with the shows, which each app adds as a list of its own kind and re-reads every 15 and 5 minutes (they still work as an RSS List and a Custom List too), so both apps can pick up whatever a person already tracks on IMDb. Anyone can generate the two URLs with no account; every new list is queued for one read from IMDb, and both URLs then keep working off that snapshot. Signing in with LunarWerx's own Connections identity provider claims the feed and puts it on a 15-minute auto-refresh schedule. Because IMDb rate-limits Cloudflare's own egress IPs, the actual IMDb fetching runs on a GitHub Actions runner, which posts snapshots back to the Cloudflare Worker over a shared-secret endpoint.
 
 ## Things not to forget
 
