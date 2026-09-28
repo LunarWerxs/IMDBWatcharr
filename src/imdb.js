@@ -201,12 +201,13 @@ export function previewItems(items) {
   });
 }
 
-// The shows Sonarr's list leaves out for want of a TVDB id, by name, so the
-// page can say which ones rather than only how many.
-export function skippedShowTitles(items) {
+// The shows Sonarr's list leaves out for want of a TVDB id, so the page can say
+// which ones rather than only how many. The year tells the usual reason apart:
+// no year means IMDb has it as announced but never released.
+export function skippedShows(items) {
   return filterItemsForTarget(items, "sonarr")
     .filter((item) => !(Number.isInteger(item.tvdb_id) && item.tvdb_id > 0))
-    .map((item) => item.title);
+    .map((item) => ({ imdbId: item.imdb_id, title: item.title, year: item.year ?? null }));
 }
 
 export function buildSonarrCustomListPayload(items) {

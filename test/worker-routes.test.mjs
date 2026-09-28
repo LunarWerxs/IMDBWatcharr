@@ -709,7 +709,7 @@ describe("fetch - redirects and lookups", () => {
         { imdbId: "tt0903747", title: "Breaking Bad", year: 2008, target: "sonarr", poster: null },
         { imdbId: "tt0000003", title: "No TVDB", year: 2008, target: "skipped", poster: null },
       ],
-      skippedShows: ["No TVDB"],
+      skippedShows: [{ imdbId: "tt0000003", title: "No TVDB", year: 2008 }],
     });
     assert.equal(found.find("INSERT OR IGNORE INTO feed_owners").length, 0, "a status read never claims");
     assert.equal(found.find("SET refresh_requested_at").length, 0, "a status read never queues");

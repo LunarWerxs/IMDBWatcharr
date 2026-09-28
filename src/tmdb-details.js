@@ -15,7 +15,8 @@ const MISSING_CACHE_SECONDS = 60 * 60;
 const IMAGE_PATH = /^\/[\w.-]+\.(?:jpg|jpeg|png|webp)$/i;
 const YOUTUBE_KEY = /^[\w-]{6,20}$/;
 
-async function tmdbGet(env, path, params) {
+/** The one TMDB client: the popup's details here, and TVDB ids in tvdb.js. */
+export async function tmdbGet(env, path, params = {}) {
   const url = new URL(`${TMDB_API}${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   const response = await fetch(url, {

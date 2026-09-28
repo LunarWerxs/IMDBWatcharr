@@ -112,7 +112,7 @@ function StatusPill({ result }: { result: CreateFeedResponse }) {
  * panel stays short and the reason is one click away.
  */
 function SkippedNote({ result, children }: { result: CreateFeedResponse; children: ReactNode }) {
-  const names = result.skippedShows ?? []
+  const shows = result.skippedShows ?? []
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
@@ -135,15 +135,23 @@ function SkippedNote({ result, children }: { result: CreateFeedResponse; childre
           className="bg-popover text-popover-foreground border-primary ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-lg border-t-4 p-4 shadow-2xl ring-1"
         >
           <p className="font-bold">Left out of Sonarr</p>
-          <p className="text-muted-foreground mt-2 text-sm text-pretty">
-            Sonarr needs a TVDB id for every show, and we could not find one for {result.sonarrUnresolvedCount}{' '}
-            of them, so we left those out.
+          <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
+            Sonarr only adds shows listed on TheTVDB, and these are not. They join your link if they
+            ever are.
           </p>
-          {names.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Shows left out">
-              {names.map((name) => (
-                <li key={name} className="border-foreground/15 rounded-md border px-2 py-0.5 text-xs font-medium">
-                  {name}
+          {shows.length > 0 && (
+            <ul className="mt-3 grid gap-1" aria-label="Shows left out">
+              {shows.map((show) => (
+                <li key={show.imdbId}>
+                  <a
+                    href={`https://www.imdb.com/title/${show.imdbId}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:bg-foreground/10 -mx-2 flex items-baseline justify-between gap-3 rounded-md px-2 py-1 text-sm transition-colors"
+                  >
+                    <span className="min-w-0 truncate font-medium">{show.title}</span>
+                    <span className="text-muted-foreground shrink-0 text-xs">{show.year ?? 'never released'}</span>
+                  </a>
                 </li>
               ))}
             </ul>
