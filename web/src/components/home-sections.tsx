@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import { useSyncExternalStore, type FormEvent } from 'react'
 import { ArrowRightIcon, CheckIcon, FilmIcon, LoaderCircleIcon, MonitorIcon, SearchIcon, XIcon } from 'lucide-react'
 
 import { AskarrLogo, AskarrMark } from '@/components/askarr-brand'
@@ -11,7 +11,32 @@ import { ASKARR_URL, SectionTitle, type SignInClick } from '@/components/site-ch
 import { signInHref } from '@/lib/feed-page'
 import type { Session } from '@/lib/api'
 
-const EXAMPLE_URL = 'https://www.imdb.com/list/ls006123300/'
+// Public IMDb lists to try, none of them anyone's own watchlist: films, shows,
+// and a mix of both. All read cleanly, covers and all, on 2026-09-28.
+const EXAMPLE_LISTS = [
+  { name: 'The 100 greatest movies', url: 'https://www.imdb.com/list/ls055592025/' },
+  { name: 'Variety’s 100 greatest TV shows', url: 'https://www.imdb.com/list/ls522130686/' },
+  { name: 'Every Marvel movie and show', url: 'https://www.imdb.com/list/ls505369170/' },
+  { name: 'Every Best Picture winner', url: 'https://www.imdb.com/list/ls009480135/' },
+  { name: 'Every Studio Ghibli film', url: 'https://www.imdb.com/list/ls575362999/' },
+  { name: 'The top 100 TV shows', url: 'https://www.imdb.com/list/ls004729995/' },
+] as const
+
+// One example per visit, picked at random in the browser. The prerendered page
+// always carries the first, and React swaps in the pick after hydrating, so the
+// two never disagree.
+const pickedExample = typeof window === 'undefined' ? 0 : Math.floor(Math.random() * EXAMPLE_LISTS.length)
+const noChanges = () => () => {}
+
+function useExampleList() {
+  return EXAMPLE_LISTS[
+    useSyncExternalStore(
+      noChanges,
+      () => pickedExample,
+      () => 0,
+    )
+  ]
+}
 
 const STEPS = [
   {
@@ -86,6 +111,7 @@ export function FeedForm({
   signedIn: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
+  const example = useExampleList()
   return (
     <form
       onSubmit={onSubmit}
@@ -152,10 +178,11 @@ export function FeedForm({
             Try{' '}
             <button
               type="button"
-              className="hover:text-ink break-all underline underline-offset-2 transition-colors"
-              onClick={() => onSourceUrlChange(EXAMPLE_URL)}
+              title={example.url}
+              className="hover:text-ink underline underline-offset-2 transition-colors"
+              onClick={() => onSourceUrlChange(example.url)}
             >
-              {EXAMPLE_URL}
+              {example.name}
             </button>
           </>
         ) : (

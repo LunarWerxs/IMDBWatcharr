@@ -30,7 +30,7 @@ from the phone site (`m.imdb.com`) and IMDb's language paths (`imdb.com/de/list/
 | IMDb source                                                  | Radarr                                                   | Sonarr                                                   |
 | ------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------- |
 | `imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/`       | `/radarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`                  | `/sonarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`                  |
-| `imdb.com/list/ls006123300/`                                  | `/radarr/l/ls006123300`                                   | `/sonarr/l/ls006123300`                                   |
+| `imdb.com/list/ls055592025/`                                  | `/radarr/l/ls055592025`                                   | `/sonarr/l/ls055592025`                                   |
 
 ## Architecture
 

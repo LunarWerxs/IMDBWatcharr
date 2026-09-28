@@ -154,16 +154,16 @@ for (const junkUrl of [
 
 const listFixture = await readFixture("list-graphql.json");
 const listFetch = stubFetch([listFixture]);
-const parsedList = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), listFetch);
+const parsedList = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), listFetch);
 
 assert(parsedList.parserMode === "graphql", "List should parse through the GraphQL payload.");
 assert(listFetch.calls.length === 1, "A single-page list should take exactly one request.");
-assert(listFetch.calls[0].variables.id === "ls006123300", "List query should be keyed on the list id.");
+assert(listFetch.calls[0].variables.id === "ls055592025", "List query should be keyed on the list id.");
 assert(listFetch.calls[0].variables.after === null, "The first page should not send a cursor.");
 assert(parsedList.items.length === 3, "List fixture should expose 3 raw items.");
 assert(parsedList.listTitle === "WATCHLIST", "List title should come from the list name.");
 assert(parsedList.listAuthor === "IMikeDB", "List author should come from the author username.");
-assert(parsedList.listId === "ls006123300", "List id should be carried through.");
+assert(parsedList.listId === "ls055592025", "List id should be carried through.");
 assert(parsedList.lastSourceModifiedAt === "2026-07-31T08:26:46Z", "List modified date should be carried through.");
 assert(parsedList.items[0].imdbId === "tt0423977", "First item should keep its IMDb id.");
 assert(parsedList.items[0].title === "Charlie Bartlett", "First item should keep its title.");
@@ -186,12 +186,12 @@ assert(sonarrPayload[0].Title === "Game of Thrones" && sonarrPayload[0].TvdbId =
 
 const listFingerprintPayload = buildSnapshotFingerprintPayload(parsedList);
 assert(listFingerprintPayload.includes('"parserMode":"graphql"'), "Fingerprint payload should record the GraphQL parser mode.");
-assert(listFingerprintPayload.includes('"listId":"ls006123300"'), "Fingerprint payload should include the list id.");
+assert(listFingerprintPayload.includes('"listId":"ls055592025"'), "Fingerprint payload should include the list id.");
 const fingerprintHash = await hashText(listFingerprintPayload, 16);
 assert(/^[a-f0-9]{16}$/.test(fingerprintHash), "Fingerprint hash should be a stable hex digest.");
 
 // The same list fetched twice has to hash the same, or every sync rebuilds.
-const repeatList = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), stubFetch([listFixture]));
+const repeatList = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), stubFetch([listFixture]));
 assert(
   buildSnapshotFingerprintPayload(repeatList) === listFingerprintPayload,
   "The same list payload must produce the same fingerprint.",

@@ -140,10 +140,10 @@ function stat(label, value) {
 const READY_RESULT = {
   slug: "abcdef012345",
   listTitle: "My List",
-  radarrRoutePath: "/radarr/l/ls006123300",
-  radarrFeedUrl: "https://imdbwatcharr.pages.dev/radarr/l/ls006123300",
-  sonarrRoutePath: "/sonarr/l/ls006123300",
-  sonarrFeedUrl: "https://imdbwatcharr.pages.dev/sonarr/l/ls006123300",
+  radarrRoutePath: "/radarr/l/ls055592025",
+  radarrFeedUrl: "https://imdbwatcharr.pages.dev/radarr/l/ls055592025",
+  sonarrRoutePath: "/sonarr/l/ls055592025",
+  sonarrFeedUrl: "https://imdbwatcharr.pages.dev/sonarr/l/ls055592025",
   status: "ready",
   radarrCount: 12,
   sonarrCount: 3,
@@ -184,7 +184,7 @@ describe("App - a first look", () => {
   test("the hint offers the example link while the field is empty", () => {
     const html = render();
 
-    assert.match(html, /https:\/\/www\.imdb\.com\/list\/ls006123300\//);
+    assert.match(html, /https:\/\/www\.imdb\.com\/list\/ls055592025\//);
     assert.doesNotMatch(html, /That does not look like an IMDb list or watchlist link\./);
     assert.doesNotMatch(html, /aria-invalid="true"/);
   });
@@ -197,7 +197,7 @@ describe("App - a first look", () => {
   });
 
   test("a list URL typed in keeps the hint calm", () => {
-    const html = render({ sourceUrl: "https://www.imdb.com/list/ls006123300/" });
+    const html = render({ sourceUrl: "https://www.imdb.com/list/ls055592025/" });
 
     assert.doesNotMatch(html, /That does not look like an IMDb list or watchlist link\./);
     assert.doesNotMatch(html, /aria-invalid="true"/);
@@ -206,7 +206,7 @@ describe("App - a first look", () => {
 
 describe("App - while a first sync is in flight", () => {
   test("pending replaces the button label, shows skeletons, and claims no result", () => {
-    const html = render({ sourceUrl: "https://www.imdb.com/list/ls006123300/", pending: true });
+    const html = render({ sourceUrl: "https://www.imdb.com/list/ls055592025/", pending: true });
 
     assert.match(html, /Building/);
     assert.match(html, /animate-spin/);
@@ -240,8 +240,8 @@ describe("App - a finished result", () => {
     assert.match(html, stat("Shows we skipped", 2));
 
     assert.match(html, /My List/);
-    assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/radarr\/l\/ls006123300/);
-    assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/sonarr\/l\/ls006123300/);
+    assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/radarr\/l\/ls055592025/);
+    assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/sonarr\/l\/ls055592025/);
     assert.match(html, /Radarr RSS URL/);
     assert.match(html, /Sonarr custom list URL/);
     // The badges say it is ready; a line repeating that was cut (owner, 2026-09-28).

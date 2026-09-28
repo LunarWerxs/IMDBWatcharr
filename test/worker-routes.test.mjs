@@ -32,10 +32,10 @@ import {
 describe("fetch - canonical host", () => {
   test("a GET on an alias hostname 301s to PUBLIC_ORIGIN, keeping path and query", async () => {
     const { env } = makeEnv({ PUBLIC_ORIGIN: ORIGIN });
-    const { response } = await call("https://alias.example/l/ls006123300?x=1", { env });
+    const { response } = await call("https://alias.example/l/ls055592025?x=1", { env });
 
     assert.equal(response.status, 301);
-    assert.equal(response.headers.get("location"), `${ORIGIN}/l/ls006123300?x=1`);
+    assert.equal(response.headers.get("location"), `${ORIGIN}/l/ls055592025?x=1`);
   });
 
   test("a POST on an alias hostname is not redirected, so its body survives", async () => {
@@ -119,7 +119,7 @@ describe("fetch - auth and session routes", () => {
     assert.equal(await returnToOf("/\\evil.example"), "/");
     assert.equal(await returnToOf("https://evil.example/"), "/");
     assert.equal(await returnToOf("/\t/evil.example"), "/", "browsers strip the tab and read //evil.example");
-    assert.equal(await returnToOf("/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F"), "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F");
+    assert.equal(await returnToOf("/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls055592025%2F"), "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls055592025%2F");
   });
 
   test("GET /auth/login without a configured client answers 503 rather than a broken redirect", async () => {
@@ -136,7 +136,7 @@ describe("fetch - auth and session routes", () => {
       CONNECTIONS_CLIENT_ID: "client",
       CONNECTIONS_CLIENT_SECRET: "secret",
     });
-    const returnTo = "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls006123300%2F";
+    const returnTo = "/?list=https%3A%2F%2Fwww.imdb.com%2Flist%2Fls055592025%2F";
     const login = await call(`${ORIGIN}/auth/login?popup=1&returnTo=${encodeURIComponent(returnTo)}`, { env });
     const stateCookie = login.response.headers.get("set-cookie").split(";")[0];
     const state = new URL(login.response.headers.get("location")).searchParams.get("state");
@@ -216,8 +216,8 @@ describe("fetch - /api/my-feeds", () => {
         lastError: "IMDb said no.",
         consecutiveFailures: 3,
         alerting: true,
-        radarrUrl: `${ORIGIN}/radarr/l/ls006123300`,
-        sonarrUrl: `${ORIGIN}/sonarr/l/ls006123300`,
+        radarrUrl: `${ORIGIN}/radarr/l/ls055592025`,
+        sonarrUrl: `${ORIGIN}/sonarr/l/ls055592025`,
       },
     ]);
   });
@@ -289,7 +289,7 @@ describe("fetch - /api/unfollow", () => {
     const { env } = makeEnv({ DB, SESSION_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/unfollow`, {
       method: "POST",
-      body: { sourceUrl: "https://www.imdb.com/list/ls006123300/?ref_=x" },
+      body: { sourceUrl: "https://www.imdb.com/list/ls055592025/?ref_=x" },
       env,
       headers: { cookie: await sessionCookie("user-1") },
     });
@@ -353,12 +353,12 @@ describe("fetch - /api/create", () => {
       lastSyncedAt: null,
       lastError: null,
       pollAfterSeconds: 30,
-      routePath: "/radarr/l/ls006123300",
-      feedUrl: `${ORIGIN}/radarr/l/ls006123300`,
-      radarrRoutePath: "/radarr/l/ls006123300",
-      radarrFeedUrl: `${ORIGIN}/radarr/l/ls006123300`,
-      sonarrRoutePath: "/sonarr/l/ls006123300",
-      sonarrFeedUrl: `${ORIGIN}/sonarr/l/ls006123300`,
+      routePath: "/radarr/l/ls055592025",
+      feedUrl: `${ORIGIN}/radarr/l/ls055592025`,
+      radarrRoutePath: "/radarr/l/ls055592025",
+      radarrFeedUrl: `${ORIGIN}/radarr/l/ls055592025`,
+      sonarrRoutePath: "/sonarr/l/ls055592025",
+      sonarrFeedUrl: `${ORIGIN}/sonarr/l/ls055592025`,
       status: "pending",
       itemCount: 0,
       radarrCount: 0,
@@ -470,7 +470,7 @@ describe("fetch - /api/create", () => {
       env,
     });
 
-    assert.equal(parsed.feedUrl, "https://preview.example/radarr/l/ls006123300");
+    assert.equal(parsed.feedUrl, "https://preview.example/radarr/l/ls055592025");
   });
 });
 
@@ -483,7 +483,7 @@ describe("fetch - feed routes", () => {
     ]);
     const { env } = makeEnv({ DB });
     const ctx = makeCtx();
-    const { response } = await call(`${ORIGIN}/radarr/l/ls006123300`, { env, ctx });
+    const { response } = await call(`${ORIGIN}/radarr/l/ls055592025`, { env, ctx });
 
     assert.equal(response.status, 200);
     assert.equal(ctx.waited.length, 1);
@@ -507,7 +507,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response, text } = await call(`${ORIGIN}/radarr/l/ls006123300`, { env });
+    const { response, text } = await call(`${ORIGIN}/radarr/l/ls055592025`, { env });
 
     assert.equal(response.status, 503);
     assert.equal(text, "IMDb said no.");
@@ -521,7 +521,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { text } = await call(`${ORIGIN}/radarr/l/ls006123300`, { env });
+    const { text } = await call(`${ORIGIN}/radarr/l/ls055592025`, { env });
 
     assert.equal(text, "We have not managed to read this list from IMDb yet.");
   });
@@ -533,7 +533,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response } = await call(`${ORIGIN}/radarr/l/ls006123300`, {
+    const { response } = await call(`${ORIGIN}/radarr/l/ls055592025`, {
       env,
       headers: { "if-none-match": etag },
     });
@@ -550,17 +550,17 @@ describe("fetch - feed routes", () => {
         "SELECT * FROM feeds WHERE source_url = ?",
         feedRow({
           source_fingerprint: "a".repeat(32),
-          radarr_cache: `<rss><channel><link>https://www.imdb.com/list/ls006123300/</link><atom:link href="__IMDBWATCHARR_PUBLIC_ORIGIN__/radarr/l/ls006123300" /></channel></rss>`,
+          radarr_cache: `<rss><channel><link>https://www.imdb.com/list/ls055592025/</link><atom:link href="__IMDBWATCHARR_PUBLIC_ORIGIN__/radarr/l/ls055592025" /></channel></rss>`,
         }),
       ],
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response, text } = await call(`${ORIGIN}/radarr/l/ls006123300`, { env });
+    const { response, text } = await call(`${ORIGIN}/radarr/l/ls055592025`, { env });
 
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "application/rss+xml; charset=utf-8");
-    assert.match(text, new RegExp(`${ORIGIN}/radarr/l/ls006123300`));
+    assert.match(text, new RegExp(`${ORIGIN}/radarr/l/ls055592025`));
     assert.doesNotMatch(text, /__IMDBWATCHARR_PUBLIC_ORIGIN__/);
   });
 
@@ -570,7 +570,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response, text } = await call(`${ORIGIN}/radarr/l/ls006123300`, { env });
+    const { response, text } = await call(`${ORIGIN}/radarr/l/ls055592025`, { env });
 
     assert.equal(response.status, 200);
     assert.match(text, /<title><!\[CDATA\[My List \(Radarr\)\]\]><\/title>/);
@@ -588,7 +588,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response, parsed } = await call(`${ORIGIN}/sonarr/l/ls006123300`, { env });
+    const { response, parsed } = await call(`${ORIGIN}/sonarr/l/ls055592025`, { env });
 
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
@@ -601,7 +601,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { parsed } = await call(`${ORIGIN}/sonarr/l/ls006123300`, { env });
+    const { parsed } = await call(`${ORIGIN}/sonarr/l/ls055592025`, { env });
 
     assert.deepEqual(parsed, [{ Title: "Breaking Bad", TvdbId: 81189 }]);
   });
@@ -612,11 +612,11 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const alias = await call(`${ORIGIN}/l/ls006123300`, { env });
-    const targeted = await call(`${ORIGIN}/radarr/l/ls006123300`, { env });
+    const alias = await call(`${ORIGIN}/l/ls055592025`, { env });
+    const targeted = await call(`${ORIGIN}/radarr/l/ls055592025`, { env });
 
     assert.equal(alias.response.status, 302);
-    assert.equal(alias.response.headers.get("location"), `${ORIGIN}/radarr/l/ls006123300`);
+    assert.equal(alias.response.headers.get("location"), `${ORIGIN}/radarr/l/ls055592025`);
     assert.equal(targeted.response.status, 200);
   });
 
@@ -626,7 +626,7 @@ describe("fetch - feed routes", () => {
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
-    const { response } = await call(`${ORIGIN}/radarr/l/ls006123300`, { method: "HEAD", env });
+    const { response } = await call(`${ORIGIN}/radarr/l/ls055592025`, { method: "HEAD", env });
 
     assert.equal(response.status, 200);
   });
@@ -647,7 +647,7 @@ describe("fetch - redirects and lookups", () => {
     const { response } = await call(`${ORIGIN}/f/abcdef012345.xml`, { env });
 
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), `${ORIGIN}/radarr/l/ls006123300`);
+    assert.equal(response.headers.get("location"), `${ORIGIN}/radarr/l/ls055592025`);
   });
 
   test("an unknown legacy slug is a plain 404", async () => {

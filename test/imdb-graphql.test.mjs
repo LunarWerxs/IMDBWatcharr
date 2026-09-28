@@ -42,7 +42,7 @@ describe("fetchImdbList - lists", () => {
   test("parses a single-page list fixture", async () => {
     const fixture = await readFixture("list-graphql.json");
     const fetchStub = stubFetch([fixture]);
-    const result = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), fetchStub);
+    const result = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), fetchStub);
 
     assert.equal(fetchStub.calls.length, 1, "a single-page list should take exactly one request");
     assert.equal(fetchStub.calls[0].variables.after, null, "the first page should not send a cursor");
@@ -212,8 +212,8 @@ describe("fetchImdbList - failure modes", () => {
 describe("buildSnapshotFingerprintPayload", () => {
   test("is stable across two fetches of the same unchanged list", async () => {
     const fixture = await readFixture("list-graphql.json");
-    const first = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), stubFetch([fixture]));
-    const second = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), stubFetch([fixture]));
+    const first = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), stubFetch([fixture]));
+    const second = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), stubFetch([fixture]));
 
     assert.equal(
       buildSnapshotFingerprintPayload(first),
@@ -224,7 +224,7 @@ describe("buildSnapshotFingerprintPayload", () => {
 
   test("changes when an item's title changes", async () => {
     const fixture = await readFixture("list-graphql.json");
-    const snapshot = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls006123300/"), stubFetch([fixture]));
+    const snapshot = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), stubFetch([fixture]));
     const before = buildSnapshotFingerprintPayload(snapshot);
     const mutated = {
       ...snapshot,

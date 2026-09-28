@@ -191,7 +191,7 @@ describe("fetch - /api/ingest", () => {
         snapshot: {
           listTitle: "My List",
           listAuthor: "Ada",
-          listId: "ls006123300",
+          listId: "ls055592025",
           items: [{ imdbId: "tt0111161", title: "The Shawshank Redemption", year: 1994, titleType: "movie" }],
         },
       },

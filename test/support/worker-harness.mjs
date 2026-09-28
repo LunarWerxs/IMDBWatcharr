@@ -8,7 +8,7 @@ import worker from "../../src/index.js";
 export const ORIGIN = "https://imdbwatcharr.pages.dev";
 export const SESSION_SECRET = "test-session-secret";
 export const INGEST_SECRET = "test-ingest-secret";
-export const CANONICAL_LIST = "https://www.imdb.com/list/ls006123300/";
+export const CANONICAL_LIST = "https://www.imdb.com/list/ls055592025/";
 
 /**
  * A stub D1. `rules` is a list of [substring, value] pairs matched against the
@@ -136,7 +136,7 @@ export function feedRow(overrides = {}) {
     item_count: 2,
     list_title: "My List",
     list_author: "Ada",
-    list_id: "ls006123300",
+    list_id: "ls055592025",
     last_error: null,
     consecutive_failures: 0,
     last_synced_at: RECENT,
