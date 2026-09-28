@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 
+import { AskarrMark } from '@/components/askarr-brand'
 import { Cover } from '@/components/cover'
 import { readTitleDetails, type PreviewItem, type TitleDetails } from '@/lib/api'
 
@@ -135,20 +136,15 @@ function AskarrStep({
   return (
     <section aria-labelledby="askarr-step" className="px-5 pt-6 pb-7 sm:px-8 sm:pb-8">
       <div className="flex items-start gap-4">
-        <span
-          aria-hidden="true"
-          className="bg-primary text-primary-foreground grid size-11 shrink-0 place-items-center rounded-full shadow-lg shadow-black/30"
-        >
-          <PlusIcon className="size-5" />
-        </span>
+        <AskarrMark className="mt-1 size-11 shrink-0 drop-shadow-lg" />
         <div className="min-w-0">
           <p className="text-muted-foreground text-2xs font-bold tracking-widest uppercase">From the makers of Watcharr</p>
           <h3 id="askarr-step" ref={headingRef} tabIndex={-1} className="mt-1 text-xl font-bold outline-none sm:text-2xl">
             Request it with Askarr
           </h3>
           <p className="text-foreground/85 mt-2 max-w-prose text-sm leading-relaxed text-pretty">
-            Watcharr keeps whole lists in sync. Askarr is for one title at a time: you ask for it, and it lands in your
-            own Radarr or Sonarr at home, without anything on your network facing the internet.
+            Watcharr syncs whole lists. Askarr gets you one title at a time, straight into your Radarr or Sonarr at
+            home.
           </p>
         </div>
       </div>
@@ -172,7 +168,7 @@ function AskarrStep({
       </ol>
 
       <div
-        className={`mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-start sm:justify-between ${settle(3).className}`}
+        className={`mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between ${settle(3).className}`}
         style={settle(3).style}
       >
         <button
@@ -188,14 +184,12 @@ function AskarrStep({
             href={askarrLink(item, details)}
             target="_blank"
             rel="noopener"
-            className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0"
+            className="bg-askarr text-askarr-foreground shine inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-4 pe-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0"
           >
+            <AskarrMark inverted className="size-5" />
             Continue to Askarr
             <ExternalLinkIcon className="size-4" aria-hidden="true" />
           </a>
-          <p className="text-muted-foreground text-2xs text-center text-pretty sm:text-right">
-            Opens askarr.com in a new tab, already searching for {details?.title || item.title}. Free to start.
-          </p>
         </div>
       </div>
     </section>
@@ -444,8 +438,8 @@ function Sheet({ item, asking, onAsking }: { item: PreviewItem; asking: boolean;
               onClick={() => onAsking(true)}
               className="group/askarr bg-secondary hover:bg-accent inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-2 pe-5 font-bold transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
             >
-              <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:rotate-90">
-                <PlusIcon className="size-4" aria-hidden="true" />
+              <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:scale-110">
+                <AskarrMark className="size-4" />
               </span>
               Request with Askarr
             </button>

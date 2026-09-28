@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
-import { ArrowRightIcon, LoaderCircleIcon, XIcon } from 'lucide-react'
+import { ArrowRightIcon, CheckIcon, FilmIcon, LoaderCircleIcon, MonitorIcon, SearchIcon, XIcon } from 'lucide-react'
 
+import { AskarrLogo, AskarrMark } from '@/components/askarr-brand'
 import { Button } from '@/components/ui/button'
 import { SignInWithConnections } from '@/components/connections-sign-in'
 import { Input } from '@/components/ui/input'
@@ -231,21 +232,78 @@ export function AskarrSection() {
   return (
     <section className="mt-12" aria-labelledby="more-from-lunarwerx">
       <SectionTitle id="more-from-lunarwerx">More from LunarWerx</SectionTitle>
-      <div className="bg-card ring-foreground/10 rounded-lg p-5 ring-1 sm:p-8">
-        <h3 className="text-lg font-bold">Askarr</h3>
-        <p className="mt-1 font-medium">Want one title without editing the list?</p>
-        <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
-          Search any movie or show from your phone or any browser, tap request, and the Askarr
-          Monitor on your Windows PC adds it to your own Radarr and Sonarr. Nothing on your network
-          has to face the internet. Free to start.
-        </p>
-        <Button asChild variant="secondary" className="mt-5 h-10 px-5 font-bold">
-          <a href={ASKARR_URL}>
+      <div className="bg-card ring-foreground/10 relative grid items-center gap-8 overflow-hidden rounded-lg p-5 ring-1 sm:p-8 md:grid-cols-[minmax(0,1fr)_minmax(0,21rem)] md:gap-12">
+        {/* A wash of Askarr's teal behind its picture, so the card reads as Askarr's own. */}
+        <div
+          aria-hidden="true"
+          className="bg-askarr/30 pointer-events-none absolute -right-24 -bottom-32 size-104 rounded-full blur-3xl motion-safe:animate-drift"
+        />
+        <div className="relative">
+          <h3>
+            <AskarrLogo className="h-8 w-auto" />
+          </h3>
+          <p className="text-muted-foreground mt-4 max-w-md text-pretty">
+            Want one title without editing the list? Ask for it from your phone, and it lands in your own
+            Radarr or Sonarr at home.
+          </p>
+          <a
+            href={ASKARR_URL}
+            className="group/askarr bg-askarr text-askarr-foreground shine mt-6 inline-flex h-11 items-center gap-2.5 rounded-md ps-3.5 pe-5 font-bold shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0"
+          >
+            <AskarrMark inverted className="size-5" />
             Try Askarr
-            <ArrowRightIcon className="size-4" />
+            <ArrowRightIcon className="size-4 transition-transform group-hover/askarr:translate-x-0.5" aria-hidden="true" />
           </a>
-        </Button>
+        </div>
+        <AskarrPreview />
       </div>
     </section>
+  )
+}
+
+/**
+ * A small picture of Askarr at work: a title asked for on the phone, the
+ * request hopping home, and the PC adding it to Radarr. Drawn rather than
+ * screenshotted, so it stays sharp and never shows an old version of the app.
+ * Always dark, like the app, whichever theme this page is in.
+ */
+function AskarrPreview() {
+  return (
+    <div
+      aria-hidden="true"
+      className="dark bg-background text-foreground ring-foreground/10 relative rounded-xl p-4 shadow-2xl ring-1 sm:p-5"
+    >
+      <div className="bg-secondary ring-foreground/10 flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm ring-1">
+        <SearchIcon className="text-muted-foreground size-4" />
+        Dune: Part Two
+        <span className="bg-askarr-ink -ml-1.5 h-4 w-px motion-safe:animate-pulse" />
+      </div>
+      <div className="bg-secondary/60 ring-foreground/10 mt-3 flex items-center gap-3 rounded-lg p-2.5 ring-1">
+        <span className="bg-askarr/40 grid h-12 w-8 shrink-0 place-items-center rounded">
+          <FilmIcon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-bold">Dune: Part Two</span>
+          <span className="text-muted-foreground block text-xs">2024 · Movie</span>
+        </span>
+        <span className="bg-askarr text-askarr-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold">
+          <CheckIcon className="size-3.5" />
+          Requested
+        </span>
+      </div>
+      <div className="bg-foreground/15 relative mx-auto h-8 w-px">
+        <span className="bg-askarr-ink absolute top-0 left-1/2 size-2 rounded-full opacity-0 motion-safe:animate-hop" />
+      </div>
+      <div className="bg-secondary/60 ring-foreground/10 rounded-lg p-3 ring-1">
+        <p className="flex items-center gap-2 text-xs font-bold">
+          <MonitorIcon className="text-muted-foreground size-4" />
+          Your PC · Askarr Monitor
+        </p>
+        <p className="text-muted-foreground mt-2 flex items-center gap-2 text-xs">
+          <span className="bg-primary size-1.5 rounded-full" />
+          Radarr: Dune: Part Two added
+        </p>
+      </div>
+    </div>
   )
 }

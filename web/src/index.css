@@ -37,6 +37,10 @@
     --color-primary-foreground: var(--primary-foreground);
     --color-primary: var(--primary);
     --color-ink: var(--ink);
+    /* Askarr, LunarWerx's other product: its brand teal for fills, and a teal that reads as text. */
+    --color-askarr: #00747e;
+    --color-askarr-ink: var(--askarr-ink);
+    --color-askarr-foreground: #ffffff;
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -68,6 +72,7 @@
     /* The accent as TEXT or an icon: IMDb yellow on white is 1.6:1, so light
        mode writes it in a deep gold (5.4:1 on white) and dark mode in yellow. */
     --ink: #7a5d00;
+    --askarr-ink: #00646c;
     --secondary: #f2f2f2;
     --secondary-foreground: #121212;
     --muted: #ebebeb;
@@ -103,6 +108,7 @@
     --primary: #f5c518;
     --primary-foreground: #000000;
     --ink: #f5c518;
+    --askarr-ink: #4cc3cc;
     --secondary: #2a2a2a;
     --secondary-foreground: #ffffff;
     --muted: rgba(255, 255, 255, 0.06);
@@ -153,6 +159,7 @@
     --animate-fan: fan-in 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     --animate-backdrop: backdrop-in 1.4s ease-out both;
     --animate-drift: drift 16s ease-in-out infinite alternate;
+    --animate-hop: hop 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
     /* Askarr's ease-out-soft: fast off the mark, a long gentle settle. */
     --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -180,6 +187,25 @@
             opacity: 0;
         }
     }
+    /* A request travelling down from the phone to the PC in the Askarr picture. */
+    @keyframes hop {
+        0% {
+            opacity: 0;
+            transform: translate(-50%, -0.25rem);
+        }
+        20% {
+            opacity: 1;
+        }
+        70% {
+            opacity: 1;
+            transform: translate(-50%, 1.75rem);
+        }
+        100% {
+            opacity: 0;
+            transform: translate(-50%, 1.75rem);
+        }
+    }
+
     @keyframes drift {
         from {
             transform: translate3d(0, 0, 0) scale(1);
