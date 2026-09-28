@@ -6,8 +6,6 @@
 // was announced and never made, which no source can map because TVDB has no
 // entry for it.
 
-import { filterItemsForTarget } from "./imdb.js";
-import { getFeedItems, saveTvdbIds } from "./store.js";
 import { tmdbGet } from "./tmdb-details.js";
 
 const LOOKUP_CONCURRENCY = 6;
@@ -82,42 +80,21 @@ async function lookupTvdbId(env, imdbId) {
 }
 
 /**
- * Resolve the TVDB id of every series on the feed that does not have one yet,
- * and return the feed's items with whatever was found, plus how many resolved.
- * A series no source can answer for stays unresolved and is tried again on a
- * later sync, so one failed lookup never fails the request it rides on.
+ * The TVDB ids of these shows, as a Map of the ones found. A show no source
+ * can answer for is left out and tried again on a later sync, so one failed
+ * lookup never fails the read it rides on. Both sources are third parties, so
+ * at most LOOKUP_CONCURRENCY lookups are out at once, each worker taking the
+ * next show as soon as its last one answers.
  */
-export async function resolveMissingTvdbIds(env, feed, items) {
-  const seriesItems = filterItemsForTarget(items, "sonarr").filter((item) => !item.tvdb_id);
-  if (!seriesItems.length) {
-    return { items, resolvedCount: 0 };
-  }
-
-  const resolutions = [];
-
-  // Both sources are third parties, so keep the lookups bounded rather than
-  // firing one request per series at once.
-  for (let offset = 0; offset < seriesItems.length; offset += LOOKUP_CONCURRENCY) {
-    const batch = seriesItems.slice(offset, offset + LOOKUP_CONCURRENCY);
-    const results = await Promise.all(
-      batch.map((item) =>
-        lookupTvdbId(env, item.imdb_id).then(
-          (tvdbId) => ({ imdbId: item.imdb_id, tvdbId }),
-          () => ({ imdbId: item.imdb_id, tvdbId: null }),
-        ),
-      ),
-    );
-    resolutions.push(...results.filter((result) => result.tvdbId));
-  }
-
-  if (!resolutions.length) {
-    return { items, resolvedCount: 0 };
-  }
-
-  await saveTvdbIds(env.DB, feed.id, resolutions);
-  return { items: await getFeedItems(env.DB, feed.id), resolvedCount: resolutions.length };
-}
-
-export async function enrichTvdbIdsForFeed(env, feed, items) {
-  return (await resolveMissingTvdbIds(env, feed, items)).items;
+export async function resolveTvdbIds(env, imdbIds) {
+  const found = new Map();
+  const queue = [...imdbIds];
+  const worker = async () => {
+    for (let imdbId = queue.shift(); imdbId; imdbId = queue.shift()) {
+      const tvdbId = await lookupTvdbId(env, imdbId).catch(() => null);
+      if (tvdbId) found.set(imdbId, tvdbId);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(LOOKUP_CONCURRENCY, queue.length) }, worker));
+  return found;
 }

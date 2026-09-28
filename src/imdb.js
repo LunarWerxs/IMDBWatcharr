@@ -76,10 +76,6 @@ export function buildPublicFeedPath(normalized, feedTarget = "radarr") {
   throw new Error("Unsupported feed target.");
 }
 
-export function getNormalizedFromStoredFeed(feed) {
-  return normalizeImdbUrl(feed.source_url);
-}
-
 /**
  * Assemble the one route shape every branch below returns, so the canonical
  * URL's list-vs-watchlist format lives in exactly one place.
@@ -219,13 +215,6 @@ export function buildSonarrCustomListPayload(items) {
     }));
 }
 
-export async function createStableSlug(text) {
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
-  return hex.slice(0, 12);
-}
-
 export async function hashText(text, length = 64) {
   const bytes = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -260,7 +249,7 @@ function buildFeedItemXml(item, sourceTitle) {
 }
 
 export function buildFeedXml(origin, feed, items, feedTarget = "radarr") {
-  const feedUrl = `${origin}${buildPublicFeedPath(getNormalizedFromStoredFeed(feed), feedTarget)}`;
+  const feedUrl = `${origin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), feedTarget)}`;
   const lastBuildDate = feed.last_synced_at ? new Date(feed.last_synced_at).toUTCString() : new Date().toUTCString();
   const sourceTitle = feed.list_title || "IMDb Feed";
   const libraryName = feedTarget === "sonarr" ? "Sonarr" : "Radarr";

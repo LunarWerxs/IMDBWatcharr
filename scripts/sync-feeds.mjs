@@ -89,32 +89,31 @@ const startedAt = Date.now();
 let succeeded = 0;
 let unavailable = 0;
 let failed = 0;
-let deferred = 0;
 
 // Five failures in a row with nothing read means IMDb (or the Worker) is down
 // for everyone, not that five lists broke. Stop asking: the rest keep their
 // place in the queue, and the red run says what happened.
 const OUTAGE_AFTER_FAILURES = 5;
+const looksDown = () => succeeded === 0 && failed >= OUTAGE_AFTER_FAILURES;
 
-for (const { sourceUrl, owned, requested } of targets) {
-  if (Date.now() - startedAt > TIME_BUDGET_MS) {
-    deferred = targets.length - (succeeded + unavailable + failed);
-    console.log(`Time budget used; ${deferred} feed${deferred === 1 ? "" : "s"} left for the next run.`);
-    break;
-  }
+// A read is mostly waiting: a few GraphQL pages in turn, then the ingest. One
+// list at a time left the runner idle for most of a run (18 lists, 45 s), so a
+// few are read at once, still far fewer requests than one visit to imdb.com.
+const READ_CONCURRENCY = 3;
+const seconds = (since) => `${((Date.now() - since) / 1000).toFixed(1)}s`;
 
-  if (succeeded === 0 && failed >= OUTAGE_AFTER_FAILURES) {
-    deferred = targets.length - (succeeded + unavailable + failed);
-    console.log(`${failed} reads failed and none worked, so IMDb looks down; ${deferred} left for the next run.`);
-    break;
-  }
-
+async function readOne({ sourceUrl, owned, requested }) {
   const label = `${owned ? "owned" : "guest"}${requested ? ", requested" : ""}`;
+  const began = Date.now();
   try {
     const snapshot = await fetchImdbList(normalizeImdbUrl(sourceUrl));
+    const read = seconds(began);
+    const ingestBegan = Date.now();
     const result = await postIngest({ sourceUrl, snapshot });
     succeeded += 1;
-    console.log(`  ok   ${sourceUrl} (${label}) -> ${snapshot.items.length} items, status ${result.status}`);
+    console.log(
+      `  ok   ${sourceUrl} (${label}) -> ${snapshot.items.length} items, status ${result.status} (read ${read}, ingest ${seconds(ingestBegan)})`,
+    );
   } catch (error) {
     if (error instanceof NotFoundError) {
       unavailable += 1;
@@ -126,7 +125,26 @@ for (const { sourceUrl, owned, requested } of targets) {
   }
 }
 
-console.log(`Done. ${succeeded} read, ${unavailable} private or missing, ${failed} failed, ${deferred} deferred.`);
+// Each reader takes the next list in queue order until the list, the time
+// budget or IMDb runs out.
+let next = 0;
+async function reader() {
+  while (next < targets.length && Date.now() - startedAt <= TIME_BUDGET_MS && !looksDown()) {
+    await readOne(targets[next++]);
+  }
+}
+await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, targets.length) }, reader));
+
+const deferred = targets.length - next;
+if (deferred && looksDown()) {
+  console.log(`${failed} reads failed and none worked, so IMDb looks down; ${deferred} left for the next run.`);
+} else if (deferred) {
+  console.log(`Time budget used; ${deferred} feed${deferred === 1 ? "" : "s"} left for the next run.`);
+}
+
+console.log(
+  `Done in ${seconds(startedAt)}. ${succeeded} read, ${unavailable} private or missing, ${failed} failed, ${deferred} deferred.`,
+);
 
 // A private list is the list owner's to fix, not a fault here. A run where
 // every list that should have been readable failed is: IMDb or the Worker is

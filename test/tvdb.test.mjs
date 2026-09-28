@@ -1,19 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { resolveMissingTvdbIds } from "../src/tvdb.js";
+import { resolveTvdbIds } from "../src/tvdb.js";
 
-// TVMaze and TMDB are the far side of the boundary; the lookup order, the
-// fallback and what gets saved are real.
+// TVMaze and TMDB are the far side of the boundary; the lookup order and the
+// fallback are real.
 test("a show TVMaze has no IMDb link for still gets its TVDB id, from TMDB", async () => {
-  const saved = [];
-  const DB = {
-    prepare: (sql) => ({ bind: (...args) => ({ sql, args, all: async () => ({ results: [] }) }) }),
-    batch: async (statements) => {
-      saved.push(...statements.map((statement) => statement.args));
-      return [];
-    },
-  };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
     const url = new URL(String(input instanceof Request ? input.url : input));
@@ -23,12 +15,9 @@ test("a show TVMaze has no IMDb link for still gets its TVDB id, from TMDB", asy
     throw new Error(`unexpected fetch ${url}`);
   };
   try {
-    const { resolvedCount } = await resolveMissingTvdbIds({ DB, TMDB_TOKEN: "token" }, { id: 1 }, [
-      { imdb_id: "tt0000009", title: "Drops of God", title_type: "tvSeries", tvdb_id: null },
-    ]);
+    const found = await resolveTvdbIds({ TMDB_TOKEN: "token" }, ["tt0000009"]);
 
-    assert.equal(resolvedCount, 1);
-    assert.deepEqual(saved, [[4242, 1, "tt0000009"]]);
+    assert.deepEqual([...found], [["tt0000009", 4242]]);
   } finally {
     globalThis.fetch = realFetch;
   }

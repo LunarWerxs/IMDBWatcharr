@@ -16,26 +16,10 @@ import {
 } from "./support/worker-harness.mjs";
 
 describe("fetch - /api/sync-targets", () => {
-  const SYNC_ROW = {
-    source_url: CANONICAL_LIST,
-    source_kind: "list",
-    status: "ready",
-    last_synced_at: RECENT,
-    source_fingerprint: "a".repeat(32),
-    refresh_requested_at: null,
-    owned: 1,
-  };
+  const SYNC_ROW = { source_url: CANONICAL_LIST, last_synced_at: RECENT, refresh_requested_at: null, owned: 1 };
   // A list a signed-out visitor pasted: nobody owns it, and it has never been read.
   const GUEST_LIST = "https://www.imdb.com/list/ls000000042/";
-  const REQUESTED_ROW = {
-    ...SYNC_ROW,
-    source_url: GUEST_LIST,
-    status: "pending",
-    last_synced_at: null,
-    source_fingerprint: null,
-    refresh_requested_at: RECENT,
-    owned: 0,
-  };
+  const REQUESTED_ROW = { source_url: GUEST_LIST, last_synced_at: null, refresh_requested_at: RECENT, owned: 0 };
   const queueDb = () =>
     makeDb([
       ["AND NOT EXISTS (SELECT 1 FROM feed_owners", { results: [REQUESTED_ROW] }],
@@ -71,26 +55,8 @@ describe("fetch - /api/sync-targets", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(parsed.feeds, [
-      {
-        sourceUrl: GUEST_LIST,
-        sourceKind: "list",
-        status: "pending",
-        lastSyncedAt: null,
-        fingerprint: null,
-        stale: true,
-        owned: false,
-        requested: true,
-      },
-      {
-        sourceUrl: CANONICAL_LIST,
-        sourceKind: "list",
-        status: "ready",
-        lastSyncedAt: RECENT,
-        fingerprint: "a".repeat(32),
-        stale: false,
-        owned: true,
-        requested: false,
-      },
+      { sourceUrl: GUEST_LIST, owned: false, requested: true },
+      { sourceUrl: CANONICAL_LIST, owned: true, requested: false },
     ]);
   });
 
@@ -125,7 +91,7 @@ describe("fetch - /api/ingest", () => {
 
   test("a reported sync failure is recorded against the feed and acknowledged", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["consecutive_failures = consecutive_failures + 1", { success: true }],
     ]);
     const { env } = makeEnv({ DB, INGEST_SECRET });
@@ -146,7 +112,7 @@ describe("fetch - /api/ingest", () => {
   });
 
   test("an empty snapshot is rejected before it can wipe a feed that has titles", async () => {
-    const DB = makeDb([["SELECT * FROM feeds WHERE source_url = ?", feedRow({ item_count: 2 })]]);
+    const DB = makeDb([["FROM feeds WHERE source_url = ?", feedRow({ item_count: 2 })]]);
     const { env } = makeEnv({ DB, INGEST_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/ingest`, {
       method: "POST",
@@ -162,7 +128,7 @@ describe("fetch - /api/ingest", () => {
 
   test("an empty list is a real answer for a feed that has never had anything", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0, last_synced_at: null })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0, last_synced_at: null })],
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB, INGEST_SECRET });
@@ -180,7 +146,7 @@ describe("fetch - /api/ingest", () => {
 
   test("a well-formed snapshot is stored and the new state is reported back", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0 })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0 })],
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB, INGEST_SECRET });

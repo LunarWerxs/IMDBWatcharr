@@ -1,7 +1,7 @@
 // Every D1 statement the Worker runs, in one place, so the route handlers read
 // as HTTP and the SQL reads as SQL.
 
-import { createStableSlug } from "./imdb.js";
+import { hashText, SERIES_TITLE_TYPES } from "./imdb.js";
 
 // A claimed feed older than this is re-fetched when Radarr or Sonarr polls it.
 const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
@@ -9,7 +9,21 @@ const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
 // How many signed-out feeds one sync run may pick up. Anyone can queue a list,
 // so the queue is bounded per run rather than trusted to stay small; the rest
 // wait for the next run, oldest request first.
-export const REQUESTED_FEEDS_PER_RUN = 50;
+const REQUESTED_FEEDS_PER_RUN = 50;
+
+// Every column but the two stored bodies. Those run to hundreds of kB (a
+// 2,200-title list's RSS is 690 kB), and only a feed route serves one, so only
+// it asks for one: the one it serves.
+const FEED_COLUMNS = `id, slug, source_url, source_kind, list_title, list_author, list_id, status, item_count,
+  last_error, consecutive_failures, last_synced_at, last_source_modified_at, source_fingerprint, cache_updated_at,
+  refresh_requested_at, created_at, updated_at`;
+const CACHE_COLUMNS = { radarr: "radarr_cache", sonarr: "sonarr_cache" };
+
+// D1 binds at most 100 parameters to one statement, so a snapshot's rows go in
+// ten to an INSERT rather than one each.
+const ITEM_COLUMNS = ["feed_id", "imdb_id", "tvdb_id", "position", "title", "year", "title_type", "added_at", "poster_url", "created_at"];
+const ITEMS_PER_INSERT = Math.floor(100 / ITEM_COLUMNS.length);
+const ITEM_ROW = `(${ITEM_COLUMNS.map(() => "?").join(", ")})`;
 
 export function nowIso() {
   return new Date().toISOString();
@@ -24,38 +38,35 @@ export function isStale(feed) {
 }
 
 export async function getFeedBySlug(db, slug) {
-  const result = await db.prepare("SELECT * FROM feeds WHERE slug = ?").bind(slug).first();
+  const result = await db.prepare(`SELECT ${FEED_COLUMNS} FROM feeds WHERE slug = ?`).bind(slug).first();
   return result ?? null;
 }
 
-export async function getFeedByUrl(db, url) {
-  const result = await db.prepare("SELECT * FROM feeds WHERE source_url = ?").bind(url).first();
+/** A feed by its IMDb URL; with a target, plus the stored body that target serves. */
+export async function getFeedByUrl(db, url, feedTarget) {
+  const columns = feedTarget ? `${FEED_COLUMNS}, ${CACHE_COLUMNS[feedTarget]}` : FEED_COLUMNS;
+  const result = await db.prepare(`SELECT ${columns} FROM feeds WHERE source_url = ?`).bind(url).first();
   return result ?? null;
 }
 
 // A new feed is born with its first read already requested: nothing else will
 // ever fetch a list nobody has claimed, and a feed with no snapshot serves
-// nothing but a 503.
+// nothing but a 503. Two pastes of the same new list at once both get the row.
 async function insertFeed(db, normalized) {
-  const slug = await createStableSlug(normalized.canonicalUrl);
   const timestamp = nowIso();
-  await db
+  return db
     .prepare(
       `INSERT INTO feeds (slug, source_url, source_kind, status, refresh_requested_at, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?)`
+       VALUES (?, ?, ?, 'pending', ?, ?, ?)
+       ON CONFLICT (source_url) DO UPDATE SET source_url = excluded.source_url
+       RETURNING ${FEED_COLUMNS}`,
     )
-    .bind(slug, normalized.canonicalUrl, normalized.sourceKind, timestamp, timestamp, timestamp)
-    .run();
-  return getFeedBySlug(db, slug);
+    .bind(await hashText(normalized.canonicalUrl, 12), normalized.canonicalUrl, normalized.sourceKind, timestamp, timestamp, timestamp)
+    .first();
 }
 
 export async function getOrCreateFeed(db, normalized) {
-  const existing = await getFeedByUrl(db, normalized.canonicalUrl);
-  if (existing) {
-    return existing;
-  }
-
-  return insertFeed(db, normalized);
+  return (await getFeedByUrl(db, normalized.canonicalUrl)) ?? insertFeed(db, normalized);
 }
 
 export async function getFeedItems(db, feedId) {
@@ -68,96 +79,79 @@ export async function getFeedItems(db, feedId) {
   return result.results ?? [];
 }
 
-export async function storeFeedSnapshot(db, feed, snapshot) {
+/** The TVDB ids already resolved for a feed's titles, which a new snapshot carries forward. */
+export async function readKnownTvdbIds(db, feedId) {
+  const result = await db
+    .prepare("SELECT imdb_id, tvdb_id FROM feed_items WHERE feed_id = ? AND tvdb_id IS NOT NULL")
+    .bind(feedId)
+    .all();
+  return new Map((result.results ?? []).map((row) => [row.imdb_id, row.tvdb_id]));
+}
+
+/** The IMDb ids of a feed's shows that have no TVDB id yet. */
+export async function readUnresolvedSeries(db, feedId) {
+  const types = [...SERIES_TITLE_TYPES];
+  const result = await db
+    .prepare(
+      `SELECT imdb_id FROM feed_items
+        WHERE feed_id = ? AND tvdb_id IS NULL AND title_type IN (${types.map(() => "?").join(", ")})`,
+    )
+    .bind(feedId, ...types)
+    .all();
+  return (result.results ?? []).map((row) => row.imdb_id);
+}
+
+// `fields` only ever holds column names written in this codebase, never input.
+function updateFeed(db, feedId, fields) {
+  const columns = Object.keys(fields);
+  return db
+    .prepare(`UPDATE feeds SET ${columns.map((column) => `${column} = ?`).join(", ")} WHERE id = ?`)
+    .bind(...Object.values(fields), feedId);
+}
+
+/** Replace a feed's titles with a new snapshot and set `fields` on it, in one batch. */
+export async function replaceFeedItems(db, feed, items, fields) {
   const timestamp = nowIso();
-  const storedItems = snapshot.items;
-
-  // The rows are replaced wholesale, so carry forward the TVDB ids already
-  // resolved for these titles. Without this every sync drops them and the
-  // Sonarr list re-resolves the whole series set through TVMaze.
-  const previousItems = await getFeedItems(db, feed.id);
-  const knownTvdbIds = new Map(
-    previousItems.filter((item) => item.tvdb_id).map((item) => [item.imdb_id, item.tvdb_id]),
-  );
-
-  const statements = [db.prepare("DELETE FROM feed_items WHERE feed_id = ?").bind(feed.id)];
-
-  for (const item of storedItems) {
-    const tvdbId = item.tvdbId ?? knownTvdbIds.get(item.imdbId) ?? null;
-    statements.push(
-      db.prepare(
-        `INSERT INTO feed_items (feed_id, imdb_id, tvdb_id, position, title, year, title_type, added_at, poster_url, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        feed.id,
-        item.imdbId,
-        tvdbId,
-        item.position,
-        item.title,
-        item.year,
-        item.titleType,
-        item.addedAt,
-        item.posterUrl ?? null,
-        timestamp,
-      )
+  const inserts = [];
+  for (let offset = 0; offset < items.length; offset += ITEMS_PER_INSERT) {
+    const rows = items.slice(offset, offset + ITEMS_PER_INSERT);
+    inserts.push(
+      db
+        .prepare(`INSERT INTO feed_items (${ITEM_COLUMNS.join(", ")}) VALUES ${rows.map(() => ITEM_ROW).join(", ")}`)
+        .bind(
+          ...rows.flatMap((item) => [
+            feed.id,
+            item.imdb_id,
+            item.tvdb_id,
+            item.position,
+            item.title,
+            item.year,
+            item.title_type,
+            item.added_at,
+            item.poster_url,
+            timestamp,
+          ]),
+        ),
     );
   }
 
-  statements.push(
-    db.prepare(
-      `UPDATE feeds
-       SET list_title = ?, list_author = ?, list_id = ?, status = 'ready', item_count = ?, last_error = NULL,
-           consecutive_failures = 0, refresh_requested_at = NULL, last_synced_at = ?, last_source_modified_at = ?,
-           updated_at = ?
-       WHERE id = ?`
-    ).bind(
-      snapshot.listTitle || snapshot.sourceTitle,
-      snapshot.listAuthor || "",
-      snapshot.listId || "",
-      storedItems.length,
-      timestamp,
-      snapshot.lastSourceModifiedAt,
-      timestamp,
-      feed.id,
-    )
-  );
-
-  await db.batch(statements);
-  return {
-    ...feed,
-    list_title: snapshot.listTitle || snapshot.sourceTitle,
-    list_author: snapshot.listAuthor || "",
-    list_id: snapshot.listId || "",
-    status: "ready",
-    item_count: storedItems.length,
-    last_error: null,
-    consecutive_failures: 0,
-    refresh_requested_at: null,
-    last_synced_at: timestamp,
-    last_source_modified_at: snapshot.lastSourceModifiedAt,
-    updated_at: timestamp,
-  };
+  await db.batch([
+    db.prepare("DELETE FROM feed_items WHERE feed_id = ?").bind(feed.id),
+    ...inserts,
+    updateFeed(db, feed.id, fields),
+  ]);
+  return { ...feed, ...fields };
 }
 
-export async function storeFeedCaches(db, feed, { radarrCache, sonarrCache, sourceFingerprint }) {
-  const timestamp = nowIso();
-  await db
-    .prepare(
-      `UPDATE feeds
-       SET source_fingerprint = ?, radarr_cache = ?, sonarr_cache = ?, cache_updated_at = ?, updated_at = ?
-       WHERE id = ?`
-    )
-    .bind(sourceFingerprint, radarrCache, sonarrCache, timestamp, timestamp, feed.id)
-    .run();
-
-  return {
-    ...feed,
-    source_fingerprint: sourceFingerprint,
-    radarr_cache: radarrCache,
-    sonarr_cache: sonarrCache,
-    cache_updated_at: timestamp,
-    updated_at: timestamp,
-  };
+/** Save TVDB ids found for titles already stored and set `fields` on the feed, in one round trip. */
+export async function updateFeedAndTvdbIds(db, feed, fields, tvdbIds = new Map()) {
+  await db.batch([
+    ...[...tvdbIds].map(([imdbId, tvdbId]) =>
+      db.prepare("UPDATE feed_items SET tvdb_id = ? WHERE feed_id = ? AND imdb_id = ?").bind(tvdbId, feed.id, imdbId),
+    ),
+    updateFeed(db, feed.id, fields),
+  ]);
+  return { ...feed, ...fields };
 }
 
 // How long a request that keeps failing stays in the queue. Measured in time,
@@ -200,30 +194,6 @@ export async function markFeedFailure(db, feedId, error, { permanent = false, gi
     .run();
 }
 
-export async function markFeedUnchanged(db, feed, sourceFingerprint) {
-  const timestamp = nowIso();
-  await db
-    .prepare(
-      `UPDATE feeds
-       SET source_fingerprint = ?, status = 'ready', last_error = NULL, consecutive_failures = 0,
-           refresh_requested_at = NULL, last_synced_at = ?, updated_at = ?
-       WHERE id = ?`
-    )
-    .bind(sourceFingerprint, timestamp, timestamp, feed.id)
-    .run();
-
-  return {
-    ...feed,
-    source_fingerprint: sourceFingerprint,
-    status: "ready",
-    last_error: null,
-    consecutive_failures: 0,
-    refresh_requested_at: null,
-    last_synced_at: timestamp,
-    updated_at: timestamp,
-  };
-}
-
 /**
  * Ask the sync job to read this feed on its next run. An earlier request keeps
  * its place in the queue rather than being pushed to the back. `queued` says
@@ -257,14 +227,6 @@ export async function claimDispatchSlot(db, intervalMs) {
   return (result?.meta?.changes ?? 0) === 1;
 }
 
-export async function saveTvdbIds(db, feedId, resolutions) {
-  await db.batch(
-    resolutions.map(({ imdbId, tvdbId }) =>
-      db.prepare("UPDATE feed_items SET tvdb_id = ? WHERE feed_id = ? AND imdb_id = ?").bind(tvdbId, feedId, imdbId),
-    ),
-  );
-}
-
 export async function claimFeed(db, feedId, sub) {
   await db
     .prepare("INSERT OR IGNORE INTO feed_owners (feed_id, owner_sub, created_at) VALUES (?, ?, ?)")
@@ -293,8 +255,7 @@ export async function hasAnyOwner(db, feedId) {
   return Boolean(row);
 }
 
-const SYNC_TARGET_COLUMNS = `f.source_url, f.source_kind, f.status, f.last_synced_at, f.source_fingerprint,
-       f.refresh_requested_at`;
+const SYNC_TARGET_COLUMNS = "f.source_url, f.last_synced_at, f.refresh_requested_at";
 
 // A claimed feed read more recently than this is skipped by a dispatched run:
 // the schedule has it in hand, and the dispatched run is about the queue.

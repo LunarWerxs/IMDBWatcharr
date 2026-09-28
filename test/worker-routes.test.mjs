@@ -283,7 +283,7 @@ describe("fetch - /api/unfollow", () => {
 
   test("signed in it releases the feed the caller owned and answers ok", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["DELETE FROM feed_owners", { success: true }],
     ]);
     const { env } = makeEnv({ DB, SESSION_SECRET });
@@ -331,7 +331,7 @@ describe("fetch - /api/create", () => {
 
   test("a new signed-out list reports both routes and honest pending state", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", CREATE_ROW],
+      ["FROM feeds WHERE source_url = ?", CREATE_ROW],
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -381,7 +381,7 @@ describe("fetch - /api/create", () => {
   // A regression here would hang on the unanswered GitHub call, so it gets a limit.
   test("a new list asks GitHub for a run after answering, so Generate never waits on GitHub", { timeout: 5000 }, async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", CREATE_ROW],
+      ["FROM feeds WHERE source_url = ?", CREATE_ROW],
       ["FROM feed_items", { results: [] }],
       ["UPDATE sync_dispatch", { meta: { changes: 1 } }],
     ]);
@@ -418,7 +418,7 @@ describe("fetch - /api/create", () => {
 
   test("a list already in the queue does not ask GitHub again, however often it is pasted", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", { ...CREATE_ROW, refresh_requested_at: RECENT }],
+      ["FROM feeds WHERE source_url = ?", { ...CREATE_ROW, refresh_requested_at: RECENT }],
       ["FROM feed_items", { results: [] }],
       ["UPDATE sync_dispatch", { meta: { changes: 1 } }],
     ]);
@@ -441,7 +441,7 @@ describe("fetch - /api/create", () => {
 
   test("signed in, an up-to-date feed says it is being kept current and claims it", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB, SESSION_SECRET });
@@ -460,7 +460,7 @@ describe("fetch - /api/create", () => {
 
   test("the origin every URL is built from is the caller's, not a constant", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -477,7 +477,7 @@ describe("fetch - /api/create", () => {
 describe("fetch - feed routes", () => {
   test("a stale owned feed is nudged through ctx.waitUntil without delaying the response", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null })],
       ["SELECT 1 AS owned FROM feed_owners", { owned: 1 }],
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
@@ -491,7 +491,7 @@ describe("fetch - feed routes", () => {
   });
 
   test("a feed URL nobody has pasted is a 404 that says how to start it, and creates nothing", async () => {
-    const DB = makeDb([["SELECT * FROM feeds WHERE source_url = ?", null]]);
+    const DB = makeDb([["FROM feeds WHERE source_url = ?", null]]);
     const { env } = makeEnv({ DB });
     const { response, text } = await call(`${ORIGIN}/radarr/l/ls000000077`, { env });
 
@@ -502,7 +502,7 @@ describe("fetch - feed routes", () => {
 
   test("an empty feed answers 503 with the last error, so Radarr sees a reason", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null, last_error: "IMDb said no." })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null, last_error: "IMDb said no." })],
       ["SELECT 1 AS owned FROM feed_owners", null],
       ["FROM feed_items", { results: [] }],
     ]);
@@ -516,7 +516,7 @@ describe("fetch - feed routes", () => {
 
   test("an empty feed with no recorded error still says something readable", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null, last_error: null })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ last_synced_at: null, last_error: null })],
       ["SELECT 1 AS owned FROM feed_owners", null],
       ["FROM feed_items", { results: [] }],
     ]);
@@ -529,7 +529,7 @@ describe("fetch - feed routes", () => {
   test("a matching If-None-Match short-circuits to 304 with the cache headers", async () => {
     const etag = `"${"a".repeat(32)}-radarr"`;
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow({ source_fingerprint: "a".repeat(32) })],
+      ["FROM feeds WHERE source_url = ?", feedRow({ source_fingerprint: "a".repeat(32) })],
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -542,12 +542,13 @@ describe("fetch - feed routes", () => {
     assert.equal(response.headers.get("etag"), etag);
     assert.equal(response.headers.get("cache-control"), "public, max-age=300");
     assert.equal(await response.text(), "");
+    assert.equal(DB.find("FROM feed_items").length, 0, "a 304 is answered from the feed row alone");
   });
 
   test("radarr with a cache serves the stored XML and rewrites the origin placeholder", async () => {
     const DB = makeDb([
       [
-        "SELECT * FROM feeds WHERE source_url = ?",
+        "FROM feeds WHERE source_url = ?",
         feedRow({
           source_fingerprint: "a".repeat(32),
           radarr_cache: `<rss><channel><link>https://www.imdb.com/list/ls055592025/</link><atom:link href="__IMDBWATCHARR_PUBLIC_ORIGIN__/radarr/l/ls055592025" /></channel></rss>`,
@@ -562,11 +563,13 @@ describe("fetch - feed routes", () => {
     assert.equal(response.headers.get("content-type"), "application/rss+xml; charset=utf-8");
     assert.match(text, new RegExp(`${ORIGIN}/radarr/l/ls055592025`));
     assert.doesNotMatch(text, /__IMDBWATCHARR_PUBLIC_ORIGIN__/);
+    assert.equal(DB.find("FROM feed_items").length, 0, "a stored body is served without reading the titles");
+    assert.equal(DB.find("sonarr_cache").length, 0, "nor the other target's body");
   });
 
   test("radarr with no cache builds the XML from the stored items", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -582,7 +585,7 @@ describe("fetch - feed routes", () => {
     const payload = [{ Title: "Breaking Bad", TvdbId: 81189 }];
     const DB = makeDb([
       [
-        "SELECT * FROM feeds WHERE source_url = ?",
+        "FROM feeds WHERE source_url = ?",
         feedRow({ sonarr_cache: JSON.stringify(payload) }),
       ],
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
@@ -597,7 +600,7 @@ describe("fetch - feed routes", () => {
 
   test("sonarr with no cache builds the custom list from the TVDB ids already resolved", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [MOVIE_ITEM, SERIES_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -608,7 +611,7 @@ describe("fetch - feed routes", () => {
 
   test("the untargeted /l/ alias 302s onto the radarr route rather than serving a second identity", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -622,7 +625,7 @@ describe("fetch - feed routes", () => {
 
   test("a HEAD on a feed route is served like a GET", async () => {
     const DB = makeDb([
-      ["SELECT * FROM feeds WHERE source_url = ?", feedRow()],
+      ["FROM feeds WHERE source_url = ?", feedRow()],
       ["FROM feed_items", { results: [MOVIE_ITEM] }],
     ]);
     const { env } = makeEnv({ DB });
@@ -642,7 +645,7 @@ describe("fetch - redirects and lookups", () => {
   });
 
   test("a legacy slug feed 302s to the canonical feed URL", async () => {
-    const DB = makeDb([["SELECT * FROM feeds WHERE slug = ?", feedRow()]]);
+    const DB = makeDb([["FROM feeds WHERE slug = ?", feedRow()]]);
     const { env } = makeEnv({ DB });
     const { response } = await call(`${ORIGIN}/f/abcdef012345.xml`, { env });
 
@@ -651,7 +654,7 @@ describe("fetch - redirects and lookups", () => {
   });
 
   test("an unknown legacy slug is a plain 404", async () => {
-    const DB = makeDb([["SELECT * FROM feeds WHERE slug = ?", null]]);
+    const DB = makeDb([["FROM feeds WHERE slug = ?", null]]);
     const { env } = makeEnv({ DB });
     const { response, text } = await call(`${ORIGIN}/f/abcdef012345.xml`, { env });
 
@@ -666,7 +669,7 @@ describe("fetch - redirects and lookups", () => {
     const COVER = "https://m.media-amazon.com/images/M/MV5BMDAyY2FhYjctNDc5OS00MDNlLThiMGUtY2UxYWVkNGY2ZjljXkEyXkFqcGc@._V1_.jpg";
     const UNRESOLVED_SHOW = { ...SERIES_ITEM, imdb_id: "tt0000003", position: 3, title: "No TVDB", tvdb_id: null };
     const found = makeDb([
-      ["SELECT * FROM feeds WHERE slug = ?", feedRow({ radarr_cache: "<rss/>", sonarr_cache: "[]" })],
+      ["FROM feeds WHERE slug = ?", feedRow({ radarr_cache: "<rss/>", sonarr_cache: "[]" })],
       [
         "FROM feed_items WHERE feed_id",
         {
@@ -678,7 +681,7 @@ describe("fetch - redirects and lookups", () => {
         },
       ],
     ]);
-    const missing = makeDb([["SELECT * FROM feeds WHERE slug = ?", null]]);
+    const missing = makeDb([["FROM feeds WHERE slug = ?", null]]);
 
     const ok = await call(`${ORIGIN}/api/feeds/abcdef012345`, { env: makeEnv({ DB: found }).env });
     assert.equal(ok.response.status, 200);

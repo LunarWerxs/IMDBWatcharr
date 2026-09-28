@@ -26,14 +26,15 @@ import {
   getFeedByUrl,
   getFeedItems,
   getOrCreateFeed,
-  isStale,
   markFeedFailure,
-  markFeedUnchanged,
+  nowIso,
+  readKnownTvdbIds,
   readSyncTargets,
-  storeFeedCaches,
-  storeFeedSnapshot,
+  readUnresolvedSeries,
+  replaceFeedItems,
+  updateFeedAndTvdbIds,
 } from "./store.js";
-import { enrichTvdbIdsForFeed, resolveMissingTvdbIds } from "./tvdb.js";
+import { resolveTvdbIds } from "./tvdb.js";
 
 // The workflow a pasted list dispatches. workflow_dispatch needs only the
 // token's Actions permission, where repository_dispatch would need write
@@ -126,31 +127,87 @@ function validateSnapshot(snapshot) {
   };
 }
 
-/** Rebuild the two bodies the feed routes serve, from the items as stored. */
-export async function writeFeedCaches(db, feed, items, sourceFingerprint) {
-  return storeFeedCaches(db, feed, {
-    radarrCache: buildCachedFeedXmlTemplate(feed, filterItemsForTarget(items, "radarr"), "radarr"),
-    sonarrCache: JSON.stringify(buildSonarrCustomListPayload(items)),
-    sourceFingerprint,
-  });
+/** A snapshot item as a feed_items row, the shape everything downstream reads. */
+function toStoredItem(item, tvdbId) {
+  return {
+    imdb_id: item.imdbId,
+    tvdb_id: tvdbId,
+    position: item.position,
+    title: item.title,
+    year: item.year,
+    title_type: item.titleType,
+    added_at: item.addedAt,
+    poster_url: item.posterUrl,
+  };
 }
 
+function withTvdbIds(items, found) {
+  return items.map((item) => (found.has(item.imdb_id) ? { ...item, tvdb_id: found.get(item.imdb_id) } : item));
+}
+
+/** A read of a list that has not changed since the last one. */
+async function syncUnchangedFeed(env, feed, sourceFingerprint) {
+  const timestamp = nowIso();
+  const fields = {
+    source_fingerprint: sourceFingerprint,
+    status: "ready",
+    last_error: null,
+    consecutive_failures: 0,
+    refresh_requested_at: null,
+    last_synced_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  // A show neither source could answer for last time may resolve now; without
+  // this it stays out of Sonarr until the list itself changes. Only the Sonarr
+  // body can change with it, and only then are the titles read at all.
+  const found = await resolveTvdbIds(env, await readUnresolvedSeries(env.DB, feed.id));
+  if (found.size) {
+    const items = withTvdbIds(await getFeedItems(env.DB, feed.id), found);
+    fields.sonarr_cache = JSON.stringify(buildSonarrCustomListPayload(items));
+    fields.cache_updated_at = timestamp;
+  }
+  return updateFeedAndTvdbIds(env.DB, feed, fields, found);
+}
+
+/**
+ * Store a snapshot. The titles, their TVDB ids (carried over from the last
+ * read, then looked up for any show still without one) and both bodies the
+ * feed routes serve are all worked out first and written in one batch.
+ */
 async function syncFeedFromSnapshot(env, feed, snapshot) {
   const sourceFingerprint = await hashText(buildSnapshotFingerprintPayload(snapshot), 32);
-
-  if (sourceFingerprint === feed.source_fingerprint && feed.radarr_cache && feed.sonarr_cache) {
-    // The list did not change, but a series TVMaze could not answer for last
-    // time may resolve now; without this it stays out of Sonarr until the
-    // list itself changes.
-    const { items, resolvedCount } = await resolveMissingTvdbIds(env, feed, await getFeedItems(env.DB, feed.id));
-    const current = resolvedCount ? await writeFeedCaches(env.DB, feed, items, sourceFingerprint) : feed;
-    return markFeedUnchanged(env.DB, current, sourceFingerprint);
+  if (sourceFingerprint === feed.source_fingerprint && feed.cache_updated_at) {
+    return syncUnchangedFeed(env, feed, sourceFingerprint);
   }
 
-  const currentFeed = await storeFeedSnapshot(env.DB, feed, snapshot);
-  const storedItems = await getFeedItems(env.DB, currentFeed.id);
-  const items = await enrichTvdbIdsForFeed(env, currentFeed, storedItems);
-  return writeFeedCaches(env.DB, currentFeed, items, sourceFingerprint);
+  const known = await readKnownTvdbIds(env.DB, feed.id);
+  const stored = snapshot.items.map((item) => toStoredItem(item, known.get(item.imdbId) ?? null));
+  const unresolved = filterItemsForTarget(stored, "sonarr").filter((item) => !item.tvdb_id);
+  const items = withTvdbIds(stored, await resolveTvdbIds(env, unresolved.map((item) => item.imdb_id)));
+
+  const timestamp = nowIso();
+  const fields = {
+    list_title: snapshot.listTitle || snapshot.sourceTitle,
+    list_author: snapshot.listAuthor || "",
+    list_id: snapshot.listId || "",
+    status: "ready",
+    item_count: items.length,
+    last_error: null,
+    consecutive_failures: 0,
+    refresh_requested_at: null,
+    last_synced_at: timestamp,
+    last_source_modified_at: snapshot.lastSourceModifiedAt,
+    source_fingerprint: sourceFingerprint,
+    cache_updated_at: timestamp,
+    updated_at: timestamp,
+  };
+  return replaceFeedItems(env.DB, feed, items, {
+    ...fields,
+    // Built from the feed as it will be once this lands: its RSS names the list and the read's time.
+    radarr_cache: buildCachedFeedXmlTemplate({ ...feed, ...fields }, filterItemsForTarget(items, "radarr"), "radarr"),
+    sonarr_cache: JSON.stringify(buildSonarrCustomListPayload(items)),
+  });
 }
 
 /**
@@ -226,14 +283,10 @@ async function handleSyncTargetsRoute({ request, env, url }) {
   const scope = url.searchParams.get("scope") === "requested" ? "requested" : "all";
   const feeds = await readSyncTargets(env.DB, { scope });
 
+  // What the runner reads: the list, and the two words its log line carries.
   return json({
     feeds: feeds.map((feed) => ({
       sourceUrl: feed.source_url,
-      sourceKind: feed.source_kind,
-      status: feed.status,
-      lastSyncedAt: feed.last_synced_at,
-      fingerprint: feed.source_fingerprint,
-      stale: isStale(feed),
       owned: Boolean(feed.owned),
       requested: Boolean(feed.refresh_requested_at),
     })),

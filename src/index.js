@@ -3,7 +3,6 @@ import {
   buildPublicFeedPath,
   buildSonarrCustomListPayload,
   filterItemsForTarget,
-  getNormalizedFromStoredFeed,
   FEED_ALERT_FAILURE_THRESHOLD,
   injectPublicOrigin,
   isFeedAlerting,
@@ -29,9 +28,8 @@ import {
   releaseFeed,
   requestRefresh,
 } from "./store.js";
-import { requestSyncRun, requestSyncRunAfterResponse, SYNC_ROUTE_HANDLERS, writeFeedCaches } from "./sync.js";
+import { requestSyncRun, requestSyncRunAfterResponse, SYNC_ROUTE_HANDLERS } from "./sync.js";
 import { handleTitleRoute } from "./tmdb-details.js";
-import { enrichTvdbIdsForFeed } from "./tvdb.js";
 
 // How often a signed-out visitor may ask for the same list to be re-fetched.
 // Their feed does not update on its own, so pasting it again has to do
@@ -186,6 +184,21 @@ function feedStatusFields(feed, { dispatched = false, owned, signedIn = owned })
   };
 }
 
+/** What is on the list, as both /api/create and the status poll report it. */
+function feedContents(items) {
+  const counts = summarizeItemsByTarget(items);
+  const skipped = skippedShows(items);
+  return {
+    itemCount: counts.radarr,
+    radarrCount: counts.radarr,
+    sonarrCount: counts.sonarr - skipped.length,
+    sonarrUnresolvedCount: skipped.length,
+    totalCount: counts.total,
+    preview: previewItems(items),
+    skippedShows: skipped,
+  };
+}
+
 // A signed-out visitor gets a first read and a rate-limited re-read each time
 // they paste the list again; a signed-in one gets both of those and the
 // scheduled sync.
@@ -264,53 +277,35 @@ async function handleCreateRoute({ request, env, ctx, url, publicOrigin }) {
     const payload = await request.json();
     const normalized = normalizeImdbUrl(payload?.sourceUrl ?? "");
     const session = await getSession(request, env);
-    let feed = await getOrCreateFeed(env.DB, normalized);
-
-    // Signing in and pasting a list is what claims it. Claiming is additive,
-    // so two people can both keep the same public list alive.
-    if (session) {
-      await claimFeed(env.DB, feed.id, session.sub);
-    }
+    const feed = await getOrCreateFeed(env.DB, normalized);
 
     // Nothing here can fetch IMDb, so a feed that needs data is put in the
-    // sync job's queue, and the job is asked to run now when it can be.
-    let dispatched = false;
-    if (mayRefreshNow(feed, session)) {
-      const refresh = await requestRefresh(env.DB, feed);
-      feed = refresh.feed;
-      dispatched = refresh.queued && (await requestSyncRunAfterResponse(env, ctx));
-    }
-
-    const storedItems = await getFeedItems(env.DB, feed.id);
-    const enrichedItems = await enrichTvdbIdsForFeed(env, feed, storedItems);
-    const counts = summarizeItemsByTarget(enrichedItems);
-    const sonarrPayload = buildSonarrCustomListPayload(enrichedItems);
-
-    // The cached payloads are only built during a sync, so a TVDB id resolved
-    // outside one leaves the served feed behind what this response reports.
-    // Compare against the cache itself rather than against what this request
-    // happened to resolve, or a feed enriched by an earlier request stays stale.
-    if (feed.source_fingerprint && feed.sonarr_cache !== JSON.stringify(sonarrPayload)) {
-      feed = await writeFeedCaches(env.DB, feed, enrichedItems, feed.source_fingerprint);
-    }
+    // sync job's queue, and the job is asked to run now when it can be. An
+    // earlier request keeps its place, and is not dispatched again. TVDB ids
+    // are the sync's to find, so this answers from what is stored, and the
+    // writes and the read below go out together rather than one after another.
+    const queue = mayRefreshNow(feed, session) && !feed.refresh_requested_at;
+    const [items, refresh, dispatched] = await Promise.all([
+      // Titles only exist once a read has landed.
+      feed.last_synced_at ? getFeedItems(env.DB, feed.id) : [],
+      queue ? requestRefresh(env.DB, feed) : { feed },
+      queue && requestSyncRunAfterResponse(env, ctx),
+      // Signing in and pasting a list is what claims it. Claiming is additive,
+      // so two people can both keep the same public list alive.
+      session && claimFeed(env.DB, feed.id, session.sub),
+    ]);
 
     const radarrPath = buildPublicFeedPath(normalized, "radarr");
     const sonarrPath = buildPublicFeedPath(normalized, "sonarr");
     return json({
-      ...feedStatusFields(feed, { dispatched, owned: Boolean(session), signedIn: Boolean(session) }),
+      ...feedStatusFields(refresh.feed, { dispatched, owned: Boolean(session), signedIn: Boolean(session) }),
       routePath: radarrPath,
       feedUrl: `${publicOrigin}${radarrPath}`,
       radarrRoutePath: radarrPath,
       radarrFeedUrl: `${publicOrigin}${radarrPath}`,
       sonarrRoutePath: sonarrPath,
       sonarrFeedUrl: `${publicOrigin}${sonarrPath}`,
-      itemCount: counts.radarr,
-      radarrCount: counts.radarr,
-      sonarrCount: sonarrPayload.length,
-      sonarrUnresolvedCount: counts.sonarr - sonarrPayload.length,
-      totalCount: counts.total,
-      preview: previewItems(enrichedItems),
-      skippedShows: skippedShows(enrichedItems),
+      ...feedContents(items),
       signedIn: Boolean(session),
     });
   } catch (error) {
@@ -343,43 +338,24 @@ function nudgeSyncForOwnedFeed(feed, env, ctx) {
   );
 }
 
-async function serveSonarrFeed(env, feed, items, baseHeaders) {
-  if (feed.sonarr_cache) {
-    return new Response(feed.sonarr_cache, {
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        ...baseHeaders,
-      },
-    });
+const FEED_CONTENT_TYPES = {
+  radarr: "application/rss+xml; charset=utf-8",
+  sonarr: "application/json; charset=utf-8",
+};
+
+// The body a sync stored for this target, or, for a feed read before bodies
+// were stored, one built from its titles as they stand.
+async function feedBody(env, feed, feedTarget, publicOrigin) {
+  if (feedTarget === "sonarr") {
+    return feed.sonarr_cache ?? JSON.stringify(buildSonarrCustomListPayload(await getFeedItems(env.DB, feed.id)));
   }
 
-  const enrichedItems = await enrichTvdbIdsForFeed(env, feed, items);
-  const payload = buildSonarrCustomListPayload(enrichedItems);
-  return json(payload, {
-    headers: {
-      ...baseHeaders,
-    },
-  });
-}
-
-function serveRadarrFeed(feed, items, feedTarget, baseHeaders, publicOrigin) {
   if (feed.radarr_cache) {
-    return new Response(injectPublicOrigin(feed.radarr_cache, publicOrigin), {
-      headers: {
-        "content-type": "application/rss+xml; charset=utf-8",
-        ...baseHeaders,
-      },
-    });
+    return injectPublicOrigin(feed.radarr_cache, publicOrigin);
   }
 
-  const filteredItems = filterItemsForTarget(items, feedTarget);
-  const xml = buildFeedXml(publicOrigin, feed, filteredItems, feedTarget);
-  return new Response(xml, {
-    headers: {
-      "content-type": "application/rss+xml; charset=utf-8",
-      ...baseHeaders,
-    },
-  });
+  const movies = filterItemsForTarget(await getFeedItems(env.DB, feed.id), "radarr");
+  return buildFeedXml(publicOrigin, feed, movies, "radarr");
 }
 
 // A feed that has never been read has nothing to serve. Radarr and Sonarr log
@@ -404,8 +380,8 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
     return null;
   }
 
-  const { feedTarget, ...normalizedRoute } = parsedRoute;
-  const feed = await getFeedByUrl(env.DB, normalizedRoute.canonicalUrl);
+  const { feedTarget, canonicalUrl } = parsedRoute;
+  const feed = await getFeedByUrl(env.DB, canonicalUrl, feedTarget);
 
   // Pasting a list on the site is the one way a feed starts. Creating (and
   // queueing a read for) every feed-shaped URL anyone requests would let a
@@ -421,8 +397,9 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
     nudgeSyncForOwnedFeed(feed, env, ctx);
   }
 
-  const items = await getFeedItems(env.DB, feed.id);
-  if (items.length === 0 && !feed.last_synced_at) {
+  // Only a feed never read might have nothing to serve; every other poll is
+  // answered without reading its titles at all.
+  if (!feed.last_synced_at && (await getFeedItems(env.DB, feed.id)).length === 0) {
     return notReadYet(feed);
   }
 
@@ -439,11 +416,9 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
     });
   }
 
-  if (feedTarget === "sonarr") {
-    return serveSonarrFeed(env, feed, items, baseHeaders);
-  }
-
-  return serveRadarrFeed(feed, items, feedTarget, baseHeaders, publicOrigin);
+  return new Response(await feedBody(env, feed, feedTarget, publicOrigin), {
+    headers: { "content-type": FEED_CONTENT_TYPES[feedTarget], ...baseHeaders },
+  });
 }
 
 async function handleLegacySlugRedirect({ request, env, url, publicOrigin }) {
@@ -461,7 +436,7 @@ async function handleLegacySlugRedirect({ request, env, url, publicOrigin }) {
     return new Response("Feed not found.", { status: 404 });
   }
 
-  const redirectUrl = `${publicOrigin}${buildPublicFeedPath(getNormalizedFromStoredFeed(feed), "radarr")}`;
+  const redirectUrl = `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}`;
   return Response.redirect(redirectUrl, 302);
 }
 
@@ -483,10 +458,10 @@ async function handleFeedStatusRoute({ request, env, url }) {
   }
 
   const session = await getSession(request, env);
-  const owned = await isFeedOwnedBy(env.DB, feed.id, session?.sub);
-  const items = await getFeedItems(env.DB, feed.id);
-  const counts = summarizeItemsByTarget(items);
-  const sonarrCount = buildSonarrCustomListPayload(items).length;
+  const [owned, items] = await Promise.all([
+    isFeedOwnedBy(env.DB, feed.id, session?.sub),
+    getFeedItems(env.DB, feed.id),
+  ]);
 
   // A request queued in the last few minutes on a Worker that can dispatch was
   // dispatched (or rides a run that was), so the poll keeps the pace and the
@@ -498,13 +473,7 @@ async function handleFeedStatusRoute({ request, env, url }) {
 
   return json({
     ...feedStatusFields(feed, { dispatched, owned, signedIn: Boolean(session) }),
-    itemCount: counts.radarr,
-    radarrCount: counts.radarr,
-    sonarrCount,
-    sonarrUnresolvedCount: counts.sonarr - sonarrCount,
-    totalCount: counts.total,
-    preview: previewItems(items),
-    skippedShows: skippedShows(items),
+    ...feedContents(items),
   });
 }
 
@@ -526,21 +495,24 @@ async function handleMyFeedsRoute({ request, env, url, publicOrigin }) {
   }
   const feeds = await readOwnedFeeds(env.DB, session.sub);
   return json({
-    feeds: feeds.map((feed) => ({
-      slug: feed.slug,
-      sourceUrl: feed.source_url,
-      listTitle: feed.list_title,
-      status: feed.status,
-      itemCount: feed.item_count,
-      lastSyncedAt: feed.last_synced_at,
-      lastError: feed.last_error,
-      consecutiveFailures: feed.consecutive_failures,
-      // Same threshold the runner's failures accumulate against - see
-      // markFeedFailure in src/store.js and FEED_ALERT_FAILURE_THRESHOLD in src/imdb.js.
-      alerting: isFeedAlerting(feed.consecutive_failures),
-      radarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "radarr")}`,
-      sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), "sonarr")}`,
-    })),
+    feeds: feeds.map((feed) => {
+      const normalized = normalizeImdbUrl(feed.source_url);
+      return {
+        slug: feed.slug,
+        sourceUrl: feed.source_url,
+        listTitle: feed.list_title,
+        status: feed.status,
+        itemCount: feed.item_count,
+        lastSyncedAt: feed.last_synced_at,
+        lastError: feed.last_error,
+        consecutiveFailures: feed.consecutive_failures,
+        // Same threshold the runner's failures accumulate against - see
+        // markFeedFailure in src/store.js and FEED_ALERT_FAILURE_THRESHOLD in src/imdb.js.
+        alerting: isFeedAlerting(feed.consecutive_failures),
+        radarrUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "radarr")}`,
+        sonarrUrl: `${publicOrigin}${buildPublicFeedPath(normalized, "sonarr")}`,
+      };
+    }),
   });
 }
 
