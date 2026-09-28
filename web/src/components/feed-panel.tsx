@@ -1,5 +1,15 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { FilmIcon, LoaderCircleIcon, TriangleAlertIcon, TvIcon } from 'lucide-react'
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  EyeOffIcon,
+  FilmIcon,
+  ListVideoIcon,
+  LoaderCircleIcon,
+  TriangleAlertIcon,
+  TvIcon,
+} from 'lucide-react'
+import { Popover } from 'radix-ui'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { CopyField } from '@/components/copy-field'
@@ -46,23 +56,31 @@ const PILL_TONES: Record<FeedState, string> = {
 const TARGETS = [
   {
     app: 'Radarr',
-    kind: 'RSS List',
     icon: FilmIcon,
     urlKey: 'radarrFeedUrl',
     label: 'Radarr RSS URL',
-    path: 'Settings, Lists, Add list, Advanced, RSS List.',
+    path: ['Settings', 'Lists', 'Add list', 'Advanced', 'RSS List'],
   },
   {
     app: 'Sonarr',
-    kind: 'Custom List',
     icon: TvIcon,
     urlKey: 'sonarrFeedUrl',
     label: 'Sonarr custom list URL',
-    path: 'Settings, Import Lists, Add list, Advanced, Custom List.',
+    path: ['Settings', 'Import Lists', 'Add list', 'Advanced', 'Custom List'],
   },
 ] as const
 
-const STAT_LABELS = ['Titles on the list', 'Movies for Radarr', 'Shows for Sonarr', 'Shows we skipped'] as const
+// The list's counts, as one line under its name: an icon, the number, a word.
+const STATS = [
+  { key: 'totalCount', label: 'Titles on the list', word: 'titles', icon: ListVideoIcon },
+  { key: 'radarrCount', label: 'Movies for Radarr', word: 'movies', icon: FilmIcon },
+  { key: 'sonarrCount', label: 'Shows for Sonarr', word: 'shows', icon: TvIcon },
+  { key: 'sonarrUnresolvedCount', label: 'Shows we skipped', word: 'skipped', icon: EyeOffIcon },
+] as const
+
+type Stat = (typeof STATS)[number]
+
+const STAT_LINE = 'mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm'
 
 /** An element that rises in `order` steps after the panel it sits in. */
 function riseDelay(order: number): CSSProperties {
@@ -88,59 +106,140 @@ function StatusPill({ result }: { result: CreateFeedResponse }) {
   )
 }
 
-function StatTile({ label, value, order }: { label: string; value: number; order: number }) {
-  const shown = useCountUp(value)
+/**
+ * Why some shows are missing from the Sonarr link, and which ones. It used to
+ * be a paragraph under the counts; now the "skipped" count opens it, so the
+ * panel stays short and the reason is one click away.
+ */
+function SkippedNote({ result, children }: { result: CreateFeedResponse; children: ReactNode }) {
+  const names = result.skippedShows ?? []
   return (
-    <div className="bg-secondary ring-foreground/10 rounded-md px-4 py-3.5 ring-1 motion-safe:animate-rise" style={riseDelay(order)}>
-      <div className="text-2xl leading-tight font-bold tabular-nums">{shown}</div>
-      <div className="text-muted-foreground text-ui mt-1">{label}</div>
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="group/skip hover:bg-foreground/10 -mx-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors"
+        >
+          {children}
+          <ChevronDownIcon
+            className="text-muted-foreground size-3.5 transition-transform group-data-[state=open]/skip:rotate-180"
+            aria-hidden="true"
+          />
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="start"
+          sideOffset={10}
+          collisionPadding={16}
+          className="bg-popover text-popover-foreground border-primary ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-lg border-t-4 p-4 shadow-2xl ring-1"
+        >
+          <p className="font-bold">Left out of Sonarr</p>
+          <p className="text-muted-foreground mt-2 text-sm text-pretty">
+            Sonarr needs a TVDB id for every show, and we could not find one for {result.sonarrUnresolvedCount}{' '}
+            of them, so we left those out.
+          </p>
+          {names.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Shows left out">
+              {names.map((name) => (
+                <li key={name} className="border-foreground/15 rounded-md border px-2 py-0.5 text-xs font-medium">
+                  {name}
+                </li>
+              ))}
+            </ul>
+          )}
+          <Popover.Arrow className="fill-popover" />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+function StatItem({ stat, result, order }: { stat: Stat; result: CreateFeedResponse; order: number }) {
+  const value = result[stat.key]
+  const shown = useCountUp(value)
+  const Icon = stat.icon
+  const body = (
+    <>
+      <Icon className="text-ink size-4 shrink-0" aria-hidden="true" />
+      <span className="text-foreground font-bold tabular-nums">{shown}</span>
+      <span className="text-muted-foreground">{stat.word}</span>
+    </>
+  )
+  return (
+    <div className="motion-safe:animate-rise" style={riseDelay(order)} title={stat.label}>
+      <dt className="sr-only">{stat.label}</dt>
+      <dd className="flex items-center gap-1.5">
+        {stat.key === 'sonarrUnresolvedCount' && value > 0 ? <SkippedNote result={result}>{body}</SkippedNote> : body}
+      </dd>
     </div>
   )
 }
 
-/** The same four tiles before there is anything to count, shimmering while a read is on its way. */
-function GhostTiles({ loading }: { loading: boolean }) {
+/** The same line before there is anything to count, shimmering while a read is on its way. */
+function GhostStats({ loading }: { loading: boolean }) {
   return (
-    <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-      {STAT_LABELS.map((label) => (
-        <div key={label} className="bg-secondary/60 ring-foreground/5 rounded-md px-4 py-3.5 ring-1">
-          <div
-            aria-hidden="true"
-            className={`text-muted-foreground/60 h-8 text-2xl leading-tight font-bold ${loading ? 'shimmer w-14 rounded' : ''}`}
-          >
-            {loading ? '' : '–'}
+    <dl className={STAT_LINE}>
+      {STATS.map((stat) => {
+        const Icon = stat.icon
+        return (
+          <div key={stat.key} title={stat.label}>
+            <dt className="sr-only">{stat.label}</dt>
+            <dd className="text-muted-foreground flex items-center gap-1.5">
+              <Icon className="size-4 shrink-0 opacity-60" aria-hidden="true" />
+              {loading ? (
+                <span aria-hidden="true" className="shimmer bg-secondary h-4 w-6 rounded" />
+              ) : (
+                <span className="font-bold">–</span>
+              )}
+              {stat.word}
+            </dd>
           </div>
-          <div className="text-muted-foreground text-ui mt-1">{label}</div>
-        </div>
-      ))}
-    </div>
+        )
+      })}
+    </dl>
   )
 }
 
 function TargetCards({ result }: { result: CreateFeedResponse | null }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    // grid-cols-1, not the implicit column: a link that will not wrap must not widen the card past the screen.
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       {TARGETS.map((target, index) => {
         const Icon = target.icon
         return (
+          // relative: painted over the fanned covers' shadows, which fall onto the top of these.
           <div
             key={target.app}
-            className="bg-secondary ring-foreground/10 flex flex-col rounded-lg p-4 ring-1 sm:p-5 motion-safe:animate-rise"
+            className="bg-secondary ring-foreground/10 relative rounded-lg p-4 ring-1 motion-safe:animate-rise"
             style={riseDelay(4 + index)}
           >
-            <div className="mb-3 flex items-center gap-2.5 font-bold">
-              <Icon className="text-ink size-4" aria-hidden="true" />
-              {target.app}
-              <span className="text-muted-foreground font-normal">· {target.kind}</span>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <span className="flex items-center gap-2 font-bold">
+                <Icon className="text-ink size-4" aria-hidden="true" />
+                {target.app}
+              </span>
+              <ol
+                aria-label={`Where it goes in ${target.app}`}
+                className="text-muted-foreground text-2xs flex flex-wrap items-center gap-x-1"
+              >
+                {target.path.map((step, stepIndex) => (
+                  <li key={step} className="flex items-center gap-1">
+                    {stepIndex > 0 && <ChevronRightIcon className="size-3 opacity-60" aria-hidden="true" />}
+                    <span className={stepIndex === target.path.length - 1 ? 'text-foreground font-medium' : ''}>
+                      {step}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
             {result ? (
               <CopyField value={result[target.urlKey]} label={target.label} />
             ) : (
-              <div className="border-foreground/15 text-muted-foreground rounded-md border border-dashed px-3 py-2.5 text-xs">
+              <div className="border-foreground/15 text-muted-foreground flex h-11 items-center rounded-md border border-dashed px-3 text-xs">
                 Your {target.app} link shows up here.
               </div>
             )}
-            <p className="text-muted-foreground text-ui border-foreground/10 mt-4 border-t pt-3">{target.path}</p>
           </div>
         )
       })}
@@ -171,7 +270,12 @@ function CoverFan({ result }: { result: CreateFeedResponse }) {
 
   const slots = covers.length > 0 ? covers : [null, null, null, null]
   return (
-    <div className="group/fan relative order-first h-32 w-full shrink-0 sm:order-none sm:h-48 sm:w-80" aria-hidden="true">
+    // isolate keeps the covers' own stacking inside the fan, so the cards below the header
+    // still paint over the shadows that fall onto them.
+    <div
+      className="group/fan relative isolate order-first h-32 w-full shrink-0 sm:order-none sm:h-48 sm:w-80"
+      aria-hidden="true"
+    >
       {slots.map((item, index) => (
         <div
           key={item?.imdbId ?? index}
@@ -196,7 +300,7 @@ function CoverFan({ result }: { result: CreateFeedResponse }) {
   )
 }
 
-/** The top of the result: the list's own covers behind and beside what it is and where it stands. */
+/** The top of the result: the list's own covers behind and beside what it is, what is on it, and where it stands. */
 function ResultHeader({
   result,
   session,
@@ -210,19 +314,18 @@ function ResultHeader({
 }) {
   const backdrop = result.preview?.find((item) => item.poster)?.poster
   return (
-    // overflow-hidden keeps the blurred backdrop inside the header, where the
-    // gradient fades it into the panel, instead of spilling onto the counts.
-    <div className="relative -mx-5 -mt-5 mb-6 overflow-hidden px-5 pt-5 pb-2 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-8">
+    <div className="relative -mx-5 -mt-5 mb-5 px-5 pt-5 pb-2 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-8">
       {backdrop && (
-        <>
+        // The blurred backdrop is clipped on its own layer rather than the whole header, so the
+        // fanned covers' shadows carry on past the header's edge instead of stopping in a line.
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
           <img
             src={backdrop}
             alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 size-full scale-125 object-cover opacity-40 blur-3xl motion-safe:animate-backdrop"
+            className="absolute inset-0 size-full scale-125 object-cover opacity-40 blur-3xl motion-safe:animate-backdrop"
           />
           <div className="to-card from-card/20 absolute inset-0 bg-linear-to-b" />
-        </>
+        </div>
       )}
       <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
@@ -234,7 +337,12 @@ function ResultHeader({
               <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />
             )}
           </h3>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <dl className={STAT_LINE}>
+            {STATS.map((stat, index) => (
+              <StatItem key={stat.key} stat={stat} result={result} order={index} />
+            ))}
+          </dl>
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
             <StatusPill result={result} />
             <UpdateNote session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />
           </div>
@@ -265,21 +373,6 @@ function ResultPanel({
     // Keyed by the list, so a different list rises in afresh.
     <Panel key={result.slug} className="motion-safe:animate-rise">
       <ResultHeader result={result} session={session} listUrl={listUrl} onSignIn={onSignIn} />
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile label={STAT_LABELS[0]} value={result.totalCount} order={0} />
-        <StatTile label={STAT_LABELS[1]} value={result.radarrCount} order={1} />
-        <StatTile label={STAT_LABELS[2]} value={result.sonarrCount} order={2} />
-        <StatTile label={STAT_LABELS[3]} value={result.sonarrUnresolvedCount} order={3} />
-      </div>
-      {result.sonarrUnresolvedCount > 0 && (
-        <p className="text-muted-foreground -mt-3 mb-6 text-xs">
-          Sonarr needs a TVDB id for every show, and we could not find one for{' '}
-          {result.sonarrUnresolvedCount} of them, so we left those out.
-          {result.skippedShows && result.skippedShows.length > 0 && (
-            <span className="text-foreground/80 mt-1 block">Left out: {result.skippedShows.join(', ')}.</span>
-          )}
-        </p>
-      )}
       <TargetCards result={result} />
     </Panel>
   )
@@ -289,13 +382,13 @@ function ResultPanel({
 function GhostPanel({ loading }: { loading: boolean }) {
   return (
     <Panel>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-muted-foreground text-xl font-bold">{loading ? 'Reading your list' : 'Your list'}</h3>
+      <div className="mb-5">
+        <h3 className="text-muted-foreground text-2xl font-bold">{loading ? 'Reading your list' : 'Your list'}</h3>
+        <GhostStats loading={loading} />
+        <p className="text-muted-foreground mt-3 text-sm">
+          {loading ? 'Getting your two links ready.' : 'Paste a list above and your two links show up here.'}
+        </p>
       </div>
-      <p className="text-muted-foreground mb-6 text-sm">
-        {loading ? 'Getting your two links ready.' : 'Paste a list above and your two links show up here.'}
-      </p>
-      <GhostTiles loading={loading} />
       <TargetCards result={null} />
     </Panel>
   )

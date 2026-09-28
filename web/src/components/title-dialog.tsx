@@ -1,5 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import { ExternalLinkIcon, LoaderCircleIcon, Minimize2Icon, PlayIcon, PlusIcon, XIcon } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import {
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  LoaderCircleIcon,
+  Minimize2Icon,
+  MonitorDownIcon,
+  PlayIcon,
+  PlusIcon,
+  SearchIcon,
+  XIcon,
+} from 'lucide-react'
 import { Dialog } from 'radix-ui'
 
 import { Cover } from '@/components/cover'
@@ -7,6 +17,16 @@ import { readTitleDetails, type PreviewItem, type TitleDetails } from '@/lib/api
 
 // How long the player takes to fade and the stage to fold before the player unmounts.
 const CLOSE_MS = 450
+
+const ASKARR_STEPS = [
+  { icon: SearchIcon, text: 'Search from your phone or any browser' },
+  { icon: PlusIcon, text: 'Tap request' },
+  { icon: MonitorDownIcon, text: 'Your PC adds it to Radarr or Sonarr' },
+] as const
+
+function focusSoon(target: RefObject<HTMLElement | null>) {
+  requestAnimationFrame(() => target.current?.focus({ preventScroll: true }))
+}
 
 const TARGET_LINE: Record<PreviewItem['target'], string> = {
   radarr: 'Movie · goes to Radarr',
@@ -63,8 +83,139 @@ function useTitleDetails(imdbId: string) {
   return state
 }
 
-function Sheet({ item }: { item: PreviewItem }) {
+/**
+ * One of the sheet's two bottoms: the title's details, or the Askarr step. Its
+ * row folds shut or open around the content while the content fades and slides,
+ * so switching grows or shrinks the sheet smoothly instead of jumping.
+ */
+function Swap({ shown, from, children }: { shown: boolean; from: 'left' | 'right'; children: ReactNode }) {
+  return (
+    <div
+      inert={!shown}
+      className={`ease-soft grid transition-[grid-template-rows] duration-500 ${shown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div
+          className={`ease-soft transition-[opacity,translate] ${
+            shown
+              ? 'translate-x-0 opacity-100 delay-150 duration-500'
+              : `${from === 'left' ? '-translate-x-8' : 'translate-x-8'} opacity-0 duration-200`
+          }`}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * What "Request with Askarr" opens, in place of the details: what Askarr is,
+ * how it works, and the way over there, or back to the title. Nobody is taken
+ * off the page by surprise; going to Askarr opens a new tab.
+ */
+function AskarrStep({
+  item,
+  details,
+  shown,
+  headingRef,
+  onBack,
+}: {
+  item: PreviewItem
+  details: TitleDetails | null
+  shown: boolean
+  headingRef: RefObject<HTMLHeadingElement | null>
+  onBack: () => void
+}) {
+  // The steps settle in one after another each time the step opens.
+  const settle = (order: number) => ({
+    className: `ease-soft transition-[opacity,translate] duration-500 ${shown ? '' : 'translate-y-2 opacity-0'}`,
+    style: { transitionDelay: shown ? `${220 + order * 70}ms` : '0ms' },
+  })
+  return (
+    <section aria-labelledby="askarr-step" className="px-5 pt-6 pb-7 sm:px-8 sm:pb-8">
+      <div className="flex items-start gap-4">
+        <span
+          aria-hidden="true"
+          className="bg-primary text-primary-foreground grid size-11 shrink-0 place-items-center rounded-full shadow-lg shadow-black/30"
+        >
+          <PlusIcon className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-muted-foreground text-2xs font-bold tracking-widest uppercase">From the makers of Watcharr</p>
+          <h3 id="askarr-step" ref={headingRef} tabIndex={-1} className="mt-1 text-xl font-bold outline-none sm:text-2xl">
+            Request it with Askarr
+          </h3>
+          <p className="text-foreground/85 mt-2 max-w-prose text-sm leading-relaxed text-pretty">
+            Watcharr keeps whole lists in sync. Askarr is for one title at a time: you ask for it, and it lands in your
+            own Radarr or Sonarr at home, without anything on your network facing the internet.
+          </p>
+        </div>
+      </div>
+
+      <ol className="mt-5 grid gap-2 sm:grid-cols-3">
+        {ASKARR_STEPS.map((step, index) => {
+          const Icon = step.icon
+          const { className, style } = settle(index)
+          return (
+            <li
+              key={step.text}
+              className={`bg-secondary flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm ${className}`}
+              style={style}
+            >
+              <span className="text-ink font-bold tabular-nums">{index + 1}</span>
+              <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+              {step.text}
+            </li>
+          )
+        })}
+      </ol>
+
+      <div
+        className={`mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-start sm:justify-between ${settle(3).className}`}
+        style={settle(3).style}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className="group/back text-muted-foreground hover:text-foreground hover:bg-secondary inline-flex h-11 items-center justify-center gap-2 rounded-full px-4 font-bold transition-colors"
+        >
+          <ArrowLeftIcon className="size-4 transition-transform group-hover/back:-translate-x-0.5" aria-hidden="true" />
+          Back to the title
+        </button>
+        <div className="flex flex-col gap-1.5 sm:items-end">
+          <a
+            href={askarrLink(item, details)}
+            target="_blank"
+            rel="noopener"
+            className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0"
+          >
+            Continue to Askarr
+            <ExternalLinkIcon className="size-4" aria-hidden="true" />
+          </a>
+          <p className="text-muted-foreground text-2xs text-center text-pretty sm:text-right">
+            Opens askarr.com in a new tab, already searching for {details?.title || item.title}. Free to start.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Sheet({ item, asking, onAsking }: { item: PreviewItem; asking: boolean; onAsking: (asking: boolean) => void }) {
   const { details, error, loading } = useTitleDetails(item.imdbId)
+  const requestButton = useRef<HTMLButtonElement>(null)
+  const askHeading = useRef<HTMLHeadingElement>(null)
+
+  // Focus follows the swap: onto the Askarr step when it opens, and back to the
+  // button that opened it on the way back (however the way back was taken).
+  const wasAsking = useRef(asking)
+  useEffect(() => {
+    if (asking) focusSoon(askHeading)
+    else if (wasAsking.current) focusSoon(requestButton)
+    wasAsking.current = asking
+  }, [asking])
+
   // idle -> open -> closing -> idle. 'closing' keeps the player mounted while it
   // fades and the stage folds back, so closing animates instead of vanishing.
   const [stage, setStage] = useState<'idle' | 'open' | 'closing'>('idle')
@@ -236,68 +387,76 @@ function Sheet({ item }: { item: PreviewItem }) {
         </div>
       </header>
 
-      <div className="grid gap-6 px-5 pt-6 pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-10 sm:px-8 sm:pb-8">
-        <div className="min-w-0">
-          {loading ? (
-            <div className="space-y-3" aria-busy="true">
-              <div className="flex gap-2">
-                <div className="shimmer bg-secondary h-6 w-16 rounded-md" />
-                <div className="shimmer bg-secondary h-6 w-20 rounded-md" />
-                <div className="shimmer bg-secondary h-6 w-14 rounded-md" />
+      <Swap shown={!asking} from="left">
+        <div className="grid gap-6 px-5 pt-6 pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-10 sm:px-8 sm:pb-8">
+          <div className="min-w-0">
+            {loading ? (
+              <div className="space-y-3" aria-busy="true">
+                <div className="flex gap-2">
+                  <div className="shimmer bg-secondary h-6 w-16 rounded-md" />
+                  <div className="shimmer bg-secondary h-6 w-20 rounded-md" />
+                  <div className="shimmer bg-secondary h-6 w-14 rounded-md" />
+                </div>
+                <div className="shimmer bg-secondary h-4 w-full rounded" />
+                <div className="shimmer bg-secondary h-4 w-11/12 rounded" />
+                <div className="shimmer bg-secondary h-4 w-2/3 rounded" />
               </div>
-              <div className="shimmer bg-secondary h-4 w-full rounded" />
-              <div className="shimmer bg-secondary h-4 w-11/12 rounded" />
-              <div className="shimmer bg-secondary h-4 w-2/3 rounded" />
-            </div>
-          ) : error ? (
-            <Dialog.Description className="text-muted-foreground text-sm">{error}</Dialog.Description>
-          ) : (
-            <div className="space-y-5">
-              {details && details.genres.length > 0 && (
-                <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
-                  {details.genres.map((genre, index) => (
-                    <li
-                      key={genre}
-                      className="border-foreground/15 text-muted-foreground rounded-md border px-2 py-0.5 text-xs font-medium motion-safe:animate-pop"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      {genre}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Dialog.Description
-                className="text-foreground/85 max-w-prose text-base leading-relaxed text-pretty motion-safe:animate-rise"
-                style={{ animationDelay: '120ms' }}
-              >
-                {details?.overview || 'No plot summary for this one yet.'}
-              </Dialog.Description>
-            </div>
-          )}
-        </div>
+            ) : error ? (
+              <Dialog.Description className="text-muted-foreground text-sm">{error}</Dialog.Description>
+            ) : (
+              <div className="space-y-5">
+                {details && details.genres.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
+                    {details.genres.map((genre, index) => (
+                      <li
+                        key={genre}
+                        className="border-foreground/15 text-muted-foreground rounded-md border px-2 py-0.5 text-xs font-medium motion-safe:animate-pop"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        {genre}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Dialog.Description
+                  className="text-foreground/85 max-w-prose text-base leading-relaxed text-pretty motion-safe:animate-rise"
+                  style={{ animationDelay: '120ms' }}
+                >
+                  {details?.overview || 'No plot summary for this one yet.'}
+                </Dialog.Description>
+              </div>
+            )}
+          </div>
 
-        <div className="flex flex-col gap-2 sm:items-end">
-          <a
-            href={`https://www.imdb.com/title/${item.imdbId}/`}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
-          >
-            View on IMDb
-            <ExternalLinkIcon className="size-4" aria-hidden="true" />
-          </a>
-          <a
-            href={askarrLink(item, details)}
-            className="group/askarr bg-secondary hover:bg-accent inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-2 pe-5 font-bold transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
-          >
-            <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:rotate-90">
-              <PlusIcon className="size-4" aria-hidden="true" />
-            </span>
-            Request with Askarr
-          </a>
-          <p className="text-muted-foreground text-2xs sm:text-right">Details and images from TMDB</p>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <a
+              href={`https://www.imdb.com/title/${item.imdbId}/`}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
+            >
+              View on IMDb
+              <ExternalLinkIcon className="size-4" aria-hidden="true" />
+            </a>
+            <button
+              ref={requestButton}
+              type="button"
+              onClick={() => onAsking(true)}
+              className="group/askarr bg-secondary hover:bg-accent inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-2 pe-5 font-bold transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
+            >
+              <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:rotate-90">
+                <PlusIcon className="size-4" aria-hidden="true" />
+              </span>
+              Request with Askarr
+            </button>
+            <p className="text-muted-foreground text-2xs sm:text-right">Details and images from TMDB</p>
+          </div>
         </div>
-      </div>
+      </Swap>
+
+      <Swap shown={asking} from="right">
+        <AskarrStep item={item} details={details} shown={asking} headingRef={askHeading} onBack={() => onAsking(false)} />
+      </Swap>
     </article>
   )
 }
@@ -307,15 +466,38 @@ function Sheet({ item }: { item: PreviewItem }) {
  * top, the cover rising over it, then genres, plot and where to go next.
  */
 export function TitleDialog({ item, onClose }: { item: PreviewItem | null; onClose: () => void }) {
+  // Which title is showing its Askarr step, so another title always opens on its details.
+  const [askingFor, setAskingFor] = useState<string | null>(null)
+  const asking = item !== null && askingFor === item.imdbId
   return (
-    <Dialog.Root open={item !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root
+      open={item !== null}
+      onOpenChange={(open) => {
+        if (open) return
+        setAskingFor(null)
+        onClose()
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-50 bg-black/75 backdrop-blur-sm" />
         <Dialog.Content
           data-page-overlay=""
+          // On the Askarr step, Escape goes back to the title rather than closing the sheet.
+          onEscapeKeyDown={(event) => {
+            if (!asking) return
+            event.preventDefault()
+            setAskingFor(null)
+          }}
           className="bg-card text-card-foreground data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 fixed top-1/2 left-1/2 z-50 max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-x-hidden overflow-y-auto rounded-xl shadow-2xl ring-1 ring-white/10 duration-300"
         >
-          {item && <Sheet key={item.imdbId} item={item} />}
+          {item && (
+            <Sheet
+              key={item.imdbId}
+              item={item}
+              asking={asking}
+              onAsking={(next) => setAskingFor(next ? item.imdbId : null)}
+            />
+          )}
           <Dialog.Close
             aria-label="Close"
             className="absolute top-3 right-3 z-30 grid size-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:rotate-90 hover:bg-black/65"

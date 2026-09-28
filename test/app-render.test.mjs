@@ -132,6 +132,11 @@ function text(...parts) {
   return new RegExp(parts.join("[\\s\\S]{0,30}"));
 }
 
+/** One count in the result's stat line: its label for screen readers, then its number. */
+function stat(label, value) {
+  return new RegExp(`${label}</dt><dd(?:(?!</dd>).)*>${value}</span>`);
+}
+
 const READY_RESULT = {
   slug: "abcdef012345",
   listTitle: "My List",
@@ -229,10 +234,10 @@ describe("App - a finished result", () => {
   test("reports the counts, both feed URLs and the state message", () => {
     const html = render({ result: READY_RESULT });
 
-    assert.match(html, />17<\/div><div class="[^"]*">Titles on the list</);
-    assert.match(html, />12<\/div><div class="[^"]*">Movies for Radarr</);
-    assert.match(html, />3<\/div><div class="[^"]*">Shows for Sonarr</);
-    assert.match(html, />2<\/div><div class="[^"]*">Shows we skipped</);
+    assert.match(html, stat("Titles on the list", 17));
+    assert.match(html, stat("Movies for Radarr", 12));
+    assert.match(html, stat("Shows for Sonarr", 3));
+    assert.match(html, stat("Shows we skipped", 2));
 
     assert.match(html, /My List/);
     assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/radarr\/l\/ls006123300/);
@@ -256,20 +261,17 @@ describe("App - a finished result", () => {
     assert.match(html, /Shows we skipped/);
   });
 
-  test("shows that would be left out of Sonarr are explained", () => {
+  test("the skipped count opens why those shows were left out of Sonarr", () => {
     const html = render({ result: READY_RESULT });
 
-    assert.match(
-      html,
-      text("we could not find one for", "2", "of them, so we left those out\\."),
-    );
+    assert.match(html, /Shows we skipped<\/dt><dd[^>]*><button[^>]*aria-haspopup="dialog"/);
   });
 
-  test("a feed with nothing skipped says nothing about skipping", () => {
+  test("a feed with nothing skipped has nothing to open about skipping", () => {
     const html = render({ result: { ...READY_RESULT, sonarrUnresolvedCount: 0 } });
 
-    assert.doesNotMatch(html, /so we left those out/);
-    assert.match(html, />0<\/div><div class="[^"]*">Shows we skipped</);
+    assert.doesNotMatch(html, /Shows we skipped<\/dt><dd[^>]*><button/);
+    assert.match(html, stat("Shows we skipped", 0));
   });
 
   test("a feed still in the queue is badged as waiting, not by its raw status", () => {
