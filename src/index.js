@@ -82,6 +82,10 @@ function buildFeedEtag(feed, feedTarget) {
   return `"${feed.source_fingerprint}-${feedTarget}${written}"`;
 }
 
+// If-None-Match is a weak comparison (RFC 9110 13.1.2), and it has to be here:
+// Cloudflare marks the ETag weak (W/"...") whenever it compresses the body, so
+// every client that accepts gzip, Radarr and Sonarr included, sends it back
+// weak. Compared strictly, none of them ever got a 304.
 function hasFreshEtag(request, etag) {
   if (!etag) {
     return false;
@@ -94,7 +98,7 @@ function hasFreshEtag(request, etag) {
 
   return ifNoneMatch
     .split(",")
-    .map((value) => value.trim())
+    .map((value) => value.trim().replace(/^W\//, ""))
     .some((value) => value === "*" || value === etag);
 }
 

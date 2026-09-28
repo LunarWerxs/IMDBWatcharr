@@ -545,6 +545,19 @@ describe("fetch - feed routes", () => {
     assert.equal(DB.find("FROM feed_items").length, 0, "a 304 is answered from the feed row alone");
   });
 
+  // Cloudflare weakens the ETag whenever it compresses the body, so a client
+  // that accepts gzip (Radarr, Sonarr) always sends it back as W/"...".
+  test("an ETag Cloudflare weakened in transit still earns a 304", async () => {
+    const DB = makeDb([["FROM feeds WHERE source_url = ?", feedRow({ source_fingerprint: "a".repeat(32) })]]);
+    const { env } = makeEnv({ DB });
+    const { response } = await call(`${ORIGIN}/radarr/l/ls055592025`, {
+      env,
+      headers: { "if-none-match": `W/"${"a".repeat(32)}-radarr"` },
+    });
+
+    assert.equal(response.status, 304);
+  });
+
   test("radarr with a cache serves the stored XML and rewrites the origin placeholder", async () => {
     const DB = makeDb([
       [
