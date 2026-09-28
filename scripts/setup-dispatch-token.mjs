@@ -112,17 +112,24 @@ function putWorkerSecret(token) {
 }
 
 async function main() {
-  console.log(`1. A GitHub page opens for a new fine-grained token. Check that it has:
-     Resource owner:     LunarWerxs
-     Repository access:  Only select repositories -> IMDBWatcharr
-     Permissions:        Actions -> Read and write (nothing else)
-   then press Generate token and copy it.
-2. Paste it here and press Enter. Nothing shows while you paste.
-   (if no page opened: ${PAT_URL})
+  // Someone who already made the token only needs the prompt; the GitHub page
+  // opens only for someone who presses Enter without one.
+  console.log(`Paste your GitHub token and press Enter. Nothing shows while you paste.
+(No token yet? Press Enter and GitHub's page for one opens.)
 `);
-  openInBrowser(PAT_URL);
-
-  const token = await readSecret("Token: ");
+  let token = await readSecret("Token: ");
+  if (!token && process.stdin.isTTY) {
+    console.log(`
+A GitHub page opens for a new fine-grained token. Check that it has:
+  Resource owner:     LunarWerxs
+  Repository access:  Only select repositories -> IMDBWatcharr
+  Permissions:        Actions -> Read and write (nothing else)
+then press Generate token, copy it, and paste it here.
+(if no page opened: ${PAT_URL})
+`);
+    openInBrowser(PAT_URL);
+    token = await readSecret("Token: ");
+  }
   if (!token) {
     console.log("No token pasted; nothing changed.");
     return 1;
