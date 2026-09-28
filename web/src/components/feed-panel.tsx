@@ -228,7 +228,11 @@ function ResultHeader({
         <div className="min-w-0 flex-1">
           <h3 className="flex min-w-0 items-center gap-2 text-2xl font-bold">
             <span className="truncate">{result.listTitle || 'Your list'}</span>
-            {result.syncing && <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />}
+            {/* Only while there is nothing to show yet: a list that is ready and just being re-read
+                keeps serving what it has, so it does not look busy. */}
+            {feedState(result) === 'queued' && (
+              <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />
+            )}
           </h3>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <StatusPill result={result} />

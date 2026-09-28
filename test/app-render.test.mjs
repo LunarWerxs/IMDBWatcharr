@@ -247,6 +247,11 @@ describe("App - a finished result", () => {
 
     assert.match(html, />ready</);
     assert.doesNotMatch(html, /animate-spin/);
+
+    // Being read again (a re-paste queues a fresh read) is not "busy": the
+    // list is ready and serving, so nothing spins (owner, 2026-09-28).
+    const rereading = render({ result: { ...READY_RESULT, syncing: true }, session: SIGNED_IN });
+    assert.doesNotMatch(rereading, /animate-spin/);
     assert.doesNotMatch(html, /Won’t update by itself/);
     assert.match(html, /Shows we skipped/);
   });

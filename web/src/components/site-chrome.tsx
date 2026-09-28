@@ -14,7 +14,7 @@ export const ASKARR_URL = 'https://askarr.com/?utm_source=watcharr&utm_medium=re
 const REPO_URL = 'https://github.com/LunarWerxs/IMDBWatcharr'
 
 /** The page's width, shared by the header, the main column and the footer. */
-export const PAGE_WIDTH = 'mx-auto w-full max-w-6xl px-4 sm:px-6'
+export const PAGE_WIDTH = 'mx-auto w-full max-w-260 px-4 sm:px-6'
 
 /**
  * IMDb's section heading: a yellow bar, the title, a chevron that leans in on
@@ -77,6 +77,27 @@ function AccountControl({
 }
 
 /**
+ * Up to the studio, drawn like the icons beside it: one colour, the GitHub
+ * mark's size. The mark is the LunarWerx badge's crescent and <\> as a glyph.
+ */
+function LunarWerxLink() {
+  return (
+    <Button asChild variant="ghost" size="icon">
+      <a href="https://lunarwerx.com" aria-label="LunarWerx Studios" title="LunarWerx Studios">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4 shrink-0">
+          <path fill="currentColor" d="M8.88 1.72A10.5 10.5 0 1 0 20.69 16.05A9.3 9.3 0 0 1 8.88 1.72Z" />
+          <g fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14.4 8.6 11.8 11.2l2.6 2.6" />
+            <path d="M16.2 8.2 18 14.2" />
+            <path d="M19.8 8.6 22.4 11.2l-2.6 2.6" />
+          </g>
+        </svg>
+      </a>
+    </Button>
+  )
+}
+
+/**
  * IMDb's bar: black whatever the theme (the `dark` class gives everything in
  * it the dark tokens), sticky, with the product mark on the left. The mark is
  * our own clapperboard on IMDb yellow, never IMDb's logo.
@@ -102,14 +123,7 @@ export function SiteHeader({
         </a>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
-          <a
-            href="https://lunarwerx.com"
-            aria-label="LunarWerx Studios"
-            title="LunarWerx Studios"
-            className="hover:ring-primary/70 focus-visible:ring-primary mx-1 flex size-7 shrink-0 items-center justify-center rounded-full ring-2 ring-transparent transition focus-visible:outline-none"
-          >
-            <img src="/lunarwerx-mark.png" alt="" width={28} height={28} className="size-7 rounded-full" />
-          </a>
+          <LunarWerxLink />
           <GithubLink />
           <ThemeToggle />
           <AccountControl session={session} listUrl={listUrl} onSignIn={onSignIn} />
