@@ -103,9 +103,10 @@ function LunarWerxLink() {
 }
 
 /**
- * IMDb's bar: black whatever the theme (the `dark` class gives everything in
- * it the dark tokens), sticky, with the product mark on the left: the Watcharr
- * mark in its on-dark colours, the same mark as the favicon, never IMDb's logo.
+ * The top bar: dark charcoal whatever the theme (the `dark` class gives
+ * everything in it the dark tokens), sticky, with the product mark on the left:
+ * the Watcharr mark in its on-dark colours, the same mark as the favicon, never
+ * IMDb's logo.
  */
 export function SiteHeader({
   session,
@@ -117,7 +118,7 @@ export function SiteHeader({
   onSignIn: SignInClick
 }) {
   return (
-    <header className="dark text-foreground sticky top-0 z-40 border-b border-white/10 bg-black">
+    <header className="dark text-foreground bg-chrome sticky top-0 z-40 border-b border-white/10">
       <div className={`${PAGE_WIDTH} flex h-14 items-center justify-between gap-3`}>
         <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="IMDb Watcharr home">
           <img src="/brand/watcharr-mark-on-dark.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
@@ -145,7 +146,7 @@ export function SiteHeader({
 export function SiteFooter() {
   const link = 'hover:text-primary underline underline-offset-2 transition-colors'
   return (
-    <footer className="dark text-muted-foreground border-t border-white/10 bg-black text-sm">
+    <footer className="dark text-muted-foreground bg-chrome border-t border-white/10 text-sm">
       <div className={`${PAGE_WIDTH} grid gap-2 py-10`}>
         <p>
           <span className="text-foreground font-bold">IMDb Watcharr</span>

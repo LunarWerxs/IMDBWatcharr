@@ -40,6 +40,8 @@
     --color-field-foreground: #000000;
     /* The shade behind white text over a picture. */
     --color-scrim: rgb(0 0 0 / 0.7);
+    /* The header and footer bars in both themes: the logo's darkest charcoal, a shade up from pure black. */
+    --color-chrome: #1b1f24;
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
