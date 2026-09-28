@@ -2,7 +2,7 @@
 // them (FaqSection) and the same entries become the page's FAQPage structured
 // data, so what a search engine is told is exactly what a visitor can read.
 
-export type FaqEntry = { question: string; answer: string }
+type FaqEntry = { question: string; answer: string }
 
 export const FAQ: readonly FaqEntry[] = [
   {

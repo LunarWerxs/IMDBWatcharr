@@ -1,7 +1,7 @@
-export type FeedStatus = 'pending' | 'syncing' | 'ready' | 'error'
+type FeedStatus = 'pending' | 'syncing' | 'ready' | 'error'
 
 /** Where a feed stands. Both /api/create and the status poll return these fields. */
-export type FeedStatusResponse = {
+type FeedStatusResponse = {
   slug: string
   listTitle: string
   status: FeedStatus
@@ -21,7 +21,7 @@ export type FeedStatusResponse = {
 }
 
 /** A show with no TVDB id; no year means IMDb has it as announced but never released. */
-export type SkippedShow = {
+type SkippedShow = {
   imdbId: string
   title: string
   year: number | null
@@ -86,7 +86,7 @@ export type MyFeed = {
   sonarrUrl: string
 }
 
-export type NotificationsResponse = {
+type NotificationsResponse = {
   count: number
   feeds: Array<{
     slug: string
@@ -131,7 +131,7 @@ export function createFeed(sourceUrl: string): Promise<CreateFeedResponse> {
 }
 
 /** Where one feed stands, with its counts; the page polls this while a read from IMDb is pending. */
-export type FeedStatusWithCounts = FeedStatusResponse &
+type FeedStatusWithCounts = FeedStatusResponse &
   Pick<CreateFeedResponse, 'radarrCount' | 'sonarrCount' | 'sonarrUnresolvedCount' | 'totalCount'>
 
 export async function readFeedStatus(slug: string): Promise<FeedStatusWithCounts> {

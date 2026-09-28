@@ -1,18 +1,20 @@
-import { useState, type FormEvent } from 'react'
+import { Suspense, useState, type FormEvent } from 'react'
 
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
 import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/components/home-sections'
-import { MyFeeds } from '@/components/my-feeds'
 import { PosterRow } from '@/components/poster-row'
 import { Reveal } from '@/components/reveal'
-import { SignInLightbox } from '@/components/sign-in-lightbox'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
 import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
+import { lazyPart } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
 import { usePopupSignIn } from '@/lib/sign-in'
+
+// Only a signed-in visitor has feeds, and the lightbox only shows while the sign-in window is open.
+const MyFeeds = lazyPart(() => import('@/components/my-feeds').then((module) => module.MyFeeds))
+const SignInLightbox = lazyPart(() => import('@/components/sign-in-lightbox').then((module) => module.SignInLightbox))
 
 /**
  * On a phone the results land below the fold, so pressing Generate brings the
@@ -80,10 +82,6 @@ export default function App() {
 
   const trimmed = sourceUrl.trim()
   const looksValid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
-  // The button stays live on an empty field (the field is `required`, so the
-  // browser says what is missing): a disabled primary button read as "greyed
-  // out and red at once" to a simulated visitor, who could not tell if it worked.
-  const canSubmit = !pending
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -113,68 +111,71 @@ export default function App() {
   }
 
   return (
-    <TooltipProvider>
-      <div className="bg-background text-foreground flex min-h-dvh flex-col overflow-x-clip">
-        <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
+    <div className="bg-background text-foreground flex min-h-dvh flex-col overflow-x-clip">
+      <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
-        <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
-          <Hero />
+      <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
+        <Hero />
 
-          <FeedForm
-            sourceUrl={sourceUrl}
-            onSourceUrlChange={setSourceUrl}
-            onClear={handleClear}
-            looksValid={looksValid}
-            pending={pending}
-            canSubmit={canSubmit}
-            signedIn={Boolean(session?.signedIn)}
-            onSubmit={handleSubmit}
-            onTry={openList}
-          />
+        <FeedForm
+          sourceUrl={sourceUrl}
+          onSourceUrlChange={setSourceUrl}
+          onClear={handleClear}
+          looksValid={looksValid}
+          pending={pending}
+          signedIn={Boolean(session?.signedIn)}
+          onSubmit={handleSubmit}
+          onTry={openList}
+        />
 
-          {session?.signedIn && (
+        {session?.signedIn && (
+          <Suspense fallback={null}>
             <MyFeeds
               refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
               onOpen={openList}
               onUnfollowed={handleUnfollowed}
             />
-          )}
+          </Suspense>
+        )}
 
-          <Reveal>
-            <FeedsSection
-              pending={pending}
-              error={error}
-              result={result}
-              session={session}
-              listUrl={activeUrl}
-              onSignIn={handleSignIn}
-            />
-          </Reveal>
+        <Reveal>
+          <FeedsSection
+            pending={pending}
+            error={error}
+            result={result}
+            session={session}
+            listUrl={activeUrl}
+            onSignIn={handleSignIn}
+          />
+        </Reveal>
 
-          <Reveal>
-            <PosterRow pending={pending} result={result} listUrl={activeUrl} />
-          </Reveal>
+        <Reveal>
+          <PosterRow pending={pending} result={result} listUrl={activeUrl} />
+        </Reveal>
 
-          <Reveal>
-            <HowItWorks />
-          </Reveal>
+        <Reveal>
+          <HowItWorks />
+        </Reveal>
 
-          <Reveal>
-            <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
-          </Reveal>
+        <Reveal>
+          <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+        </Reveal>
 
-          <Reveal>
-            <FaqSection />
-          </Reveal>
+        <Reveal>
+          <FaqSection />
+        </Reveal>
 
-          <Reveal>
-            <AskarrSection />
-          </Reveal>
-        </main>
+        <Reveal>
+          <AskarrSection />
+        </Reveal>
+      </main>
 
-        <SiteFooter />
-        <SignInLightbox signIn={signIn} />
-      </div>
-    </TooltipProvider>
+      <SiteFooter />
+      {signIn.open && (
+        <Suspense fallback={null}>
+          <SignInLightbox signIn={signIn} />
+        </Suspense>
+      )}
+    </div>
   )
 }

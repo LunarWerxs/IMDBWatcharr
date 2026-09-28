@@ -103,7 +103,6 @@ export function FeedForm({
   onClear,
   looksValid,
   pending,
-  canSubmit,
   signedIn,
   onSubmit,
   onTry,
@@ -113,7 +112,6 @@ export function FeedForm({
   onClear: () => void
   looksValid: boolean
   pending: boolean
-  canSubmit: boolean
   signedIn: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   /** Builds a list in one click: the example link fills the field and generates. */
@@ -159,7 +157,9 @@ export function FeedForm({
         </div>
         <Button
           type="submit"
-          disabled={!canSubmit}
+          // Live on an empty field (it is `required`, so the browser says what is missing): a
+          // disabled primary button read as greyed out and red at once to a simulated visitor.
+          disabled={pending}
           variant="cta"
           size="search"
         >
@@ -280,14 +280,13 @@ export function AskarrSection() {
             Want one title without editing the list? Ask for it from your phone, and it lands in your own
             Radarr or Sonarr at home.
           </p>
-          <a
-            href={ASKARR_URL}
-            className="group/askarr bg-askarr text-askarr-foreground shine mt-6 inline-flex h-11 items-center gap-2.5 rounded-md ps-3.5 pe-5 font-bold shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0"
-          >
-            <AskarrMark inverted className="size-5" />
-            Try Askarr
-            <ArrowRightIcon className="size-4 transition-transform group-hover/askarr:translate-x-0.5" aria-hidden="true" />
-          </a>
+          <Button asChild variant="askarr" size="pill" className="group/askarr mt-6 gap-2.5 rounded-md ps-3.5 pe-5 shadow-black/20">
+            <a href={ASKARR_URL}>
+              <AskarrMark inverted className="size-5" />
+              Try Askarr
+              <ArrowRightIcon className="size-4 transition-transform group-hover/askarr:translate-x-0.5" aria-hidden="true" />
+            </a>
+          </Button>
         </div>
         <AskarrPreview />
       </div>

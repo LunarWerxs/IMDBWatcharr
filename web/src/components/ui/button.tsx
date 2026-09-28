@@ -10,19 +10,16 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         "ghost-destructive-muted":
           "text-muted-foreground hover:bg-muted hover:text-destructive aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
-        destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
         // The page's calls to action: IMDb yellow, bold, with a light sweeping across on hover.
         cta: "shine bg-primary font-bold text-primary-foreground hover:bg-primary/90",
+        // Askarr's own call to action, in its colours: the way over to the sister app.
+        askarr: "shine bg-askarr font-bold text-askarr-foreground hover:brightness-110",
         // A quiet icon button beside something more important (the link box's open button).
         "ghost-muted":
           "text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted dark:hover:bg-muted/50",
@@ -32,19 +29,14 @@ const buttonVariants = cva(
       size: {
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         reveal:
           "h-7 gap-0 rounded-[min(var(--radius-md),12px)] px-2 text-[0.8rem] in-data-[slot=button-group]:rounded-lg hover:gap-1.5 focus-visible:gap-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         icon: "size-8",
-        "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
         // A standalone call to action; a leading logo tile (data-icon="tile") sits closer to the edge.
         cta: "h-10 gap-2.5 px-5 has-data-[icon=tile]:ps-1.5",
+        // A big rounded call to action that lifts on hover (the title popup's and the Askarr card's).
+        pill: "h-11 gap-2 rounded-full border-0 px-6 text-base shadow-lg shadow-black/30 hover:-translate-y-0.5 active:translate-y-0",
         // The search bar's button: as tall as the field, joined to it from sm up, where the pair's
         // own ring shows focus (the button's would be clipped by the join).
         search:

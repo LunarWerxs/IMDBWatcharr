@@ -13,12 +13,12 @@ import {
   LoaderCircleIcon,
   XIcon,
 } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SectionTitle } from '@/components/site-chrome'
 import { readMyFeeds, unfollowFeed, type MyFeed } from '@/lib/api'
+import { notify } from '@/lib/notify'
 
 /** "3 minutes ago", "2 hours ago", … - coarse on purpose, this is a glance, not a log. */
 function formatRelativeTime(iso: string | null): string {
@@ -164,9 +164,9 @@ export function MyFeeds({
       await unfollowFeed(feed.sourceUrl)
       setFeeds((current) => (current ?? []).filter((item) => item.slug !== feed.slug))
       onUnfollowed?.(feed.slug)
-      toast.success(`Stopped following "${label}".`)
+      void notify('success', `Stopped following "${label}".`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not unfollow this feed.')
+      void notify('error', error instanceof Error ? error.message : 'Could not unfollow this feed.')
     }
   }
 

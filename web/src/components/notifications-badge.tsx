@@ -12,15 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { readNotifications } from '@/lib/api'
 
-// A signed-out visitor can never own a feed, so this only bothers to poll
+// A signed-out visitor can never own a feed, so the header only renders this
 // once a session is known signed in.
-export function NotificationsBadge({ signedIn }: { signedIn: boolean }) {
+export function NotificationsBadge() {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    // Signed out renders nothing below, so there is no count to clear.
-    if (!signedIn) return
-
     let cancelled = false
     readNotifications().then((value) => {
       if (!cancelled) setCount(value.count)
@@ -28,9 +25,9 @@ export function NotificationsBadge({ signedIn }: { signedIn: boolean }) {
     return () => {
       cancelled = true
     }
-  }, [signedIn])
+  }, [])
 
-  if (!signedIn || count === 0) {
+  if (count === 0) {
     return null
   }
 

@@ -1,17 +1,22 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { Suspense, type MouseEvent, type ReactNode } from 'react'
 import { ChevronRightIcon, ClapperboardIcon, UserIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { GithubLink } from '@/components/github-link'
-import { NotificationsBadge } from '@/components/notifications-badge'
+import { GithubLink, REPO_URL } from '@/components/github-link'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { signInHref } from '@/lib/feed-page'
+import { lazyPart } from '@/lib/lazy'
 import type { Session } from '@/lib/api'
 
 export type SignInClick = (event: MouseEvent<HTMLAnchorElement>) => void
 
 export const ASKARR_URL = 'https://askarr.com/?utm_source=watcharr&utm_medium=referral'
-const REPO_URL = 'https://github.com/LunarWerxs/IMDBWatcharr'
+const STUDIO_URL = 'https://lunarwerx.com'
+
+// Only a signed-in visitor can have a feed that needs attention.
+const NotificationsBadge = lazyPart(() =>
+  import('@/components/notifications-badge').then((module) => module.NotificationsBadge),
+)
 
 /** The page's width, shared by the header, the main column and the footer. */
 export const PAGE_WIDTH = 'mx-auto w-full max-w-260 px-4 sm:px-6'
@@ -83,8 +88,8 @@ function AccountControl({
 function LunarWerxLink() {
   return (
     <Button asChild variant="ghost" size="icon">
-      <a href="https://lunarwerx.com" aria-label="LunarWerx Studios" title="LunarWerx Studios">
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="size-4 shrink-0">
+      <a href={STUDIO_URL} aria-label="LunarWerx Studios" title="LunarWerx Studios">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path fill="currentColor" d="M8.88 1.72A10.5 10.5 0 1 0 20.69 16.05A9.3 9.3 0 0 1 8.88 1.72Z" />
           <g fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14.4 8.6 11.8 11.2l2.6 2.6" />
@@ -122,7 +127,11 @@ export function SiteHeader({
           <span className="text-muted-foreground hidden text-sm md:inline">for IMDb lists</span>
         </a>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <NotificationsBadge signedIn={Boolean(session?.signedIn)} />
+          {session?.signedIn && (
+            <Suspense fallback={null}>
+              <NotificationsBadge />
+            </Suspense>
+          )}
           <LunarWerxLink />
           <GithubLink />
           <ThemeToggle />
@@ -142,7 +151,7 @@ export function SiteFooter() {
           <span className="text-foreground font-bold">IMDb Watcharr</span>
           <span aria-hidden="true"> · </span>
           by{' '}
-          <a href="https://lunarwerx.com" className={link}>
+          <a href={STUDIO_URL} className={link}>
             LunarWerx
           </a>
         </p>
@@ -167,7 +176,7 @@ export function SiteFooter() {
           <a href={`${REPO_URL}/blob/main/LICENSING.md`} className={link} target="_blank" rel="noreferrer">
             Free for noncommercial use (PolyForm Noncommercial)
           </a>
-          <a href="https://lunarwerx.com" className={link}>
+          <a href={STUDIO_URL} className={link}>
             LunarWerx Studios
           </a>
         </p>

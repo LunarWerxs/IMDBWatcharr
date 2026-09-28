@@ -17,7 +17,7 @@ export function scrollBehavior(): ScrollBehavior {
  * new value after that. The server render (and a visitor who wants no motion)
  * gets the real number straight away, so the markup never says 0 for 17.
  */
-export function useCountUp(target: number, durationMs = 700): number {
+export function useCountUp(target: number): number {
   const [shown, setShown] = useState(() =>
     typeof window === 'undefined' || prefersReducedMotion() ? target : 0,
   )
@@ -27,7 +27,7 @@ export function useCountUp(target: number, durationMs = 700): number {
     const start = shownRef.current
     if (start === target) return
 
-    const duration = prefersReducedMotion() ? 0 : durationMs
+    const duration = prefersReducedMotion() ? 0 : 700
     let began: number | null = null
     let frame = requestAnimationFrame(function tick(now) {
       began ??= now
@@ -39,7 +39,7 @@ export function useCountUp(target: number, durationMs = 700): number {
       if (progress < 1) frame = requestAnimationFrame(tick)
     })
     return () => cancelAnimationFrame(frame)
-  }, [target, durationMs])
+  }, [target])
 
   return shown
 }

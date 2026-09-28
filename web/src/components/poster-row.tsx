@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, ClapperboardIcon, MinusIcon } from 'lucide-react'
 
 import { Cover } from '@/components/cover'
-import { TitleDialog } from '@/components/title-dialog'
 import { SectionTitle } from '@/components/site-chrome'
 import type { CreateFeedResponse, PreviewItem } from '@/lib/api'
+import { lazyPart } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
+
+// The popup only matters once a poster is clicked, so it loads after the page.
+const TitleDialog = lazyPart(() => import('@/components/title-dialog').then((module) => module.TitleDialog))
 
 const TARGET_LABELS: Record<PreviewItem['target'], string> = {
   radarr: 'Movie → Radarr',
@@ -118,8 +121,14 @@ export function PosterRow({
   const loading = pending || Boolean(result?.syncing)
 
   const rowRef = useRef<HTMLUListElement>(null)
-  // The poster whose popup is open, if any.
+  // The poster whose popup is open, if any, and whether one ever was: from then
+  // on the popup stays mounted, so it can animate shut.
   const [open, setOpen] = useState<PreviewItem | null>(null)
+  const [opened, setOpened] = useState(false)
+  const openPoster = (item: PreviewItem) => {
+    setOpened(true)
+    setOpen(item)
+  }
   const [edges, setEdges] = useState({ atStart: true, atEnd: true })
   const readEdges = () => {
     const row = rowRef.current
@@ -155,7 +164,7 @@ export function PosterRow({
           className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
         >
           {items.length > 0
-            ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} onOpen={setOpen} />)
+            ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} onOpen={openPoster} />)
             : Array.from({ length: 6 }, (_, index) => <GhostPoster key={index} loading={loading} />)}
           {more > 0 && (
             <li className={ITEM_WIDTH}>
@@ -177,7 +186,11 @@ export function PosterRow({
           </>
         )}
       </div>
-      <TitleDialog item={open} onClose={() => setOpen(null)} />
+      {opened && (
+        <Suspense fallback={null}>
+          <TitleDialog item={open} onClose={() => setOpen(null)} />
+        </Suspense>
+      )}
     </section>
   )
 }

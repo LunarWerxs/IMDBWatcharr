@@ -14,6 +14,7 @@ import { Dialog } from 'radix-ui'
 
 import { AskarrMark } from '@/components/askarr-brand'
 import { Cover } from '@/components/cover'
+import { Button } from '@/components/ui/button'
 import { readTitleDetails, type PreviewItem, type TitleDetails } from '@/lib/api'
 
 // How long the player takes to fade and the stage to fold before the player unmounts.
@@ -180,16 +181,13 @@ function AskarrStep({
           Back to the title
         </button>
         <div className="flex flex-col gap-1.5 sm:items-end">
-          <a
-            href={askarrLink(item, details)}
-            target="_blank"
-            rel="noopener"
-            className="bg-askarr text-askarr-foreground shine inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-4 pe-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0"
-          >
-            <AskarrMark inverted className="size-5" />
-            Continue to Askarr
-            <ExternalLinkIcon className="size-4" aria-hidden="true" />
-          </a>
+          <Button asChild variant="askarr" size="pill" className="gap-2.5 ps-4 pe-6">
+            <a href={askarrLink(item, details)} target="_blank" rel="noopener">
+              <AskarrMark inverted className="size-5" />
+              Continue to Askarr
+              <ExternalLinkIcon className="size-4" aria-hidden="true" />
+            </a>
+          </Button>
         </div>
       </div>
     </section>
@@ -474,15 +472,12 @@ function Details({
     <div className="grid gap-6 px-5 pt-6 pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-10 sm:px-8 sm:pb-8">
       <div className="min-w-0">{children}</div>
       <div className="flex flex-col gap-2 sm:items-end">
-        <a
-          href={`https://www.imdb.com/title/${item.imdbId}/`}
-          target="_blank"
-          rel="noreferrer"
-          className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
-        >
-          View on IMDb
-          <ExternalLinkIcon className="size-4" aria-hidden="true" />
-        </a>
+        <Button asChild variant="cta" size="pill" className="max-sm:w-full">
+          <a href={`https://www.imdb.com/title/${item.imdbId}/`} target="_blank" rel="noreferrer">
+            View on IMDb
+            <ExternalLinkIcon className="size-4" aria-hidden="true" />
+          </a>
+        </Button>
         <button
           ref={requestButton}
           type="button"

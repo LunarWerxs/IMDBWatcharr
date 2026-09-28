@@ -78,9 +78,18 @@ function appProbePlugin() {
 const ENTRY = `
 import App from "@/App";
 import { renderToStaticMarkup } from "react-dom/server";
+import { prerender } from "react-dom/static";
 
 export function renderApp() {
   return renderToStaticMarkup(<App />);
+}
+
+// Waits for every lazily loaded part a render reaches, so later renders have them in place.
+export async function loadParts() {
+  const { prelude } = await prerender(<App />);
+  for await (const _chunk of prelude) {
+    // Drained only so the render runs to the end.
+  }
 }
 `;
 
@@ -110,7 +119,7 @@ await build({
   },
 });
 
-const { renderApp } = await import(pathToFileURL(path.join(outDir, "probe.mjs")).href);
+const { renderApp, loadParts } = await import(pathToFileURL(path.join(outDir, "probe.mjs")).href);
 
 after(async () => {
   delete globalThis[PROBE_GLOBAL];
@@ -160,6 +169,12 @@ const READY_RESULT = {
 };
 
 const SIGNED_IN = { signedIn: true, name: "Ada", authAvailable: true };
+
+// The filled-in result and the signed-in extras load after the page
+// (web/src/lib/lazy.ts), so one prerender with both in place loads them first.
+globalThis[PROBE_GLOBAL] = { result: READY_RESULT, session: SIGNED_IN };
+await loadParts();
+delete globalThis[PROBE_GLOBAL];
 
 describe("App - a first look", () => {
   test("shows the product, the form, the steps and nothing that needs a session", () => {

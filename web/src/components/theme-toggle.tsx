@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { MoonIcon, SunIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { useHydrated } from '@/lib/lazy'
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
-
-  const isDark = !mounted || resolvedTheme !== 'light'
+  // The prerendered page is dark and cannot know a saved theme, so the icon
+  // follows the saved one only once the page has hydrated.
+  const isDark = !useHydrated() || resolvedTheme !== 'light'
 
   return (
     <Button

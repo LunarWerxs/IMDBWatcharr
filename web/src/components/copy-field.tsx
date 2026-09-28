@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { CheckIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { notify } from '@/lib/notify'
 
 async function writeToClipboard(value: string) {
   if (navigator.clipboard?.writeText) {
@@ -62,9 +62,9 @@ export function CopyField({ value, label }: { value: string; label: string }) {
     try {
       await writeToClipboard(value)
       setCopied(true)
-      toast.success(`${label} copied`)
+      void notify('success', `${label} copied`)
     } catch {
-      toast.error('Could not copy. Select the URL and copy it manually.')
+      void notify('error', 'Could not copy. Select the URL and copy it manually.')
     }
   }
 
@@ -80,7 +80,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
       </code>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button asChild size="icon" variant="ghost-muted" className="size-8 shrink-0">
+          <Button asChild size="icon" variant="ghost-muted">
             <a href={value} target="_blank" rel="noreferrer" aria-label={`Open ${label} in a new tab`}>
               <ExternalLinkIcon className="size-4" />
             </a>
@@ -92,7 +92,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
         type="button"
         size="sm"
         variant="cta"
-        className="h-8 min-w-19 shrink-0"
+        className="h-8 min-w-19"
         onClick={handleCopy}
         aria-label={`Copy ${label}`}
       >

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { ChevronDownIcon } from 'lucide-react'
-import { Popover } from 'radix-ui'
 
 import { SignInWithConnections } from '@/components/connections-sign-in'
+import { NotePopover } from '@/components/note-popover'
 import type { SignInClick } from '@/components/site-chrome'
 import { signInHref } from '@/lib/feed-page'
 import type { CreateFeedResponse, Session } from '@/lib/api'
@@ -34,8 +34,13 @@ export function UpdateNote({
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
+    <NotePopover
+      open={open}
+      onOpenChange={setOpen}
+      className="border-warn w-[min(20rem,calc(100vw-2rem))]"
+      title="Keep this list up to date"
+      text="Right now we only read it again when you paste it here. Sign in and we check it about every fifteen minutes."
+      trigger={
         <button
           type="button"
           className="group/note border-warn/70 bg-warn/15 text-warn-ink hover:bg-warn/25 animation-delay-var inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-bold transition-colors motion-safe:animate-pop"
@@ -48,30 +53,16 @@ export function UpdateNote({
           Won’t update by itself
           <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]/note:rotate-180" aria-hidden="true" />
         </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="start"
-          sideOffset={10}
-          collisionPadding={16}
-          className="bg-popover text-popover-foreground ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(20rem,calc(100vw-2rem))] border-warn rounded-lg border-t-4 p-4 shadow-2xl ring-1"
-        >
-          <p className="font-bold">Keep this list up to date</p>
-          <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
-            Right now we only read it again when you paste it here. Sign in and we check it about
-            every fifteen minutes.
-          </p>
-          <SignInWithConnections
-            href={signInHref(listUrl)}
-            onClick={(event) => {
-              setOpen(false)
-              onSignIn(event)
-            }}
-            className="mt-3 w-full"
-          />
-          <Popover.Arrow className="fill-popover" />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+      }
+    >
+      <SignInWithConnections
+        href={signInHref(listUrl)}
+        onClick={(event) => {
+          setOpen(false)
+          onSignIn(event)
+        }}
+        className="mt-3 w-full"
+      />
+    </NotePopover>
   )
 }

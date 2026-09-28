@@ -3,6 +3,7 @@ import './index.css'
 import { Root } from './root.tsx'
 import { sendVisitPing } from '@/lib/analytics'
 import { installImeCompositionGuard } from '@/lib/ime-composition-guard'
+import { preloadParts } from '@/lib/lazy'
 
 // Before the first render: on Safari and Chrome-on-macOS the Enter that commits
 // an input-method candidate is a plain key="Enter" keydown, so without this
@@ -19,4 +20,5 @@ if (container.hasChildNodes()) {
   createRoot(container).render(<Root />)
 }
 
+preloadParts()
 sendVisitPing()
