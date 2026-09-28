@@ -88,8 +88,29 @@ egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and
 ## Web app
 
 `web/` is a Vite + React 19 + TypeScript SPA styled with Tailwind CSS v4 and [shadcn/ui](https://ui.shadcn.com),
-themed to the LunarWerx house palette: slate-950 ground, white type, red accent, Orbitron for display
-and Inter for everything else. It builds into `web/dist/`, which the Worker serves as its assets.
+made to feel like IMDb: a black header, charcoal ground (or a light theme), IMDb yellow for actions,
+and Roboto (self-hosted). It builds into `web/dist/`, which the Worker serves as its assets, and the
+build prerenders the first view into `index.html` so the page paints before the JavaScript runs.
+
+One page, top to bottom:
+
+- **The search bar.** Paste a list and press Generate, or click the example under it: one of six
+  public lists, picked per visit, which fills the field and builds in one click. The six are
+  pre-built on the live site so the first click is instant.
+- **Your feeds.** The list's name, its counts on one line (the skipped count opens which shows
+  Sonarr cannot take, and why), its status, a fan of its covers, and the two links, each with its
+  open and Copy buttons inside the box.
+- **On this list.** The first covers; clicking one opens a popup with details from TMDB (backdrop,
+  trailer, genres, plot, rating), View on IMDb, and a Request with Askarr step that swaps in place.
+- **Questions.** The FAQ, from `web/src/lib/faq.ts`; the build writes the same entries into the
+  page's FAQPage structured data.
+- **Askarr**, LunarWerx's one-title request app, with its own logo and a drawn picture of it at work.
+
+Styling follows the Architect's shadcn rules: special buttons and the search field are variants in
+`web/src/components/ui/` rather than restyled per use, colours are tokens in `web/src/index.css`,
+and the only inline styles are CSS custom properties (`--delay` and friends, typed in
+`web/src/css-properties.d.ts`) read by named utilities. `npm run og` redraws the share card and the
+icons from their SVGs.
 
 ```bash
 npm install
@@ -114,12 +135,14 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
 | `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
 | `GET /api/feeds/:slug`                        | Where one feed stands, with its counts (read-only; the page polls it) |
+| `GET /api/title/:imdbId`                      | One title's details from TMDB for the poster popup (cached a day; needs `TMDB_TOKEN`) |
 | `GET /api/sync-targets`                       | The queue, then every claimed feed; `?scope=requested` for the queue only (shared-secret auth) |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
 | `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
 | `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed, each with its sync health |
 | `GET /api/notifications`                      | Just the feeds that have failed enough syncs in a row to need attention |
 | `POST /api/unfollow`                          | Stop refreshing one of your feeds                                    |
+| anything else                                 | The page, with status `404`, so made-up URLs are not indexed as the home page |
 
 ## The sync job
 
@@ -252,6 +275,9 @@ Pushing to `main` runs:
   the list and the routes answer `503` (with `Retry-After: 900`) until the sync job fills it. With
   `GITHUB_DISPATCH_TOKEN` configured that is about a minute; without it, up to the next scheduled run.
   The page polls and updates by itself when the list lands.
+- **Some shows cannot reach Sonarr.** Sonarr only adds shows listed on TheTVDB. TVMaze and then TMDB
+  map most IMDb shows to one; what neither can is usually a show that was announced and never made.
+  Those are left out, named in the skipped note, and join the link if they are ever listed.
 - **Private lists cannot be read.** IMDb answers a private watchlist or list with a permission error;
   the page says so and asks the owner to make it public, then paste it again.
 - **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 5 and 15 minutes are

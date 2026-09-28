@@ -12,7 +12,9 @@ import { signInHref } from '@/lib/feed-page'
 import type { Session } from '@/lib/api'
 
 // Public IMDb lists to try, none of them anyone's own watchlist: films, shows,
-// and a mix of both. All read cleanly, covers and all, on 2026-09-28.
+// and a mix of both. All read cleanly, covers and all, on 2026-09-28, and each
+// is pre-built on the live site so its first click is instant: build any list
+// added here the same way (POST it to /api/create, then run the sync once).
 const EXAMPLE_LISTS = [
   { name: 'The 100 greatest movies', url: 'https://www.imdb.com/list/ls055592025/' },
   { name: 'Variety’s 100 greatest TV shows', url: 'https://www.imdb.com/list/ls522130686/' },
