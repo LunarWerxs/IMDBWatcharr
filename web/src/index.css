@@ -327,6 +327,124 @@
     }
 }
 
+/* The one-click bookmark as a sticker to peel off the page (Askarr's, the studio's other product): on
+   hover the whole sticker rises and turns a touch about its middle and curls a corner; once dragged,
+   only its dashed footprint is left until it lands on the bookmarks bar (bookmark-sticker.tsx sets
+   data-peeled). --sticker-page is the colour of what it sits on, which shows where the corner lifts. */
+.sticker-slot {
+    position: relative;
+    display: inline-flex;
+    border-radius: 1rem;
+}
+
+.sticker {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    height: 3rem;
+    padding-inline: 1.5rem;
+    border-radius: 1rem;
+    /* The die-cut edge every sticker has. */
+    border: 1.5px solid color-mix(in oklab, white 90%, transparent);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: grab;
+    user-select: none;
+    box-shadow:
+        0 1px 2px rgb(0 0 0 / 0.2),
+        0 2px 6px -2px rgb(0 0 0 / 0.25);
+    transition:
+        transform 380ms cubic-bezier(0.34, 1.26, 0.64, 1),
+        box-shadow 380ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The curling corner: the sticker's paler back, folding into view at the top end. */
+.sticker::after {
+    content: "";
+    position: absolute;
+    inset-block-start: -1.5px;
+    inset-inline-end: -1.5px;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-start-end-radius: 1rem;
+    background: linear-gradient(
+        225deg,
+        var(--sticker-page, var(--card)) 0 50%,
+        color-mix(in oklab, white 82%, transparent) 50% 100%
+    );
+    box-shadow: -1px 1px 2px rgb(0 0 0 / 0.25);
+    transform: scale(0);
+    transform-origin: top right;
+    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticker:hover,
+.sticker:focus-visible {
+    transform: translateY(-6px) scale(1.03) rotate(-1.5deg);
+    box-shadow:
+        0 14px 28px -10px rgb(0 0 0 / 0.5),
+        0 4px 8px -2px rgb(0 0 0 / 0.25);
+}
+
+.sticker:hover::after,
+.sticker:focus-visible::after {
+    transform: scale(1);
+}
+
+.sticker:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+}
+
+.sticker:active {
+    cursor: grabbing;
+    transform: translateY(-7px) scale(1.05) rotate(-2deg);
+}
+
+/* Peeled off: where it was, only its dashed outline and where it is going. */
+.sticker-footprint {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border: 2px dashed var(--border);
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sticker-slot[data-peeled] .sticker {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96) rotate(-2deg);
+}
+
+.sticker-slot[data-peeled] .sticker-footprint {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sticker,
+    .sticker:hover,
+    .sticker:focus-visible,
+    .sticker:active,
+    .sticker-slot[data-peeled] .sticker {
+        transform: none;
+    }
+
+    .sticker::after {
+        transition: none;
+    }
+}
+
 /* IMDb's bookmark ribbon, cut from a rectangle (the poster row's corner flag). */
 @utility clip-ribbon {
     clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);

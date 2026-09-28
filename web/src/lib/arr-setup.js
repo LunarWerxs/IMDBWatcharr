@@ -2,7 +2,7 @@
 (async function watcharrSetup(cfg) {
   /* Runs inside the user's own Radarr or Sonarr page, from the "Add to Radarr / Sonarr" bookmark a
      result hands out. It is Askarr's one-click setup (the studio's other product, proven against a real
-     Radarr 6.4 and Sonarr 4.0), saving this list's feed instead of Askarr's. That page's window.Radarr
+     Radarr 6.4 and Sonarr 4.0), saving this list instead of Askarr's. That page's window.Radarr
      (or window.Sonarr) holds its API root and API key, and the key is only ever sent back to that same
      Radarr or Sonarr, never to Watcharr. Nothing outside this function is used: bookmarklet.ts turns this
      file's text into the bookmark, so no string may span lines and every statement ends in a semicolon. */
@@ -114,7 +114,8 @@
 
   const profileSelect = picker('Quality Profile', 'profile');
   const folderSelect = picker('Root Folder', 'folder');
-  const note = `${label} adds what is on the list, searches for it, and keeps checking the list for new titles.`;
+  const minutes = app === 'sonarr' ? '5' : '15';
+  const note = `${label} adds what is on the list, searches for it, and checks the list every ${minutes} minutes.`;
   form.append(make('p', { color: colors.muted }, note));
 
   function button(text, role, primary) {
@@ -262,29 +263,30 @@
   if (settled) return outcome;
   const [listSchema, lists, profiles, folders] = loaded.map(asArray);
 
-  /* Radarr reads the movies as an RSS List, Sonarr the shows as a Custom List: the two lists the
-     result page tells people to add by hand. */
-  const kind = app === 'radarr' ? 'RSSImport' : 'CustomImport';
+  /* The app's own list type (Radarr's "Radarr", Sonarr's "Sonarr": importing from another Radarr or
+     Sonarr), which it re-reads every 15 or 5 minutes. The list's link is its Full URL, and Watcharr
+     answers there as a Radarr or Sonarr would. The same link set up the old way, as an RSS List (read
+     every 12 hours) or a Custom List (every 6), is swapped for it. */
+  const kind = app === 'radarr' ? 'RadarrImport' : 'SonarrImport';
+  const oldKind = app === 'radarr' ? 'RSSImport' : 'CustomImport';
+  const oldName = app === 'radarr' ? 'an RSS List' : 'a Custom List';
   const listUrl = app === 'radarr' ? cfg.radarrUrl : cfg.sonarrUrl;
 
-  /* The field that holds the list's address: Radarr's RSS List calls it link and Sonarr's Custom List
-     baseUrl (read off Radarr 6.4 and Sonarr 4.0). Read from the list itself, so a renamed field in a
-     later version is still found. */
+  /* The field that holds an old list's address: Radarr's RSS List calls it link and Sonarr's Custom
+     List baseUrl (read off Radarr 6.4 and Sonarr 4.0). */
   function urlField(item) {
     const names = asArray(item && item.fields).map((field) => field.name);
-    const known = names.find((name) => ['link', 'baseUrl', 'url'].includes(name));
-    return known || names.find((name) => /url|link/i.test(name)) || (app === 'radarr' ? 'link' : 'baseUrl');
+    return names.find((name) => ['baseUrl', 'link', 'url'].includes(name)) || 'baseUrl';
   }
 
-  function isOurList(list) {
-    return list.implementation === kind && norm(fieldValue(list, urlField(list))) === norm(listUrl);
-  }
-
-  const existing = lists.find(isOurList);
-  const action = existing ? 'updated' : 'added';
+  const ours = (implementation) => (list) =>
+    list.implementation === implementation && norm(fieldValue(list, urlField(list))) === norm(listUrl);
+  const existing = lists.find(ours(kind));
+  const old = lists.find(ours(oldKind));
+  const action = existing || old ? 'updated' : 'added';
   const listTemplate = listSchema.find((list) => list.implementation === kind);
   if (!existing && !listTemplate) {
-    show(false, action, `This ${label} has no ${app === 'radarr' ? 'RSS List' : 'Custom List'}. Update it and try again.`);
+    show(false, action, `This ${label} cannot import from another ${label}. Update it and try again.`);
     return outcome;
   }
   if (!profiles.length || !folders.length) {
@@ -306,19 +308,20 @@
   fill(
     profileSelect,
     profiles.map((profile) => [String(profile.id), profile.name]),
-    existing && existing.qualityProfileId,
+    (existing || old || {}).qualityProfileId,
   );
   fill(
     folderSelect,
     folders.map((folder) => [folder.path, folder.path]),
-    existing && existing.rootFolderPath,
+    (existing || old || {}).rootFolderPath,
   );
   if (dryRun) say('Test run: nothing is saved.');
   else if (existing) say(`This list is already in ${label}. This updates it.`);
+  else if (old) say(`This list is in ${label} as ${oldName}. This swaps it for ${label}'s own list type, read every ${minutes} minutes.`);
   else say('');
   panel.insertBefore(form, actions);
   /* Already set up here: the same bookmark can also take the list out again. */
-  actions.replaceChildren(save, ...(existing ? [remove] : []), cancel);
+  actions.replaceChildren(save, ...(existing || old ? [remove] : []), cancel);
   profileSelect.focus();
 
   const go = await new Promise((resolve) => {
@@ -337,7 +340,9 @@
   if (go === 'remove') {
     say(dryRun ? `Testing in ${label}...` : `Removing from ${label}...`);
     try {
-      if (!dryRun) await api(`/importlist/${existing.id}`, { method: 'DELETE' });
+      for (const list of dryRun ? [] : [existing, old].filter(Boolean)) {
+        await api(`/importlist/${list.id}`, { method: 'DELETE' });
+      }
     } catch (error) {
       show(false, 'removed', `${label} did not remove it. ${error.message}`);
       return outcome;
@@ -356,8 +361,15 @@
   const list = clone(existing || listTemplate);
   delete list.presets;
   const name = `Watcharr: ${String(cfg.listTitle || 'IMDb list').slice(0, 60)}`;
-  list.name = existing && existing.name ? existing.name : freeName(lists, name);
-  setField(list, urlField(list), listUrl);
+  const keep = existing || old;
+  list.name = keep && keep.name ? keep.name : freeName(lists, name);
+  setField(list, 'baseUrl', listUrl);
+  /* The list is public: Watcharr takes any key, but the app's form wants one. */
+  setField(list, 'apiKey', 'watcharr');
+  /* Empty filters mean everything on the list. */
+  const filters = ['profileIds', 'tagIds', 'rootFolderPaths'];
+  if (app === 'sonarr') filters.push('languageProfileIds');
+  for (const filter of filters) setField(list, filter, []);
   list.qualityProfileId = Number(profileSelect.value);
   list.rootFolderPath = folderSelect.value;
   if (!Array.isArray(list.tags)) list.tags = [];
@@ -389,7 +401,17 @@
     return outcome;
   }
 
-  /* Read the list now rather than at the next sync, which can be hours away. */
+  /* The old, slower copy goes once the new one is saved, so the list is never missing in between. */
+  if (old && !dryRun) {
+    try {
+      await api(`/importlist/${old.id}`, { method: 'DELETE' });
+    } catch (error) {
+      show(false, action, `The new list is saved, but ${label} kept the old ${oldName.replace(/^an? /, '')} too: remove it by hand. ${error.message}`);
+      return outcome;
+    }
+  }
+
+  /* Read the list now rather than at the next sync. */
   if (!dryRun) {
     const command = { name: 'ImportListSync' };
     if (listId) command.definitionId = listId;
@@ -402,7 +424,7 @@
 
   const done = dryRun
     ? `Test passed. ${label} can read this list. Nothing was saved.`
-    : `Done. ${label} is adding what is on the list now, and checks it for new titles from here on.`;
+    : `Done. ${label} is adding what is on the list now, and checks it every ${minutes} minutes.`;
   show(true, action, done);
   return outcome;
 });

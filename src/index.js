@@ -26,10 +26,11 @@ import {
   readAlertingFeeds,
   readArrItems,
   readOwnedFeeds,
+  readUnresolvedMovies,
   releaseFeed,
   requestRefresh,
 } from "./store.js";
-import { requestSyncRun, requestSyncRunAfterResponse, SYNC_ROUTE_HANDLERS } from "./sync.js";
+import { requestSyncRun, requestSyncRunAfterResponse, resolveStoredIds, SYNC_ROUTE_HANDLERS } from "./sync.js";
 import { handleTitleRoute } from "./tmdb-details.js";
 
 // How often a signed-out visitor may ask for the same list to be re-fetched.
@@ -500,6 +501,23 @@ const toSonarrSeries = (row) => ({
   tags: [],
 });
 
+// A list nobody is signed in for is only re-read when it is pasted again, so
+// its movies' TMDB ids would wait for that. Instead a Radarr poll looks up the
+// next batch after answering, at most once per RESOLVE_ON_POLL_SECONDS per
+// list, so a busy list is never asked about twice at once and a TMDB outage
+// is not asked about on every poll.
+const RESOLVE_ON_POLL_SECONDS = 120;
+
+async function resolveOnPoll(env, feed) {
+  const cache = typeof caches === "undefined" || !env.PUBLIC_ORIGIN ? null : caches.default;
+  const marker = cache ? new Request(`${env.PUBLIC_ORIGIN}/__tmdb-resolving/${feed.id}`) : null;
+  if (!marker || (await cache.match(marker)) || !(await readUnresolvedMovies(env.DB, feed.id, 0)).total) {
+    return;
+  }
+  await cache.put(marker, new Response("", { headers: { "cache-control": `max-age=${RESOLVE_ON_POLL_SECONDS}` } }));
+  await resolveStoredIds(env, feed).catch(() => {});
+}
+
 function arrJson(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: ARR_HEADERS });
 }
@@ -540,6 +558,9 @@ async function handleArrApiRoute({ request, env, ctx, url, publicOrigin }) {
   }
 
   const rows = await readArrItems(env.DB, feed.id, feedTarget);
+  if (feedTarget === "radarr") {
+    ctx.waitUntil(resolveOnPoll(env, feed).catch(() => {}));
+  }
   return arrJson(rows.map(feedTarget === "radarr" ? toRadarrMovie : toSonarrSeries));
 }
 

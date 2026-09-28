@@ -9,15 +9,15 @@ const TARGETS = [
     app: 'Radarr',
     icon: FilmIcon,
     urlKey: 'radarrFeedUrl',
-    label: 'Radarr RSS URL',
-    path: ['Settings', 'Lists', 'Add list', 'Advanced', 'RSS List'],
+    label: 'Radarr list URL',
+    path: ['Settings', 'Lists', 'Add List', 'Radarr'],
   },
   {
     app: 'Sonarr',
     icon: TvIcon,
     urlKey: 'sonarrFeedUrl',
-    label: 'Sonarr custom list URL',
-    path: ['Settings', 'Import Lists', 'Add list', 'Advanced', 'Custom List'],
+    label: 'Sonarr list URL',
+    path: ['Settings', 'Import Lists', 'Add List', 'Sonarr'],
   },
 ] as const
 
@@ -89,6 +89,8 @@ export function TargetCards({ link }: { link: (target: Target) => ReactNode }) {
               </ol>
             </div>
             {link(target)}
+            {/* The app's own list type reads this link as another Radarr or Sonarr would be read. */}
+            <p className="text-muted-foreground text-2xs mt-2">Paste it as the Full URL. API Key: type anything.</p>
           </div>
         )
       })}

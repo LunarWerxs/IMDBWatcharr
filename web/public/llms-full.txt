@@ -1,13 +1,14 @@
 # IMDb Watcharr - full brief
 
-> IMDb Watcharr turns a public IMDb watchlist or list into a Radarr RSS feed and a Sonarr custom
-> list. A LunarWerx product. Free, source-available, version 1.0.0.
+> IMDb Watcharr turns a public IMDb watchlist or list into lists your Radarr and Sonarr pick up
+> within minutes. A LunarWerx product. Free, source-available, version 1.0.0.
 
 ## What it is
 
 IMDb Watcharr is a small web tool. Paste a public IMDb watchlist or list URL and get back two
-deterministic links, a Radarr RSS List URL for the movies on that list, and a Sonarr Custom List
-URL for the shows. It does not host movies or shows, does not touch IMDb credentials, and does not
+deterministic links, one for Radarr with the movies on that list and one for Sonarr with the
+shows. Each app adds its link as a list of its own kind, which it checks every 15 (Radarr) and 5
+(Sonarr) minutes; the same links also work as an RSS List and a Custom List. It does not host movies or shows, does not touch IMDb credentials, and does not
 require an IMDb account of any kind; it only reads a *public* watchlist or list URL.
 
 ## Who it is for
@@ -24,8 +25,13 @@ built and licensed for personal, non-commercial, single-household use; see Limit
    always produces the same two links:
    - Radarr: `/radarr/l/:listId` or `/radarr/p/:profileId`
    - Sonarr: `/sonarr/l/:listId` or `/sonarr/p/:profileId`
-3. In Radarr: Settings → Lists → Add List → Advanced → RSS List → paste the Radarr URL.
-4. In Sonarr: Settings → Import Lists → Add List → Advanced → Custom List → paste the Sonarr URL.
+3. In Radarr: Settings → Lists → Add List → Radarr → paste the Radarr URL as the Full URL, type
+   anything as the API Key. Radarr reads it as it would another Radarr, every 15 minutes.
+4. In Sonarr: Settings → Import Lists → Add List → Sonarr → paste the Sonarr URL as the Full URL,
+   type anything as the API Key. Sonarr reads it every 5 minutes.
+5. Or, on a computer, drag the result's Add to Radarr / Sonarr bookmark to the bookmarks bar and
+   click it inside Radarr or Sonarr: it does step 3 or 4 there, with the app's own key, which never
+   leaves the app.
 
 Both links come back at once and serve the list from its first read from IMDb, which usually lands
 within a few minutes, then keep working with no account. Signing in

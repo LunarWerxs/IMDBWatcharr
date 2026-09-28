@@ -51,7 +51,7 @@ const STEPS = [
   },
   {
     title: 'Paste them into Radarr and Sonarr',
-    body: 'Radarr takes the movies link as an RSS list. Sonarr takes the shows link as a custom list.',
+    body: 'In each app, add a list of its own kind (Radarr in Radarr, Sonarr in Sonarr) and paste the link as its Full URL. They check it every 15 and 5 minutes.',
   },
 ]
 

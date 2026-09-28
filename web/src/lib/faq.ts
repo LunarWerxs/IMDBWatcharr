@@ -18,12 +18,12 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'How do I add an IMDb list to Radarr?',
     answer:
-      'In Radarr, open Settings, then Lists, then Add List, switch to Advanced, and choose RSS List. Paste the Radarr link IMDb Watcharr made for your list. It comes from the IMDb list itself, so it never changes. On a computer you can skip this: drag Add to Radarr / Sonarr to your bookmarks bar and click it inside Radarr.',
+      'In Radarr, open Settings, then Lists, then Add List, and choose Radarr. Paste the Radarr link IMDb Watcharr made for your list as the Full URL, and type anything as the API Key: the list is public. Radarr then checks it every 15 minutes. The link comes from the IMDb list itself, so it never changes. On a computer you can skip this: drag Add to Radarr / Sonarr to your bookmarks bar and click it inside Radarr. An RSS List with the same link works too, but Radarr reads those only every 12 hours.',
   },
   {
     question: 'How do I add an IMDb list to Sonarr?',
     answer:
-      'In Sonarr, open Settings, then Import Lists, then Add List, switch to Advanced, and choose Custom List. Paste the Sonarr link IMDb Watcharr made. It is a separate link from the Radarr one, because Sonarr adds shows by their TheTVDB id. The Add to Radarr / Sonarr bookmark does this for you too, clicked inside Sonarr.',
+      'In Sonarr, open Settings, then Import Lists, then Add List, and choose Sonarr. Paste the Sonarr link IMDb Watcharr made as the Full URL, and type anything as the API Key. Sonarr then checks it every 5 minutes. It is a separate link from the Radarr one, because Sonarr adds shows by their TheTVDB id. The Add to Radarr / Sonarr bookmark does this for you too, clicked inside Sonarr. A Custom List with the same link works too, but Sonarr reads those only every 6 hours.',
   },
   {
     question: 'Why is a show missing from my Sonarr list?',
@@ -33,7 +33,7 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'How is this different from adding an IMDb list to Radarr or Sonarr directly?',
     answer:
-      'Sonarr removed its built-in IMDb list import in 2025, and Radarr’s IMDb list import stopped working after IMDb changed its export format. IMDb Watcharr fills that gap: one pasted URL becomes a Radarr RSS feed and a Sonarr Custom List, and if a later read of the list fails, both keep serving the last good one.',
+      'Sonarr removed its built-in IMDb list import in 2025, and Radarr’s IMDb list import stopped working after IMDb changed its export format. IMDb Watcharr fills that gap: one pasted URL becomes a list your Radarr and your Sonarr read as if from another Radarr or Sonarr, every 15 and 5 minutes, and if a later read of the list fails, both keep serving the last good one.',
   },
   {
     question: 'Can I self-host IMDb Watcharr?',

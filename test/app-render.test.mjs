@@ -257,8 +257,8 @@ describe("App - a finished result", () => {
     assert.match(html, /My List/);
     assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/radarr\/l\/ls055592025/);
     assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/sonarr\/l\/ls055592025/);
-    assert.match(html, /Radarr RSS URL/);
-    assert.match(html, /Sonarr custom list URL/);
+    assert.match(html, /Radarr list URL/);
+    assert.match(html, /Sonarr list URL/);
     // The badges say it is ready; a line repeating that was cut (owner, 2026-09-28).
     assert.doesNotMatch(html, /Ready, and we are keeping it up to date\./);
   });

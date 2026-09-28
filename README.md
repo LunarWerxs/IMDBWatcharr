@@ -22,14 +22,22 @@ fifteen minutes.
 1. Open the site
 2. Paste a public IMDb watchlist or list URL
 3. Copy the two URLs it gives back
-4. Radarr `RSS List` gets the movie URL, Sonarr `Custom List` gets the TV URL
+4. In Radarr add a list of type **Radarr** (Settings > Lists > Add List > Radarr), in Sonarr one of
+   type **Sonarr** (Settings > Import Lists > Add List > Sonarr); paste the link as its Full URL and
+   type anything as the API Key
 
-Or, on a computer, skip steps 3 and 4: drag the result's **Add to Radarr / Sonarr** bookmark to the
+Each link answers as a small Radarr or Sonarr v3 API (`{link}/api/v3/movie`, `/series` and the list
+form's pickers), so the apps read it the way they read another Radarr or Sonarr: every **15 minutes**
+(Radarr) and every **5** (Sonarr). The same links still work as a Radarr `RSS List` and a Sonarr
+`Custom List`, which the apps read only every 12 and 6 hours.
+
+Or, on a computer, skip steps 3 and 4: drag the result's **Add to Radarr / Sonarr** sticker to the
 bookmarks bar and click it inside Radarr or Sonarr. It runs in that app's own page, uses that page's
 API key (which never leaves the app), asks for a Quality Profile and Root Folder, saves or updates the
-list with Search on Add on (Sonarr: Search for Missing, Monitor all), and reads it at once. Clicked
-again there, it can remove the list. The script is `web/src/lib/arr-setup.js`, Askarr's one-click
-setup pointed at this list's feed.
+list of the app's own type with Search on Add on (Sonarr: Search for Missing, Monitor all), swaps out
+an RSS or Custom List of the same link if there is one, and reads it at once. Clicked again there, it
+can remove the list. The script is `web/src/lib/arr-setup.js`, Askarr's one-click setup pointed at
+this list.
 
 The URLs are derived from the IMDb identifier, so the same list always maps to the same URLs. Links
 from the phone site (`m.imdb.com`) and IMDb's language paths (`imdb.com/de/list/…`) work too:
@@ -148,12 +156,15 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /sonarr/p/:profileId`                    | Sonarr custom list JSON for a watchlist                              |
 | `GET /sonarr/l/:listId`                       | Sonarr custom list JSON for a list                                   |
 | `GET /{radarr,sonarr}/f/:imdbKey`             | Same, inferring the source from `ls…`, `p.…`, or `ur…`               |
+| `GET {any of those}/api/v3/movie`, `/series`  | The same list as a Radarr / Sonarr v3 API: movies by TMDB id, shows by TVDB id (any API key) |
+| `GET {any of those}/api/v3/qualityprofile`, `rootfolder`, `tag`, `languageprofile` | The list form's pickers, one of each (`languageprofile` is Sonarr's) |
 | `GET /p/:id`, `/l/:id`, `/f/:id`              | Legacy shortcuts, redirect to `/radarr/…`                            |
 | `GET /f/:slug.xml`                            | Legacy slug route, redirects to the deterministic path               |
 | `GET /api/feeds/:slug`                        | Where one feed stands, with its counts (read-only; the page polls it) |
 | `GET /api/title/:imdbId`                      | One title's details from TMDB for the poster popup (cached a day; needs `TMDB_TOKEN`) |
 | `GET /api/sync-targets`                       | The queue, then every claimed feed; `?scope=requested` for the queue only (shared-secret auth) |
 | `POST /api/ingest`                            | Store a snapshot the sync job fetched (shared-secret auth)           |
+| `POST /api/resolve-ids`                       | Look up a stored list's next 250 movies' TMDB ids (shared-secret auth); the runner calls it until none are left |
 | `GET /auth/login`, `/auth/callback`, `/auth/logout` | Sign in with Connections                                        |
 | `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed, each with its sync health |
 | `GET /api/notifications`                      | Just the feeds that have failed enough syncs in a row to need attention |
@@ -298,10 +309,13 @@ Pushing to `main` runs:
   the page says so and asks the owner to make it public, then paste it again.
 - **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 5 and 15 minutes are
   floors rather than a clock.
-- **Radarr and Sonarr read these lists on their own, slower clock.** Radarr re-reads an RSS List at
-  most every 12 hours and Sonarr a Custom List every 6 (read off Radarr 6.4 and Sonarr 4.0), so a
-  title added on IMDb reaches them hours after the feed has it. The one-click bookmark asks for an
-  immediate first read; after that the apps' own schedule applies.
+- **Radarr and Sonarr read on their own clock.** As their own list types they re-read every 15 and
+  5 minutes; set up as an RSS List or a Custom List, every 12 and 6 hours (read off Radarr 6.4 and
+  Sonarr 4.0). The one-click bookmark asks for an immediate first read either way.
+- **A movie reaches Radarr's own list type once its TMDB id is known.** IMDb does not carry it, so
+  each movie is looked up on TMDB (250 per request; the runner asks for the rest, and a Radarr poll of
+  a list nobody is signed in for looks up the next batch after answering). A movie TMDB does not know
+  stays in the RSS answer only.
 - **IMDb's API carries a usage disclaimer** on every response: public, commercial, and non-private
   use of the data is not allowed. This is a personal, non-commercial tool feeding one household's
   Radarr and Sonarr, which is the lane that language leaves open.

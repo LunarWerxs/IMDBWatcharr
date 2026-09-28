@@ -10,5 +10,6 @@ declare module 'react' {
     '--fan-x'?: string
     '--fan-r'?: string
     '--fan-z'?: number
+    '--sticker-page'?: string
   }
 }

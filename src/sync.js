@@ -162,7 +162,7 @@ function withIds(items, { tvdb = new Map(), tmdb = new Map() }) {
  * batch of movies' TMDB ids. They are saved with `fields` in one round trip,
  * and the feed comes back with how many movies are still to look up.
  */
-async function resolveStoredIds(env, feed, fields) {
+export async function resolveStoredIds(env, feed, fields = {}) {
   const [shows, movies] = await Promise.all([
     readUnresolvedSeries(env.DB, feed.id),
     readUnresolvedMovies(env.DB, feed.id, MOVIE_LOOKUPS_PER_REQUEST),
