@@ -2,7 +2,7 @@
 
 <img alt="Watcharr: your IMDb list, straight into Radarr and Sonarr" src=".github/banner.png" width="880" />
 
-### Your IMDb list, straight into Radarr and Sonarr.
+### Keep your list on IMDb. Radarr and Sonarr pick it up within minutes.
 
 Paste a public IMDb watchlist or list and get two links back: one Radarr checks every 15 minutes, one Sonarr checks every 5. Nothing to install, no account needed.
 
@@ -150,10 +150,10 @@ own page with that page's API key, which never leaves the app.
 
 The links are built from the IMDb id, so the same list always maps to the same two:
 
-| Paste this | Radarr link | Sonarr link |
-|---|---|---|
-| `imdb.com/list/ls055592025/` | `/radarr/l/ls055592025` | `/sonarr/l/ls055592025` |
-| `imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/` | `/radarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4` | `/sonarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4` |
+| Paste this | Get these |
+|---|---|
+| A list: `imdb.com/list/ls055592025/` | `…/radarr/l/ls055592025`<br>`…/sonarr/l/ls055592025` |
+| A watchlist: `imdb.com/user/p.kdbeq6dtmzzpiin4k7t4fnunf4/watchlist/` | `…/radarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4`<br>`…/sonarr/p/p.kdbeq6dtmzzpiin4k7t4fnunf4` |
 
 ---
 
@@ -261,36 +261,64 @@ Local development, deployment and every route: [docs/REFERENCE.md](docs/REFERENC
 
 ## FAQ
 
-**Is Watcharr free?**
+<details>
+<summary><b>Is Watcharr free?</b></summary>
+
 Yes. Making links, using them and signing in are all free, with no paid tier and no payment set up
 anywhere. The code is source-available too, so you can run your own copy for personal use.
 
-**Do I need an account?**
+</details>
+
+<details>
+<summary><b>Do I need an account?</b></summary>
+
 No. Both links come back at once and serve the list from its first read, usually within a few
 minutes. Signing in only adds one thing: the list is re-read about every 15 minutes instead of
 staying on that first read.
 
-**Which list type do I pick in Radarr and Sonarr?**
+</details>
+
+<details>
+<summary><b>Which list type do I pick in Radarr and Sonarr?</b></summary>
+
 **Radarr** in Radarr and **Sonarr** in Sonarr: paste the link as the Full URL and type anything as
 the API Key. The same links also work as a Radarr RSS List and a Sonarr Custom List, but the apps
 read those only every 12 and 6 hours.
 
-**Does the bookmark see my Radarr or Sonarr API key?**
+</details>
+
+<details>
+<summary><b>Does the bookmark see my Radarr or Sonarr API key?</b></summary>
+
 It uses it, inside the app's own page, to add the list for you, and it never sends it anywhere else.
 The bookmark talks only to the Radarr or Sonarr you clicked it in.
 
-**Why is a show missing from my Sonarr list?**
+</details>
+
+<details>
+<summary><b>Why is a show missing from my Sonarr list?</b></summary>
+
 Sonarr needs a TheTVDB id for every show, and not every IMDb title has one. A show Watcharr cannot
 match is left out rather than passed along broken, and the page tells you which ones were skipped.
 
-**Why does a list I just pasted not show anything yet?**
+</details>
+
+<details>
+<summary><b>Why does a list I just pasted not show anything yet?</b></summary>
+
 A brand-new list is read on the next sync run, usually within a few minutes; until then its links
 answer `503`, which Radarr and Sonarr treat as "try again later". If it never fills in, the list is
 probably private on IMDb: make it public and paste it again.
 
-**Does it work offline?**
+</details>
+
+<details>
+<summary><b>Does it work offline?</b></summary>
+
 No. It is a hosted service: watcharr.lunarwerx.com reads IMDb and serves the links, and Radarr and
 Sonarr reach it over the network. For a private setup, [self-host it](#self-host-it).
+
+</details>
 
 ---
 
