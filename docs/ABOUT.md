@@ -47,7 +47,7 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 
 ### Architecture
 
-- `src/` - The Cloudflare Worker: routing (src/index.js), IMDb GraphQL client (src/imdb-graphql.js), feed/URL normalization and XML/JSON building (src/imdb.js), and Sign-in-with-Connections OAuth (src/auth.js).
+- `src/` - The Cloudflare Worker: routing (src/index.js), IMDb GraphQL client (src/imdb-graphql.js), feed/URL normalization and XML/JSON building (src/imdb.js), Sign-in-with-Connections OAuth (src/auth.js), TVDB id lookup (src/tvdb.js) and the poster popup's TMDB details (src/tmdb-details.js).
 - `web/` - Vite + React 19 + TypeScript SPA (Tailwind v4, shadcn/ui) that builds into web/dist/, served by the Worker's ASSETS binding.
 - `migrations/` - Five versioned D1 schema migrations: feeds, feed items, TVDB id column, feed_owners join table, consecutive failure count.
 - `scripts/` - sync-feeds.mjs (the GitHub Actions runner that fetches IMDb and posts snapshots), test-parser.mjs (fixture-based parser checks run by `npm run check`), make-og.mjs (build-time share-card rasterizer).
@@ -57,7 +57,7 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 
 ### Features
 
-27 recorded - 26 shipped, 1 partial, 0 planned. Each path is where the feature is DEFINED; the exact lines live in the Codex entry, which `odin codex check` re-verifies and repairs.
+29 recorded - 28 shipped, 1 partial, 0 planned. Each path is where the feature is DEFINED; the exact lines live in the Codex entry, which `odin codex check` re-verifies and repairs.
 
 **Shipped**
 
@@ -65,7 +65,7 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 - **Read queue** _(free)_ - feeds.refresh_requested_at is the sync job's to-do list: set by a paste, served by /api/sync-targets as claimed feeds' requests, then up to 50 signed-out requests, then every other claimed feed; cleared by a good read, by a permanent failure (private list), or after 3 failures once a day old. Until 2026-09-27 only claimed feeds were ever read, so 56 of 73 signed-out feeds sat pending. - `src/store.js`, `migrations/0006_add_feed_refresh_requested_at.sql`
 - **Radarr RSS feed** _(free)_ - Serves a Radarr-compatible RSS list of the movie and TV-movie titles on a snapshotted IMDb list/watchlist, from a cached body when one exists; a list nobody pasted is a 404 that says how to start it, a pasted one not yet read a 503 with Retry-After. - `src/index.js`, `src/imdb.js`
 - **Sonarr custom list feed** _(free)_ - Serves a Sonarr custom-list JSON payload of the series and mini-series on the list, carrying only the titles matched to a TVDB id. - `src/index.js`, `src/imdb.js`
-- **TVDB id resolution** _(free)_ - Looks up each show's TVDB id via TVMaze so Sonarr can import it, carries resolved ids across syncs, retries unresolved ones on unchanged syncs, and reports how many titles could not be matched. - `src/tvdb.js`, `src/sync.js`
+- **TVDB id resolution** _(free)_ - Looks up each show's TVDB id via TVMaze, then TMDB when TVMaze has no IMDb link for it (TMDB rescued 17 of 36 unmapped shows across stored lists, 2026-09-28), remembers a miss for a day so syncs and Sonarr polls stop re-asking, carries resolved ids across syncs, and retries unresolved ones on later syncs. - `src/tvdb.js`, `src/sync.js`
 - **Legacy/short URL redirects** _(free)_ - Old short-form /p/, /l/, /f/ links and .xml slug URLs 302-redirect to the current deterministic route, and any alias hostname 301-redirects reads to the one canonical origin, so a previously configured Radarr/Sonarr entry keeps working. - `src/index.js`
 - **Sign in with Connections** _(free)_ - OAuth sign-in against LunarWerx's own Connections (AEGIS) identity provider as a confidential client with a signed state cookie; the session is a stateless HMAC-signed cookie holding the subject id and display name; returnTo is resolved as a URL and must stay on the site's origin, and a malformed cookie reads as signed out. Login answers 503 and the header control disappears when the OAuth secrets are not configured. - `src/auth.js`
 - **Claim a feed to auto-refresh it** _(free)_ - Signing in and (re)pasting a list claims it into a feed_owners join table, which is what puts it on the 15-minute sync schedule; sign-in carries the pasted list back (?list=) so it is claimed on return, an unclaimed feed keeps working off its last snapshot, and several people can claim the same public list. - `src/store.js`, `web/src/lib/feed-page.ts`, `web/src/components/update-note.tsx`
@@ -83,10 +83,12 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 - **Prerendered first paint** - The production build bakes the SPA's first view into web/dist/index.html, so the page paints from the HTML and stylesheet instead of after downloading and running the whole bundle; main.tsx detects the existing markup and hydrates it in place, and refuses to write an empty shell if the render produces no <main>. - `scripts/prerender-web.mjs`, `web/src/entry-prerender.tsx`, `web/src/main.tsx`
 - **Immutable hashed-asset caching** - Vite-hashed files under /assets/ are served with a one-year immutable cache-control from the Worker, so a repeat visitor stops paying a conditional request per script, stylesheet and font; HTML is deliberately never marked immutable so the SPA fallback cannot pin a broken answer. - `src/index.js`
 - **IME composition guard** - A document-level capture guard installed at boot swallows the keydown/keyup pair that belongs to a Chinese, Japanese or Korean input-method composition, so the Enter that commits a candidate never fires an application key handler on half-typed text. - `web/src/lib/ime-composition-guard.ts`, `web/src/main.tsx`
-- **SEO metadata & no-JS content** - The HTML shell carries OpenGraph/Twitter meta, a canonical link and a JSON-LD graph (WebApplication, Organization, WebSite, FAQPage), plus a full noscript fallback that renders the product copy, comparison and FAQ so crawlers and JavaScript-less visitors get the content. - `web/index.html`
+- **SEO metadata & structured data** - The HTML shell carries OpenGraph/Twitter meta (descriptive title, locale, image type and alt), a canonical link, favicon.ico and an apple-touch-icon, and a JSON-LD graph (WebApplication, Organization, WebSite, BreadcrumbList); the FAQ is a visible section whose FAQPage JSON-LD the build writes into the head from the same entries; a URL that is not a page answers 404 while still showing the page; the sitemap's lastmod dates are stamped from git at build. - `web/index.html`, `web/src/components/faq-section.tsx`, `web/src/entry-prerender.tsx`, `src/index.js`
 - **Agent-readable product brief & pricing** - Static pricing.md and llms-full.txt (with a short llms.txt) publish a machine-readable price (free, PolyForm Noncommercial with no commercial licence for sale, no payment integration) and the full product brief for agentic buyers and shopping/comparison agents; AI assistants (ChatGPT, Gemini) were the largest referrer in September 2026. - `web/public/pricing.md`, `web/public/llms-full.txt`, `web/public/llms.txt`
 - **Feed status API** _(free)_ - GET /api/feeds/<slug> returns where a feed stands (status, message, whether a read is pending, counts) without its stored bodies, read-only, or 404 for an unknown slug; the page polls it. - `src/index.js`
 - **Askarr cross-promotion** _(free)_ - A card after How it works and a footer line point visitors at Askarr, the studio's single-title request app for Radarr/Sonarr; Askarr's footer and FAQ point back. - `web/src/components/home-sections.tsx`
+- **Poster row & title popup** _(free)_ - The list's first covers in a scrolling row; clicking one opens a sheet with details from TMDB (backdrop, trailer that animates open and closed, genres, plot, runtime, rating) looked up by IMDb id through the Worker and cached a day, with View on IMDb and a Request with Askarr step that swaps in place of the details (Back or Escape returns). - `web/src/components/poster-row.tsx`, `web/src/components/title-dialog.tsx`, `src/tmdb-details.js`
+- **One-click example lists** _(free)_ - The form offers one of six public IMDb lists (films, shows and a mix) at random per visit; one click fills the field and builds it, the way a saved list opens. - `web/src/components/home-sections.tsx`, `web/src/App.tsx`
 
 **Partial - exists but incomplete, gated off, or known broken**
 
@@ -107,5 +109,5 @@ _Read it with `python odin.py codex brief imdbwatch` in the Odin clone._
 
 ---
 
-_Generated by `odin codex about --publish imdbwatch` on 2026-09-27 from a Codex dossier stamped 2026-09-27. Regenerate after the product moves; `odin codex about` reports drift._
-<!-- odin:about GENERATED END sha=1289f4106e76 -->
+_Generated by `odin codex about --publish imdbwatch` on 2026-09-28 from a Codex dossier stamped 2026-09-28. Regenerate after the product moves; `odin codex about` reports drift._
+<!-- odin:about GENERATED END sha=5f5abbca735f -->
