@@ -121,7 +121,9 @@ export function SiteHeader({
       <div className={`${PAGE_WIDTH} flex h-14 items-center justify-between gap-3`}>
         <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="IMDb Watcharr home">
           <img src="/brand/watcharr-mark-on-dark.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
-          <span className="truncate text-xl font-black tracking-tight">Watcharr</span>
+          <span className="truncate text-xl font-black tracking-tight">
+            Watch<span className="text-primary">arr</span>
+          </span>
           <span className="text-muted-foreground hidden text-sm md:inline">for IMDb lists</span>
         </a>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
