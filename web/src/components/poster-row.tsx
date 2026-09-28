@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, ClapperboardIcon, MinusIcon } from 'lucide-react'
 
 import { Cover } from '@/components/cover'
+import { TitleDialog } from '@/components/title-dialog'
 import { SectionTitle } from '@/components/site-chrome'
 import type { CreateFeedResponse, PreviewItem } from '@/lib/api'
 import { scrollBehavior } from '@/lib/motion'
@@ -17,15 +18,15 @@ const RIBBON_SHAPE = { clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100
 
 const ITEM_WIDTH = 'w-36 shrink-0 snap-start sm:w-44'
 
-function PosterCard({ item, order }: { item: PreviewItem; order: number }) {
+function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number; onOpen: (item: PreviewItem) => void }) {
   const sent = item.target !== 'skipped'
   return (
     <li className={`${ITEM_WIDTH} motion-safe:animate-pop`} style={{ animationDelay: `${Math.min(order, 12) * 55}ms` }}>
-      <a
-        href={`https://www.imdb.com/title/${item.imdbId}/`}
-        target="_blank"
-        rel="noreferrer"
-        className="group/poster block rounded-md"
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        aria-label={`${item.title}${item.year ? ` (${item.year})` : ''}: details`}
+        className="group/poster block w-full rounded-md text-left"
         title={sent ? undefined : 'Sonarr needs a TVDB id for this one, or neither app takes this kind of title.'}
       >
         <div className="group-hover/poster:ring-primary relative aspect-2/3 overflow-hidden rounded-md shadow-lg ring-1 shadow-black/40 ring-white/10 transition duration-300 group-hover/poster:-translate-y-1.5 group-hover/poster:shadow-2xl">
@@ -57,7 +58,7 @@ function PosterCard({ item, order }: { item: PreviewItem; order: number }) {
         >
           {TARGET_LABELS[item.target]}
         </span>
-      </a>
+      </button>
     </li>
   )
 }
@@ -117,6 +118,8 @@ export function PosterRow({
   const loading = pending || Boolean(result?.syncing)
 
   const rowRef = useRef<HTMLUListElement>(null)
+  // The poster whose popup is open, if any.
+  const [open, setOpen] = useState<PreviewItem | null>(null)
   const [edges, setEdges] = useState({ atStart: true, atEnd: true })
   const readEdges = () => {
     const row = rowRef.current
@@ -152,7 +155,7 @@ export function PosterRow({
           className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
         >
           {items.length > 0
-            ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} />)
+            ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} onOpen={setOpen} />)
             : Array.from({ length: 6 }, (_, index) => <GhostPoster key={index} loading={loading} />)}
           {more > 0 && (
             <li className={ITEM_WIDTH}>
@@ -174,6 +177,7 @@ export function PosterRow({
           </>
         )}
       </div>
+      <TitleDialog item={open} onClose={() => setOpen(null)} />
     </section>
   )
 }

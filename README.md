@@ -152,6 +152,12 @@ instead of on the next tick. Without it everything still works, just on the sche
 `npm run setup:dispatch` ([scripts/setup-dispatch-token.mjs](scripts/setup-dispatch-token.mjs)) sets it
 from any shell without the token ever being printed.
 
+Optionally give it `TMDB_TOKEN` too, a [TMDB](https://www.themoviedb.org/settings/api) API read access
+token (`wrangler secret put TMDB_TOKEN`). Clicking a poster then opens the title's details: plot,
+genres, runtime, rating, a backdrop and the trailer, looked up by IMDb id through `GET /api/title/tt…`
+and cached for a day. TMDB answers Cloudflare, which IMDb does not. Without it the popup shows the
+title, year and cover the list already gave us.
+
 Run a sync by hand from any machine that is not behind Cloudflare:
 
 ```bash

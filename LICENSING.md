@@ -36,6 +36,7 @@ original MIT notice is kept in [LICENSES/MIT-legacy.txt](LICENSES/MIT-legacy.txt
 ## Third-party material
 
 Dependencies and fonts keep their own licenses, which travel with them in `node_modules` and in
-the built site. Two small patterns (the failure alert threshold and the live feed list) were
+the built site. Title details and images in the poster popup come from TMDB under TMDB's own terms;
+this product uses the TMDB API but is not endorsed or certified by TMDB. Two small patterns (the failure alert threshold and the live feed list) were
 adapted from PostHog's MIT-licensed source; the comments where they are used say so. None of this
 changes or is changed by the IMDb Watcharr license.

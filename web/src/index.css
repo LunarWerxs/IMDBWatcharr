@@ -312,8 +312,8 @@
     transition-duration: var(--duration-reveal);
 }
 
-/* The shared Discord badge sits above everything on the page; while the
-   sign-in lightbox dims the page it steps aside rather than glowing over it. */
-body:has([data-sign-in-lightbox]) #lwdc-badge {
+/* The shared Discord badge sits above everything on the page; while a popup
+   (sign-in, a title) dims the page it steps aside rather than glowing over it. */
+body:has([data-page-overlay]) #lwdc-badge {
     visibility: hidden;
 }
