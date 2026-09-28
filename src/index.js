@@ -29,7 +29,7 @@ import {
   releaseFeed,
   requestRefresh,
 } from "./store.js";
-import { requestSyncRun, SYNC_ROUTE_HANDLERS, writeFeedCaches } from "./sync.js";
+import { requestSyncRun, requestSyncRunAfterResponse, SYNC_ROUTE_HANDLERS, writeFeedCaches } from "./sync.js";
 import { enrichTvdbIdsForFeed } from "./tvdb.js";
 
 // How often a signed-out visitor may ask for the same list to be re-fetched.
@@ -254,7 +254,7 @@ async function handleUnfollowRoute({ request, env, url }) {
   }
 }
 
-async function handleCreateRoute({ request, env, url, publicOrigin }) {
+async function handleCreateRoute({ request, env, ctx, url, publicOrigin }) {
   if (request.method !== "POST" || url.pathname !== "/api/create") {
     return null;
   }
@@ -277,7 +277,7 @@ async function handleCreateRoute({ request, env, url, publicOrigin }) {
     if (mayRefreshNow(feed, session)) {
       const refresh = await requestRefresh(env.DB, feed);
       feed = refresh.feed;
-      dispatched = refresh.queued && (await requestSyncRun(env));
+      dispatched = refresh.queued && (await requestSyncRunAfterResponse(env, ctx));
     }
 
     const storedItems = await getFeedItems(env.DB, feed.id);

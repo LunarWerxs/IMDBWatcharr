@@ -44,6 +44,9 @@ const SYNC_WORKFLOW_REF = "main";
 // At most one dispatch per minute, whoever is pasting: every dispatched run
 // reads the whole queue, so the lists pasted in between ride along.
 const DISPATCH_INTERVAL_MS = 60_000;
+// GitHub normally answers a dispatch in well under a second; past this, give up
+// rather than hold a Worker invocation open (the queue still has the list).
+const DISPATCH_TIMEOUT_MS = 4_000;
 
 // Length-independent comparison, so a wrong secret cannot be narrowed down by
 // timing the reply.
@@ -157,16 +160,8 @@ async function syncFeedFromSnapshot(env, feed, snapshot) {
  * and the scheduled run reads it, so a missing, throttled or rejected dispatch
  * must never fail the request it rides on.
  */
-export async function requestSyncRun(env) {
-  if (!env.GITHUB_DISPATCH_TOKEN || !env.GITHUB_REPOSITORY) {
-    return false;
-  }
-
+async function sendDispatch(env) {
   try {
-    if (!(await claimDispatchSlot(env.DB, DISPATCH_INTERVAL_MS))) {
-      return false;
-    }
-
     const response = await fetch(
       `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/workflows/${SYNC_WORKFLOW_FILE}/dispatches`,
       {
@@ -178,15 +173,45 @@ export async function requestSyncRun(env) {
           "user-agent": "imdbwatcharr-worker",
         },
         body: JSON.stringify({ ref: SYNC_WORKFLOW_REF, inputs: { scope: "requested" } }),
+        signal: AbortSignal.timeout(DISPATCH_TIMEOUT_MS),
       },
     );
 
     return response.ok;
   } catch {
-    // A network failure here is the same as no token: the queue still holds
-    // the request, so there is nothing to report.
+    // A network failure or a slow GitHub is the same as no token: the queue
+    // still holds the request, so there is nothing to report.
     return false;
   }
+}
+
+async function claimSlot(env) {
+  if (!env.GITHUB_DISPATCH_TOKEN || !env.GITHUB_REPOSITORY) {
+    return false;
+  }
+  try {
+    return await claimDispatchSlot(env.DB, DISPATCH_INTERVAL_MS);
+  } catch {
+    return false;
+  }
+}
+
+/** Ask GitHub for a queue-only run now, at most once a minute. For work already off the visitor's path. */
+export async function requestSyncRun(env) {
+  return (await claimSlot(env)) && sendDispatch(env);
+}
+
+/**
+ * The same ask from a paste: the once-a-minute slot is claimed before the
+ * page is answered (one D1 write), and the call to GitHub goes out after it,
+ * so pressing Generate never waits on GitHub. True when a run was asked for.
+ */
+export async function requestSyncRunAfterResponse(env, ctx) {
+  if (!(await claimSlot(env))) {
+    return false;
+  }
+  ctx.waitUntil(sendDispatch(env));
+  return true;
 }
 
 async function handleSyncTargetsRoute({ request, env, url }) {

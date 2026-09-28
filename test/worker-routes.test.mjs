@@ -378,6 +378,44 @@ describe("fetch - /api/create", () => {
     });
   });
 
+  // A regression here would hang on the unanswered GitHub call, so it gets a limit.
+  test("a new list asks GitHub for a run after answering, so Generate never waits on GitHub", { timeout: 5000 }, async () => {
+    const DB = makeDb([
+      ["SELECT * FROM feeds WHERE source_url = ?", CREATE_ROW],
+      ["FROM feed_items", { results: [] }],
+      ["UPDATE sync_dispatch", { meta: { changes: 1 } }],
+    ]);
+    const { env } = makeEnv({ DB, GITHUB_DISPATCH_TOKEN: "token", GITHUB_REPOSITORY: "owner/repo" });
+    const ctx = makeCtx();
+    const dispatches = [];
+    let answerGitHub;
+    const realFetch = globalThis.fetch;
+    // GitHub that has not answered yet: the page must be answered anyway.
+    globalThis.fetch = (url) => {
+      dispatches.push(String(url));
+      return new Promise((resolve) => {
+        answerGitHub = () => resolve(new Response(null, { status: 204 }));
+      });
+    };
+    try {
+      const { response, parsed } = await call(`${ORIGIN}/api/create`, {
+        method: "POST",
+        body: { sourceUrl: CANONICAL_LIST },
+        env,
+        ctx,
+      });
+
+      assert.equal(response.status, 200);
+      assert.match(parsed.message, /^We are reading this list from IMDb now/);
+      assert.deepEqual(dispatches, ["https://api.github.com/repos/owner/repo/actions/workflows/sync-feeds.yml/dispatches"]);
+      assert.equal(ctx.waited.length, 1, "the GitHub call rides on after the response");
+      answerGitHub();
+      assert.equal(await ctx.waited[0], true);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   test("a list already in the queue does not ask GitHub again, however often it is pasted", async () => {
     const DB = makeDb([
       ["SELECT * FROM feeds WHERE source_url = ?", { ...CREATE_ROW, refresh_requested_at: RECENT }],
