@@ -280,7 +280,7 @@ export function AskarrSection() {
             Want one title without editing the list? Ask for it from your phone, and it lands in your own
             Radarr or Sonarr at home.
           </p>
-          <Button asChild variant="askarr" size="pill" className="group/askarr mt-6 gap-2.5 rounded-md ps-3.5 pe-5 shadow-black/20">
+          <Button asChild variant="askarr" size="lift" className="group/askarr mt-6">
             <a href={ASKARR_URL}>
               <AskarrMark inverted className="size-5" />
               Try Askarr

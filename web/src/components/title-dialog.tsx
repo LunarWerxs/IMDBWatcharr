@@ -181,9 +181,9 @@ function AskarrStep({
           Back to the title
         </button>
         <div className="flex flex-col gap-1.5 sm:items-end">
-          <Button asChild variant="askarr" size="pill" className="gap-2.5 ps-4 pe-6">
+          <Button asChild variant="askarr" size="pill">
             <a href={askarrLink(item, details)} target="_blank" rel="noopener">
-              <AskarrMark inverted className="size-5" />
+              <AskarrMark inverted data-icon="inline-start" className="size-5" />
               Continue to Askarr
               <ExternalLinkIcon className="size-4" aria-hidden="true" />
             </a>

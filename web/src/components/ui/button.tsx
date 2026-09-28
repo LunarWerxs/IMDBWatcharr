@@ -35,8 +35,11 @@ const buttonVariants = cva(
         icon: "size-8",
         // A standalone call to action; a leading logo tile (data-icon="tile") sits closer to the edge.
         cta: "h-10 gap-2.5 px-5 has-data-[icon=tile]:ps-1.5",
-        // A big rounded call to action that lifts on hover (the title popup's and the Askarr card's).
-        pill: "h-11 gap-2 rounded-full border-0 px-6 text-base shadow-lg shadow-black/30 hover:-translate-y-0.5 active:translate-y-0",
+        // A big rounded call to action that lifts on hover (the title popup's); a leading logo
+        // (data-icon="inline-start") sits a little closer to the edge.
+        pill: "h-11 gap-2 rounded-full border-0 px-6 text-base shadow-lg shadow-black/30 hover:-translate-y-0.5 active:translate-y-0 has-data-[icon=inline-start]:gap-2.5 has-data-[icon=inline-start]:ps-4",
+        // The same lift on a squarer, lower-shadowed button (the Askarr card's).
+        lift: "h-11 gap-2.5 rounded-md border-0 ps-3.5 pe-5 text-base shadow-lg shadow-black/20 hover:-translate-y-0.5 active:translate-y-0",
         // The search bar's button: as tall as the field, joined to it from sm up, where the pair's
         // own ring shows focus (the button's would be clipped by the join).
         search:
