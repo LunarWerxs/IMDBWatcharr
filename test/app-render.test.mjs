@@ -231,7 +231,7 @@ describe("App - while a first sync is in flight", () => {
 });
 
 describe("App - a finished result", () => {
-  test("reports the counts, both feed URLs and the state message", () => {
+  test("reports the counts and both feed URLs, with no message a ready list does not need", () => {
     const html = render({ result: READY_RESULT });
 
     assert.match(html, stat("Titles on the list", 17));
@@ -244,7 +244,8 @@ describe("App - a finished result", () => {
     assert.match(html, /https:\/\/imdbwatcharr\.pages\.dev\/sonarr\/l\/ls006123300/);
     assert.match(html, /Radarr RSS URL/);
     assert.match(html, /Sonarr custom list URL/);
-    assert.match(html, /Ready, and we are keeping it up to date\./);
+    // The badges say it is ready; a line repeating that was cut (owner, 2026-09-28).
+    assert.doesNotMatch(html, /Ready, and we are keeping it up to date\./);
   });
 
   test("a ready feed is badged with its status and flagged as kept current", () => {

@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { ArrowRightIcon, LoaderCircleIcon, XIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { SignInWithConnections } from '@/components/connections-sign-in'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Reveal } from '@/components/reveal'
@@ -215,11 +216,7 @@ export function KeepUpdating({
       <p className="font-medium text-pretty">
         Sign in, free, and we check your list about every fifteen minutes.
       </p>
-      <Button asChild className="shine h-10 shrink-0 px-5 font-bold">
-        <a href={signInHref()} onClick={onSignIn}>
-          Sign in with Connections
-        </a>
-      </Button>
+      <SignInWithConnections href={signInHref()} onClick={onSignIn} className="shrink-0" />
     </div>
   )
 }

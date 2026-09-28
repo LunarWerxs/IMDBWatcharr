@@ -346,11 +346,15 @@ function ResultHeader({
             <StatusPill result={result} />
             <UpdateNote session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />
           </div>
-          <p className="text-muted-foreground mt-3 text-sm text-pretty">
-            {feedState(result) === 'snapshot'
-              ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
-              : result.message}
-          </p>
+          {/* A ready list says nothing the badges beside it do not (owner, 2026-09-28); the others
+              get a line on what went wrong or what happens next. */}
+          {feedState(result) !== 'ready' && (
+            <p className="text-muted-foreground mt-3 text-sm text-pretty">
+              {feedState(result) === 'snapshot'
+                ? `The last sync did not succeed, so the feeds keep serving the last good snapshot. ${result.message}`
+                : result.message}
+            </p>
+          )}
         </div>
         <CoverFan result={result} />
       </div>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDownIcon } from 'lucide-react'
 import { Popover } from 'radix-ui'
 
-import { Button } from '@/components/ui/button'
+import { SignInWithConnections } from '@/components/connections-sign-in'
 import type { SignInClick } from '@/components/site-chrome'
 import { signInHref } from '@/lib/feed-page'
 import type { CreateFeedResponse, Session } from '@/lib/api'
@@ -12,7 +12,9 @@ import type { CreateFeedResponse, Session } from '@/lib/api'
  * box in the result, which read as part of the page and got skipped (owner,
  * 2026-09-27); now it is a small note beside the status, with a pulsing dot so
  * it is noticed, that opens the explanation and the sign-in when clicked. The
- * sign-in comes back to this same list, so the list gets followed.
+ * sign-in comes back to this same list, so the list gets followed. It is
+ * orange, apart from the yellow status beside it, because it is the one thing
+ * on the result a visitor should act on (owner, 2026-09-28).
  */
 export function UpdateNote({
   session,
@@ -31,19 +33,17 @@ export function UpdateNote({
     return null
   }
 
-  const read = result.lastSyncedAt !== null
-
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="group/note border-primary/60 bg-primary/10 hover:bg-primary/20 inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-bold transition-colors motion-safe:animate-pop"
+          className="group/note inline-flex items-center gap-2 rounded-full border border-orange-500/70 bg-orange-500/15 px-3 py-0.5 text-xs font-bold text-orange-700 transition-colors hover:bg-orange-500/25 motion-safe:animate-pop dark:text-orange-300"
           style={{ animationDelay: '450ms' }}
         >
           <span className="relative flex size-2" aria-hidden="true">
-            <span className="bg-primary absolute inline-flex size-full rounded-full opacity-75 motion-safe:animate-ping" />
-            <span className="bg-primary relative inline-flex size-2 rounded-full" />
+            <span className="absolute inline-flex size-full rounded-full bg-orange-500 opacity-75 motion-safe:animate-ping" />
+            <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
           </span>
           Won’t update by itself
           <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]/note:rotate-180" aria-hidden="true" />
@@ -54,31 +54,24 @@ export function UpdateNote({
           align="start"
           sideOffset={10}
           collisionPadding={16}
-          className="bg-popover text-popover-foreground border-primary ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-lg border-t-4 p-4 shadow-2xl ring-1"
+          className="bg-popover text-popover-foreground ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-lg border-t-4 border-orange-500 p-4 shadow-2xl ring-1"
         >
           <p className="font-bold">Keep this list up to date</p>
-          <p className="text-muted-foreground mt-2 text-sm text-pretty">
-            {read
-              ? 'Your links work now and keep working. We only read the list again when you come back and paste it.'
-              : 'Once we have read the list, your links keep working. After that we only read it again when you come back and paste it.'}{' '}
-            Sign in, free, and we check it for you about every fifteen minutes.
+          <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
+            Right now we only read it again when you paste it here. Sign in, free, and we check it
+            about every fifteen minutes.
           </p>
-          <p className="text-muted-foreground mt-2 text-sm text-pretty">
-            Connections is the free account every LunarWerx app signs in with. It opens in a small
-            window over this page: type your email, enter the code it sends you, and this list is
-            saved to your account.
+          <SignInWithConnections
+            href={signInHref(listUrl)}
+            onClick={(event) => {
+              setOpen(false)
+              onSignIn(event)
+            }}
+            className="mt-3 w-full"
+          />
+          <p className="text-muted-foreground mt-2 text-center text-xs">
+            One free LunarWerx account. No password, just a code by email.
           </p>
-          <Button asChild size="sm" className="mt-3 w-full font-bold">
-            <a
-              href={signInHref(listUrl)}
-              onClick={(event) => {
-                setOpen(false)
-                onSignIn(event)
-              }}
-            >
-              Sign in with Connections
-            </a>
-          </Button>
           <Popover.Arrow className="fill-popover" />
         </Popover.Content>
       </Popover.Portal>
