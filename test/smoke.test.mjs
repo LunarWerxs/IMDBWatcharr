@@ -1,7 +1,7 @@
 // WHY: on 2026-08-18 src/index.js did not parse for weeks because nothing in
-// the gate ever loaded it - scripts/test-parser.mjs only imports src/imdb.js
-// and src/imdb-graphql.js, and CI never ran node --check over the rest of
-// src/. A plain import of every module under src/ turns a syntax error or a
+// the gate ever loaded it: the parser checks of the day imported only
+// src/imdb.js and src/imdb-graphql.js, and CI never ran node --check over the
+// rest of src/. A plain import of every module under src/ turns a syntax error or a
 // broken top-level import into a failing test instead of a silent outage.
 import { test } from "node:test";
 import assert from "node:assert/strict";

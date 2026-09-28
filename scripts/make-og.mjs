@@ -2,7 +2,8 @@
 //
 // Most platforms refuse to render an SVG og:image, so the PNG is what actually
 // ships and the SVG stays as the editable original. Run `npm run og` after
-// editing web/public/og-image.svg, banner.svg or favicon.svg.
+// editing web/art/og-image.svg, web/art/banner.svg or web/public/favicon.svg. The
+// two in web/art are only ever inputs here, so they are not served with the site.
 //
 // The card embeds Inter, the same face the site uses, rather than trusting
 // whatever the rasteriser finds installed: a machine without Inter would
@@ -15,6 +16,7 @@ import { Resvg } from "@resvg/resvg-js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(rootDir, "web", "public");
+const artDir = path.join(rootDir, "web", "art");
 const interDir = path.join(rootDir, "node_modules", "@fontsource-variable", "inter", "files");
 
 // The catalog card on lunarwerx.com reads its banner from that site's repo, so
@@ -23,7 +25,7 @@ const interDir = path.join(rootDir, "node_modules", "@fontsource-variable", "int
 const studioBanners = path.resolve(rootDir, "..", "LunarWerx", "site", "public", "banners");
 
 async function rasterise(name, width) {
-  const svg = await readFile(path.join(publicDir, `${name}.svg`), "utf8");
+  const svg = await readFile(path.join(artDir, `${name}.svg`), "utf8");
   return new Resvg(svg, {
     fitTo: { mode: "width", value: width },
     font: {

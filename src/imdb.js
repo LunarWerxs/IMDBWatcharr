@@ -17,7 +17,7 @@ export const SERIES_TITLE_TYPES = new Set(["tvSeries", "tvMiniSeries"]);
 const ORIGIN_PLACEHOLDER = "__IMDBWATCHARR_PUBLIC_ORIGIN__";
 
 // WHY: a failed sync used to just age silently on the feed (see
-// markFeedFailure in src/index.js) until someone happened to look. Adapted
+// markFeedFailure in src/store.js) until someone happened to look. Adapted
 // from PostHog's threshold-alert pattern (products/alerts/, MIT) - fire once
 // a metric crosses N in a row, not on the first miss, so a single transient
 // IMDb hiccup does not page anyone.
@@ -97,8 +97,14 @@ function inferSourceKind(value) {
   return /^ls\d+$/i.test(value) ? "list" : "watchlist";
 }
 
+// The feed routes, compiled once rather than on every request.
+const TARGETED_WATCHLIST_ROUTE = new RegExp(String.raw`^/(radarr|sonarr)/p/(${WATCHLIST_KEY})/?$`, "i");
+const WATCHLIST_ROUTE = new RegExp(String.raw`^/p/(${WATCHLIST_KEY})/?$`, "i");
+const TARGETED_GENERIC_ROUTE = new RegExp(String.raw`^/(radarr|sonarr)/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i");
+const GENERIC_ROUTE = new RegExp(String.raw`^/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i");
+
 export function parseFeedRoute(pathname) {
-  const targetedWatchlistMatch = pathname.match(new RegExp(String.raw`^/(radarr|sonarr)/p/(${WATCHLIST_KEY})/?$`, "i"));
+  const targetedWatchlistMatch = pathname.match(TARGETED_WATCHLIST_ROUTE);
   if (targetedWatchlistMatch) {
     const [, feedTarget, sourceKey] = targetedWatchlistMatch;
     return buildFeedRoute(feedTarget, "watchlist", sourceKey);
@@ -110,7 +116,7 @@ export function parseFeedRoute(pathname) {
     return buildFeedRoute(feedTarget, "list", sourceKey);
   }
 
-  const watchlistMatch = pathname.match(new RegExp(String.raw`^/p/(${WATCHLIST_KEY})/?$`, "i"));
+  const watchlistMatch = pathname.match(WATCHLIST_ROUTE);
   if (watchlistMatch) {
     return buildFeedRoute("radarr", "watchlist", watchlistMatch[1]);
   }
@@ -120,13 +126,13 @@ export function parseFeedRoute(pathname) {
     return buildFeedRoute("radarr", "list", listMatch[1]);
   }
 
-  const targetedGenericMatch = pathname.match(new RegExp(String.raw`^/(radarr|sonarr)/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i"));
+  const targetedGenericMatch = pathname.match(TARGETED_GENERIC_ROUTE);
   if (targetedGenericMatch) {
     const [, feedTarget, value] = targetedGenericMatch;
     return buildFeedRoute(feedTarget, inferSourceKind(value), value);
   }
 
-  const genericMatch = pathname.match(new RegExp(String.raw`^/f/(ls\d+|${WATCHLIST_KEY})/?$`, "i"));
+  const genericMatch = pathname.match(GENERIC_ROUTE);
   if (genericMatch) {
     const value = genericMatch[1];
     return buildFeedRoute("radarr", inferSourceKind(value), value);

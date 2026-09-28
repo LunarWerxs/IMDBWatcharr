@@ -1,9 +1,8 @@
 // WHY: node --test discovery over src/imdb-graphql.js's pure logic -
 // pagination, dedupe, and error translation are what stand between IMDb's
 // GraphQL API and a feed snapshot, and they never touch the real network
-// here: every case injects a stub fetchImpl, the same pattern
-// scripts/test-parser.mjs already used. Ports its fixture-backed assertions
-// into node:test so `npm test` discovers them directly.
+// here: every case injects a stub fetchImpl and answers from the recorded
+// responses in fixtures/.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -45,10 +44,25 @@ describe("fetchImdbList - lists", () => {
     const result = await fetchImdbList(normalizeImdbUrl("https://www.imdb.com/list/ls055592025/"), fetchStub);
 
     assert.equal(fetchStub.calls.length, 1, "a single-page list should take exactly one request");
+    assert.equal(fetchStub.calls[0].variables.id, "ls055592025", "the query is keyed on the list id");
     assert.equal(fetchStub.calls[0].variables.after, null, "the first page should not send a cursor");
-    assert.equal(result.items.length, 3);
-    assert.equal(result.listAuthor, "IMikeDB");
-    assert.equal(result.items[0].imdbId, "tt0423977");
+    assert.deepEqual(
+      [result.listTitle, result.listAuthor, result.listId, result.lastSourceModifiedAt],
+      ["WATCHLIST", "IMikeDB", "ls055592025", "2026-07-31T08:26:46Z"],
+    );
+    assert.deepEqual(result.items[0], {
+      imdbId: "tt0423977",
+      title: "Charlie Bartlett",
+      year: 2007,
+      titleType: "movie",
+      position: 1,
+      addedAt: "2014-07-31T15:04:32.000Z",
+      posterUrl: null,
+    });
+    assert.deepEqual(
+      result.items.map((item) => item.titleType),
+      ["movie", "tvSeries", "movie"],
+    );
   });
 });
 

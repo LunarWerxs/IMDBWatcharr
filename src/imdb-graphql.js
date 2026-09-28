@@ -27,10 +27,9 @@ const LIST_METADATA_FIELDS = `
   id
   name { originalText }
   lastModifiedDate
-  author { userId username { text } }`;
+  author { username { text } }`;
 
 const LIST_ITEM_FIELDS = `
-  total
   pageInfo { hasNextPage endCursor }
   edges {
     node { absolutePosition createdDate }

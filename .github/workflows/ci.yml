@@ -31,9 +31,6 @@ jobs:
       - name: Run the test suite
         run: npm test
 
-      - name: Verify parser fixtures
-        run: npm run check
-
       - name: Lint the web app
         working-directory: web
         run: npm run lint

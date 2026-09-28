@@ -228,7 +228,7 @@ blocks rendering, never retries, and a failed ping is swallowed silently.
 
 ```bash
 npm install
-npm run check        # fixture-based parser checks
+npm test             # every test, then the web lint
 npm run web:build    # build the SPA
 npm run dev          # wrangler dev --remote (Worker only)
 ```

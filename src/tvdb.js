@@ -90,6 +90,7 @@ export async function resolveTvdbIds(env, imdbIds) {
   const found = new Map();
   const queue = [...imdbIds];
   const worker = async () => {
+    // arkitect-allow: concurrency-opportunities - this loop IS the bound: LOOKUP_CONCURRENCY copies run side by side, so going wider would fire every lookup at two third parties at once.
     for (let imdbId = queue.shift(); imdbId; imdbId = queue.shift()) {
       const tvdbId = await lookupTvdbId(env, imdbId).catch(() => null);
       if (tvdbId) found.set(imdbId, tvdbId);

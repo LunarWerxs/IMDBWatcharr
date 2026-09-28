@@ -1,10 +1,7 @@
 // WHY: node --test discovery over src/imdb.js's pure logic - URL
 // normalization, route parsing, and feed filtering are what stand between a
 // pasted IMDb URL and a feed row Radarr/Sonarr will poll forever, so a
-// regression here is silent until a real user's list breaks. Ports the
-// assertions scripts/test-parser.mjs already made (kept running via
-// `npm run check`) into standard node:test cases so `npm test` discovers
-// them and a syntax slip fails the gate on its own.
+// regression here is silent until a real user's list breaks.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -40,7 +37,7 @@ describe("normalizeImdbUrl", () => {
   });
 
   // These exact shapes reached production and then failed on every sync run
-  // forever - see the same guard in scripts/test-parser.mjs.
+  // forever.
   for (const junkUrl of [
     "https://www.imdb.com/user/profile-id/watchlist/",
     "https://www.imdb.com/user/7bcfe5d072f7.xml/watchlist/",
@@ -98,8 +95,8 @@ describe("parseFeedRoute", () => {
     assert.equal(parseFeedRoute("/sonarr/f/ls008777572")?.feedTarget, "sonarr");
   });
 
-  // Same junk-route guard as scripts/test-parser.mjs: none of these may
-  // resolve to a feed, or a bad paste creates a row that fails forever.
+  // None of these may resolve to a feed, or a bad paste creates a row that
+  // fails forever.
   for (const junk of [
     "/p/profile-id",
     "/p/7bcfe5d072f7.xml",
