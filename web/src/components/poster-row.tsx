@@ -13,15 +13,15 @@ const TARGET_LABELS: Record<PreviewItem['target'], string> = {
   skipped: 'Skipped',
 }
 
-// IMDb's bookmark ribbon, cut from a rectangle.
-const RIBBON_SHAPE = { clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%)' }
-
 const ITEM_WIDTH = 'w-36 shrink-0 snap-start sm:w-44'
 
 function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number; onOpen: (item: PreviewItem) => void }) {
   const sent = item.target !== 'skipped'
   return (
-    <li className={`${ITEM_WIDTH} motion-safe:animate-pop`} style={{ animationDelay: `${Math.min(order, 12) * 55}ms` }}>
+    <li
+      className={`${ITEM_WIDTH} animation-delay-var motion-safe:animate-pop`}
+      style={{ '--delay': `${Math.min(order, 12) * 55}ms` }}
+    >
       <button
         type="button"
         onClick={() => onOpen(item)}
@@ -37,8 +37,8 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
           />
           <span
             aria-hidden="true"
-            className="absolute top-0 left-3 flex h-11 w-8 justify-center bg-neutral-900/80 pt-1.5 backdrop-blur-sm"
-            style={RIBBON_SHAPE}
+            // IMDb's bookmark ribbon; dark over any cover, in either theme.
+            className="dark bg-background/80 clip-ribbon absolute top-0 left-3 flex h-11 w-8 justify-center pt-1.5 backdrop-blur-sm"
           >
             {sent ? <CheckIcon className="text-primary size-4" /> : <MinusIcon className="size-4 text-white/60" />}
           </span>

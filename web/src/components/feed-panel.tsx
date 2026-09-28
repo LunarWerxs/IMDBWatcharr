@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -82,9 +82,9 @@ type Stat = (typeof STATS)[number]
 
 const STAT_LINE = 'mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm'
 
-/** An element that rises in `order` steps after the panel it sits in. */
-function riseDelay(order: number): CSSProperties {
-  return { animationDelay: `${order * 70}ms` }
+/** How long an element waits to rise: `order` steps after the panel it sits in. */
+function riseDelay(order: number): string {
+  return `${order * 70}ms`
 }
 
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -175,7 +175,7 @@ function StatItem({ stat, result, order }: { stat: Stat; result: CreateFeedRespo
     </>
   )
   return (
-    <div className="motion-safe:animate-rise" style={riseDelay(order)} title={stat.label}>
+    <div className="animation-delay-var motion-safe:animate-rise" style={{ '--delay': riseDelay(order) }} title={stat.label}>
       <dt className="sr-only">{stat.label}</dt>
       <dd className="flex items-center gap-1.5">
         {stat.key === 'sonarrUnresolvedCount' && value > 0 ? <SkippedNote result={result}>{body}</SkippedNote> : body}
@@ -219,8 +219,8 @@ function TargetCards({ result }: { result: CreateFeedResponse | null }) {
           // relative: painted over the fanned covers' shadows, which fall onto the top of these.
           <div
             key={target.app}
-            className="bg-secondary ring-foreground/10 relative rounded-lg p-4 ring-1 motion-safe:animate-rise"
-            style={riseDelay(4 + index)}
+            className="bg-secondary ring-foreground/10 animation-delay-var relative rounded-lg p-4 ring-1 motion-safe:animate-rise"
+            style={{ '--delay': riseDelay(4 + index) }}
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <span className="flex items-center gap-2 font-bold">
@@ -255,18 +255,6 @@ function TargetCards({ result }: { result: CreateFeedResponse | null }) {
   )
 }
 
-// How far each cover in the fan sits from the middle: a share of its own width
-// sideways, a few degrees of tilt, the middle one on top.
-function fanStyle(index: number, count: number): CSSProperties {
-  const offset = index - (count - 1) / 2
-  return {
-    '--fan-x': `${offset * 46}%`,
-    '--fan-r': `${offset * 7}deg`,
-    zIndex: 10 - Math.abs(Math.round(offset)),
-    animationDelay: `${250 + index * 90}ms`,
-  } as CSSProperties
-}
-
 /**
  * The list's first covers, fanned out at the top of the result: they start
  * stacked and spread into place, and lean further apart on hover. While a list
@@ -284,26 +272,36 @@ function CoverFan({ result }: { result: CreateFeedResponse }) {
       className="group/fan relative isolate order-first h-32 w-full shrink-0 sm:order-none sm:h-48 sm:w-80"
       aria-hidden="true"
     >
-      {slots.map((item, index) => (
-        <div
-          key={item?.imdbId ?? index}
-          className="fan-card absolute top-1/2 left-1/2 w-20 motion-safe:animate-fan sm:w-28"
-          style={fanStyle(index, slots.length)}
-        >
-          <div className="transition-transform duration-300 ease-out group-hover/fan:-translate-y-2">
-            {item ? (
-              <Cover
-                seed={item.imdbId}
-                src={item.poster}
-                eager
-                className="aspect-2/3 rounded-md shadow-2xl ring-1 shadow-black/60 ring-white/15"
-              />
-            ) : (
-              <div className="bg-secondary shimmer aspect-2/3 rounded-md ring-1 ring-white/10" />
-            )}
+      {slots.map((item, index) => {
+        // How far this cover sits from the middle: a share of its own width sideways, a few
+        // degrees of tilt, the middle one on top.
+        const offset = index - (slots.length - 1) / 2
+        return (
+          <div
+            key={item?.imdbId ?? index}
+            className="fan-card animation-delay-var absolute top-1/2 left-1/2 w-20 motion-safe:animate-fan sm:w-28"
+            style={{
+              '--fan-x': `${offset * 46}%`,
+              '--fan-r': `${offset * 7}deg`,
+              '--fan-z': 10 - Math.abs(Math.round(offset)),
+              '--delay': `${250 + index * 90}ms`,
+            }}
+          >
+            <div className="transition-transform duration-300 ease-out group-hover/fan:-translate-y-2">
+              {item ? (
+                <Cover
+                  seed={item.imdbId}
+                  src={item.poster}
+                  eager
+                  className="aspect-2/3 rounded-md shadow-2xl ring-1 shadow-black/60 ring-white/15"
+                />
+              ) : (
+                <div className="bg-secondary shimmer aspect-2/3 rounded-md ring-1 ring-white/10" />
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -431,11 +429,13 @@ export function FeedsSection({
     body = <GhostPanel loading />
   } else if (error) {
     body = (
-      <Alert variant="destructive" className="motion-safe:animate-rise">
-        <TriangleAlertIcon />
-        <AlertTitle>Could not build the feeds</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="motion-safe:animate-rise">
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>Could not build the feeds</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     )
   } else if (result) {
     body = <ResultPanel result={result} session={session} listUrl={listUrl} onSignIn={onSignIn} />

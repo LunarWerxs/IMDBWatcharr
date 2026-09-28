@@ -22,9 +22,9 @@ const interDir = path.join(rootDir, "node_modules", "@fontsource-variable", "int
 // there. Skipped without complaint when the sibling checkout is absent.
 const studioBanners = path.resolve(rootDir, "..", "LunarWerx", "site", "public", "banners");
 
-async function render(name, width) {
+async function rasterise(name, width) {
   const svg = await readFile(path.join(publicDir, `${name}.svg`), "utf8");
-  const png = new Resvg(svg, {
+  return new Resvg(svg, {
     fitTo: { mode: "width", value: width },
     font: {
       fontDirs: [interDir],
@@ -34,11 +34,13 @@ async function render(name, width) {
   })
     .render()
     .asPng();
+}
 
+async function render(name, width) {
+  const png = await rasterise(name, width);
   const target = path.join(publicDir, `${name}.png`);
   await writeFile(target, png);
   console.log(`Wrote ${path.relative(rootDir, target)} (${(png.length / 1024).toFixed(1)} KB)`);
-  return png;
 }
 
 // The icons for places that will not take the SVG favicon: /favicon.ico, which
@@ -78,7 +80,9 @@ async function renderIcons() {
 }
 
 await render("og-image", 1200);
-const banner = await render("banner", 1200);
+// The banner is only ever shown on lunarwerx.com, so it is written there and
+// nowhere on this site.
+const banner = await rasterise("banner", 1200);
 await renderIcons();
 
 try {

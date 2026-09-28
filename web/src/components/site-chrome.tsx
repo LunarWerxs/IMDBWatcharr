@@ -67,7 +67,7 @@ function AccountControl({
   }
 
   return (
-    <Button asChild variant="ghost" size="sm" className="hover:text-primary font-medium">
+    <Button asChild variant="ghost-brand" size="sm">
       <a href={signInHref(listUrl || undefined)} onClick={onSignIn}>
         <UserIcon className="size-4" />
         Sign in

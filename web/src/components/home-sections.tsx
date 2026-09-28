@@ -53,9 +53,9 @@ const STEPS = [
   },
 ]
 
-/** Steps of the page's opening, each rising in a beat after the last. */
-function beat(step: number) {
-  return { animationDelay: `${step * 80}ms` }
+/** How long a step of the page's opening waits, each rising a beat after the last. */
+function beat(step: number): string {
+  return `${step * 80}ms`
 }
 
 export function Hero() {
@@ -66,18 +66,21 @@ export function Hero() {
         aria-hidden="true"
         className="bg-primary/15 pointer-events-none absolute -top-32 -right-24 -z-10 size-96 rounded-full blur-3xl motion-safe:animate-drift sm:size-160"
       />
-      <p className="text-ink text-ui mb-3 font-bold tracking-wider uppercase motion-safe:animate-rise" style={beat(0)}>
+      <p
+        className="text-ink text-ui animation-delay-var mb-3 font-bold tracking-wider uppercase motion-safe:animate-rise"
+        style={{ '--delay': beat(0) }}
+      >
         IMDb lists for Radarr and Sonarr
       </p>
       <h1
-        className="max-w-4xl text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl motion-safe:animate-rise"
-        style={beat(1)}
+        className="animation-delay-var max-w-4xl text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl motion-safe:animate-rise"
+        style={{ '--delay': beat(1) }}
       >
         Your IMDb list, straight into <span className="underline-sweep">Radarr and Sonarr</span>.
       </h1>
       <p
-        className="text-muted-foreground mt-4 max-w-2xl text-base text-pretty sm:text-lg motion-safe:animate-rise"
-        style={beat(2)}
+        className="text-muted-foreground animation-delay-var mt-4 max-w-2xl text-base text-pretty sm:text-lg motion-safe:animate-rise"
+        style={{ '--delay': beat(2) }}
       >
         Paste a public IMDb watchlist or list. You get two links back: one Radarr uses for the
         movies, one Sonarr uses for the shows. Both read the same list, and it is free.
@@ -101,6 +104,7 @@ export function FeedForm({
   canSubmit,
   signedIn,
   onSubmit,
+  onTry,
 }: {
   sourceUrl: string
   onSourceUrlChange: (value: string) => void
@@ -110,15 +114,17 @@ export function FeedForm({
   canSubmit: boolean
   signedIn: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  /** Builds a list in one click: the example link fills the field and generates. */
+  onTry: (listUrl: string) => void
 }) {
   const example = useExampleList()
   return (
     <form
       onSubmit={onSubmit}
-      className="bg-card ring-foreground/10 rounded-lg p-5 ring-1 sm:p-8 motion-safe:animate-rise"
-      style={beat(3)}
+      className="bg-card ring-foreground/10 animation-delay-var rounded-lg p-5 ring-1 sm:p-8 motion-safe:animate-rise"
+      style={{ '--delay': beat(3) }}
     >
-      <Label htmlFor="source-url" className="text-muted-foreground mb-2 block text-sm font-medium">
+      <Label htmlFor="source-url" className="mb-2 block">
         IMDb watchlist or list URL
       </Label>
       <div className="sm:focus-within:ring-primary/70 flex flex-col gap-3 rounded-md transition-shadow sm:h-12 sm:flex-row sm:gap-0 sm:focus-within:ring-3">
@@ -135,9 +141,7 @@ export function FeedForm({
             onChange={(event) => onSourceUrlChange(event.target.value)}
             aria-invalid={!looksValid}
             aria-describedby="source-url-hint"
-            className={`h-12 rounded-md border-black/15 bg-white pl-4 text-base text-black placeholder:text-black/45 sm:h-full sm:rounded-r-none sm:focus-visible:ring-0 md:text-base dark:border-transparent dark:bg-white ${
-              sourceUrl ? 'pr-11' : 'pr-4'
-            }`}
+            variant="search"
             required
           />
           {sourceUrl && (
@@ -145,7 +149,7 @@ export function FeedForm({
               type="button"
               onClick={onClear}
               aria-label="Clear the link"
-              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-black/45 transition-colors hover:bg-black/5 hover:text-black motion-safe:animate-pop"
+              className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-field-foreground/45 hover:bg-field-foreground/5 hover:text-field-foreground transition-colors motion-safe:animate-pop"
             >
               <XIcon className="size-4" aria-hidden="true" />
             </button>
@@ -154,7 +158,8 @@ export function FeedForm({
         <Button
           type="submit"
           disabled={!canSubmit}
-          className="shine h-12 rounded-md border-0 px-7 text-base font-bold sm:h-full sm:rounded-l-none sm:focus-visible:ring-0"
+          variant="cta"
+          size="search"
         >
           {pending ? (
             <>
@@ -180,7 +185,7 @@ export function FeedForm({
               type="button"
               title={example.url}
               className="hover:text-ink underline underline-offset-2 transition-colors"
-              onClick={() => onSourceUrlChange(example.url)}
+              onClick={() => onTry(example.url)}
             >
               {example.name}
             </button>

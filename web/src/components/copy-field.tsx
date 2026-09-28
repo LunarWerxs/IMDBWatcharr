@@ -80,7 +80,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
       </code>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button asChild size="icon" variant="ghost" className="text-muted-foreground hover:text-foreground size-8 shrink-0">
+          <Button asChild size="icon" variant="ghost-muted" className="size-8 shrink-0">
             <a href={value} target="_blank" rel="noreferrer" aria-label={`Open ${label} in a new tab`}>
               <ExternalLinkIcon className="size-4" />
             </a>
@@ -91,7 +91,8 @@ export function CopyField({ value, label }: { value: string; label: string }) {
       <Button
         type="button"
         size="sm"
-        className="h-8 min-w-19 shrink-0 font-bold"
+        variant="cta"
+        className="h-8 min-w-19 shrink-0"
         onClick={handleCopy}
         aria-label={`Copy ${label}`}
       >

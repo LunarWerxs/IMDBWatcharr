@@ -41,6 +41,14 @@
     --color-askarr: #00747e;
     --color-askarr-ink: var(--askarr-ink);
     --color-askarr-foreground: #ffffff;
+    /* Orange for the one thing on a result a visitor should act on (the won't-update note). */
+    --color-warn: #f97316;
+    --color-warn-ink: var(--warn-ink);
+    /* IMDb's search field: white with black text in both themes. */
+    --color-field: #ffffff;
+    --color-field-foreground: #000000;
+    /* The shade behind white text over a picture. */
+    --color-scrim: rgb(0 0 0 / 0.7);
     --color-popover-foreground: var(--popover-foreground);
     --color-popover: var(--popover);
     --color-card-foreground: var(--card-foreground);
@@ -73,6 +81,7 @@
        mode writes it in a deep gold (5.4:1 on white) and dark mode in yellow. */
     --ink: #7a5d00;
     --askarr-ink: #00646c;
+    --warn-ink: #c2410c;
     --secondary: #f2f2f2;
     --secondary-foreground: #121212;
     --muted: #ebebeb;
@@ -109,6 +118,7 @@
     --primary-foreground: #000000;
     --ink: #f5c518;
     --askarr-ink: #4cc3cc;
+    --warn-ink: #fdba74;
     --secondary: #2a2a2a;
     --secondary-foreground: #ffffff;
     --muted: rgba(255, 255, 255, 0.06);
@@ -160,6 +170,7 @@
     --animate-backdrop: backdrop-in 1.4s ease-out both;
     --animate-drift: drift 16s ease-in-out infinite alternate;
     --animate-hop: hop 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    --animate-fade-in: backdrop-in 0.4s ease-out both;
     /* Askarr's ease-out-soft: fast off the mark, a long gentle settle. */
     --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -254,9 +265,42 @@
     }
 }
 
-/* A cover's place in the result's fan (feed-panel.tsx sets --fan-x and --fan-r). */
+/* A cover's place in the result's fan (feed-panel.tsx sets --fan-x, --fan-r and --fan-z). */
 .fan-card {
     transform: translate(calc(-50% + var(--fan-x, 0%)), -50%) rotate(var(--fan-r, 0deg));
+    z-index: var(--fan-z, auto);
+}
+
+/* A per-element delay arrives as --delay: a custom property is the one inline
+   style the design lint lets through, and these read it. */
+@utility animation-delay-var {
+    animation-delay: var(--delay, 0ms);
+}
+
+@utility transition-delay-var {
+    transition-delay: var(--delay, 0ms);
+}
+
+/* Layout that animates on purpose: the title popup's stage growing for the
+   trailer, its two bottoms folding, the cover shrinking and the header
+   moving. Each element sets its own duration and curve. */
+@utility transition-layout {
+    transition-property: height, width, margin, grid-template-rows, background-color;
+}
+
+/* Legible white text over any backdrop (the popup's trailer label). */
+@utility text-shadow-scrim {
+    text-shadow: 0 1px 10px var(--color-scrim);
+}
+
+/* IMDb's bookmark ribbon, cut from a rectangle (the poster row's corner flag). */
+@utility clip-ribbon {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+}
+
+/* A cover's duotone backing; cover.tsx sets --duotone from the title's id. */
+@utility bg-duotone {
+    background: var(--duotone);
 }
 
 /* The headline's "Radarr and Sonarr" gets a yellow underline that draws itself. */

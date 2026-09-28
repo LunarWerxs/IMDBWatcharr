@@ -93,11 +93,11 @@ function Swap({ shown, from, children }: { shown: boolean; from: 'left' | 'right
   return (
     <div
       inert={!shown}
-      className={`ease-soft grid transition-[grid-template-rows] duration-500 ${shown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      className={`ease-soft transition-layout grid duration-500 ${shown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
     >
       <div className="min-h-0 overflow-hidden">
         <div
-          className={`ease-soft transition-[opacity,translate] ${
+          className={`ease-soft transition ${
             shown
               ? 'translate-x-0 opacity-100 delay-150 duration-500'
               : `${from === 'left' ? '-translate-x-8' : 'translate-x-8'} opacity-0 duration-200`
@@ -130,8 +130,8 @@ function AskarrStep({
 }) {
   // The steps settle in one after another each time the step opens.
   const settle = (order: number) => ({
-    className: `ease-soft transition-[opacity,translate] duration-500 ${shown ? '' : 'translate-y-2 opacity-0'}`,
-    style: { transitionDelay: shown ? `${220 + order * 70}ms` : '0ms' },
+    className: `ease-soft transition-delay-var transition duration-500 ${shown ? '' : 'translate-y-2 opacity-0'}`,
+    delay: shown ? `${220 + order * 70}ms` : '0ms',
   })
   return (
     <section aria-labelledby="askarr-step" className="px-5 pt-6 pb-7 sm:px-8 sm:pb-8">
@@ -152,12 +152,12 @@ function AskarrStep({
       <ol className="mt-5 grid gap-2 sm:grid-cols-3">
         {ASKARR_STEPS.map((step, index) => {
           const Icon = step.icon
-          const { className, style } = settle(index)
+          const { className, delay } = settle(index)
           return (
             <li
               key={step.text}
               className={`bg-secondary flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm ${className}`}
-              style={style}
+              style={{ '--delay': delay }}
             >
               <span className="text-ink font-bold tabular-nums">{index + 1}</span>
               <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
@@ -169,7 +169,7 @@ function AskarrStep({
 
       <div
         className={`mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between ${settle(3).className}`}
-        style={settle(3).style}
+        style={{ '--delay': settle(3).delay }}
       >
         <button
           type="button"
@@ -196,8 +196,314 @@ function AskarrStep({
   )
 }
 
+/**
+ * The trailer's life on the stage: idle, open, then closing, which keeps the
+ * player mounted while it fades and the stage folds back, so closing animates
+ * instead of vanishing. Focus goes back to the play button once it has.
+ */
+function useTrailer(playButton: RefObject<HTMLButtonElement | null>) {
+  const [stage, setStage] = useState<'idle' | 'open' | 'closing'>('idle')
+  const [ready, setReady] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+  }, [])
+
+  return {
+    playing: stage === 'open',
+    mounted: stage !== 'idle',
+    ready,
+    onLoaded: () => setReady(true),
+    open() {
+      if (closeTimer.current) clearTimeout(closeTimer.current)
+      setReady(false)
+      setStage('open')
+    },
+    close() {
+      setStage('closing')
+      closeTimer.current = setTimeout(() => {
+        setStage('idle')
+        focusSoon(playButton)
+      }, CLOSE_MS)
+    },
+  }
+}
+
+type Trailer = ReturnType<typeof useTrailer>
+
+/** The play button over the backdrop: hidden until hover or focus on a pointer, always shown on touch. */
+function PlayButton({
+  title,
+  buttonRef,
+  onPlay,
+}: {
+  title: string
+  buttonRef: RefObject<HTMLButtonElement | null>
+  onPlay: () => void
+}) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      aria-label={`Play the ${title} trailer`}
+      onClick={onPlay}
+      className="group/play absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 pb-10 text-white outline-none motion-safe:animate-fade-in sm:pb-0"
+    >
+      <span className="flex size-14 scale-90 items-center justify-center rounded-full bg-white/15 opacity-0 shadow-2xl ring-1 ring-white/40 backdrop-blur-md transition duration-300 ring-inset group-hover/play:scale-100 group-hover/play:bg-white/25 group-hover/play:opacity-100 group-focus-visible/play:scale-100 group-focus-visible/play:opacity-100 group-focus-visible/play:ring-2 sm:size-16 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100">
+        <PlayIcon className="size-6 translate-x-px fill-current" aria-hidden="true" />
+      </span>
+      <span className="text-ui text-shadow-scrim translate-y-1 font-bold tracking-widest text-white/90 uppercase opacity-0 transition duration-300 group-hover/play:translate-y-0 group-hover/play:opacity-100 group-focus-visible/play:translate-y-0 group-focus-visible/play:opacity-100 max-sm:hidden [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
+        Trailer
+      </span>
+    </button>
+  )
+}
+
+/**
+ * The player: it grows in from slightly small once it has loaded, and on close
+ * fades and shrinks back while the stage folds up around it.
+ */
+function TrailerPlayer({ src, title, trailer }: { src: string; title: string; trailer: Trailer }) {
+  return (
+    <>
+      <iframe
+        src={src}
+        title={`${title} trailer`}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        onLoad={trailer.onLoaded}
+        className={`ease-soft absolute inset-x-0 top-14 h-[calc(100%-3.5rem)] w-full origin-top border-0 transition ${
+          trailer.playing && trailer.ready
+            ? 'scale-100 opacity-100 delay-100 duration-700'
+            : 'scale-[0.96] opacity-0 duration-300'
+        }`}
+      />
+      {trailer.playing && !trailer.ready && (
+        <div className="absolute inset-x-0 top-14 bottom-0 grid place-items-center">
+          <LoaderCircleIcon className="size-7 animate-spin text-white/70" aria-label="Loading the trailer" />
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={trailer.close}
+        className={`text-ui ease-soft absolute top-3 left-3 z-20 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 font-bold text-white transition duration-500 hover:bg-white/20 ${
+          trailer.playing ? 'translate-y-0 opacity-100 motion-safe:animate-rise' : 'pointer-events-none -translate-y-2 opacity-0'
+        }`}
+      >
+        <Minimize2Icon className="size-4" aria-hidden="true" /> Close trailer
+      </button>
+    </>
+  )
+}
+
+/** The backdrop, and the stage the trailer plays on (16:9, under a strip for its close button). */
+function Stage({
+  item,
+  details,
+  trailer,
+  playButton,
+}: {
+  item: PreviewItem
+  details: TitleDetails | null
+  trailer: Trailer
+  playButton: RefObject<HTMLButtonElement | null>
+}) {
+  const [backdropLoaded, setBackdropLoaded] = useState(false)
+  const backdrop = details?.backdropUrl ?? null
+  // Without a TMDB backdrop, the title's own cover, blurred, stands in for one.
+  const fallbackBackdrop = backdrop ? null : (item.poster ?? details?.posterUrl ?? null)
+  const src = details?.trailerKey
+    ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(details.trailerKey)}?autoplay=1&rel=0&playsinline=1`
+    : null
+  const { playing } = trailer
+  const backdropState = playing ? 'opacity-0' : backdropLoaded ? 'scale-100 opacity-100' : 'scale-105 opacity-0'
+
+  return (
+    <div
+      className={`group/stage ease-soft transition-layout relative overflow-hidden duration-700 ${
+        playing ? 'h-[calc(56.25cqw+3.5rem)] bg-black' : 'bg-secondary h-44 sm:h-64'
+      }`}
+    >
+      {backdrop && (
+        <img
+          src={backdrop}
+          alt=""
+          decoding="async"
+          onLoad={() => setBackdropLoaded(true)}
+          className={`ease-soft absolute inset-0 size-full object-cover transition duration-700 ${backdropState} ${
+            src && !playing ? 'group-hover/stage:scale-[1.03]' : ''
+          }`}
+        />
+      )}
+      {fallbackBackdrop && (
+        <img
+          src={fallbackBackdrop}
+          alt=""
+          aria-hidden="true"
+          className={`ease-soft absolute inset-0 size-full scale-125 object-cover blur-2xl transition-opacity duration-700 motion-safe:animate-backdrop ${
+            playing ? 'opacity-0' : 'opacity-50'
+          }`}
+        />
+      )}
+      <div
+        aria-hidden="true"
+        className={`from-card via-card/55 to-card/0 ease-soft absolute inset-0 bg-linear-to-t transition-opacity duration-700 ${playing ? 'opacity-0' : ''}`}
+      />
+      {src && !trailer.mounted && <PlayButton title={item.title} buttonRef={playButton} onPlay={trailer.open} />}
+      {src && trailer.mounted && <TrailerPlayer src={src} title={item.title} trailer={trailer} />}
+    </div>
+  )
+}
+
+/** Over the stage: the cover, what the title is, and its year, length and rating. Only the cover takes the pointer, so the play button works around it. */
+function SheetHeader({ item, details, playing }: { item: PreviewItem; details: TitleDetails | null; playing: boolean }) {
+  const year = details?.year ?? item.year
+  const meta = [year ? String(year) : '', runtimeLabel(details)].filter(Boolean)
+  return (
+    <header
+      className={`ease-soft transition-layout pointer-events-none relative z-20 flex gap-5 px-5 duration-700 sm:gap-7 sm:px-8 ${
+        playing ? 'mt-5' : '-mt-24 sm:-mt-32'
+      }`}
+    >
+      <div
+        className={`ease-soft transition-layout animation-delay-var pointer-events-auto shrink-0 duration-700 motion-safe:animate-rise ${
+          playing ? 'w-20 sm:w-24' : 'w-28 sm:w-40'
+        }`}
+        style={{ '--delay': '80ms' }}
+      >
+        <Cover
+          seed={item.imdbId}
+          src={item.poster ?? details?.posterUrl}
+          eager
+          className="aspect-2/3 rounded-lg shadow-2xl ring-1 shadow-black/60 ring-white/15"
+        />
+      </div>
+      <div className="flex min-w-0 flex-col justify-end pb-1">
+        <p
+          className="text-muted-foreground text-2xs animation-delay-var flex items-center gap-2 font-bold tracking-widest uppercase motion-safe:animate-rise"
+          style={{ '--delay': '140ms' }}
+        >
+          <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[item.target]}`} />
+          {TARGET_LINE[item.target]}
+        </p>
+        <Dialog.Title
+          className="animation-delay-var mt-2 text-2xl leading-tight font-bold tracking-tight text-balance motion-safe:animate-rise sm:text-4xl"
+          style={{ '--delay': '190ms' }}
+        >
+          {details?.title || item.title}
+        </Dialog.Title>
+        {(meta.length > 0 || details?.rating) && (
+          <p
+            className="text-muted-foreground animation-delay-var mt-2.5 text-sm tabular-nums motion-safe:animate-rise"
+            style={{ '--delay': '240ms' }}
+          >
+            {meta.join(' · ')}
+            {details?.rating ? (
+              <>
+                {meta.length > 0 && <span aria-hidden="true"> · </span>}
+                <span className="text-ink font-bold">★ {details.rating.toFixed(1)}</span>
+              </>
+            ) : null}
+          </p>
+        )}
+      </div>
+    </header>
+  )
+}
+
+/** Genres and plot once TMDB answers, a shimmer while it has not, the reason if it could not. */
+function Overview({ details, error, loading }: { details: TitleDetails | null; error: string | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        <div className="flex gap-2">
+          <div className="shimmer bg-secondary h-6 w-16 rounded-md" />
+          <div className="shimmer bg-secondary h-6 w-20 rounded-md" />
+          <div className="shimmer bg-secondary h-6 w-14 rounded-md" />
+        </div>
+        <div className="shimmer bg-secondary h-4 w-full rounded" />
+        <div className="shimmer bg-secondary h-4 w-11/12 rounded" />
+        <div className="shimmer bg-secondary h-4 w-2/3 rounded" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return <Dialog.Description className="text-muted-foreground text-sm">{error}</Dialog.Description>
+  }
+
+  return (
+    <div className="space-y-5">
+      {details && details.genres.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
+          {details.genres.map((genre, index) => (
+            <li
+              key={genre}
+              className="border-foreground/15 text-muted-foreground animation-delay-var rounded-md border px-2 py-0.5 text-xs font-medium motion-safe:animate-pop"
+              style={{ '--delay': `${index * 50}ms` }}
+            >
+              {genre}
+            </li>
+          ))}
+        </ul>
+      )}
+      <Dialog.Description
+        className="text-foreground/85 animation-delay-var max-w-prose text-base leading-relaxed text-pretty motion-safe:animate-rise"
+        style={{ '--delay': '120ms' }}
+      >
+        {details?.overview || 'No plot summary for this one yet.'}
+      </Dialog.Description>
+    </div>
+  )
+}
+
+/** The details and where to go next: IMDb, or the Askarr step. */
+function Details({
+  item,
+  requestButton,
+  onAsk,
+  children,
+}: {
+  item: PreviewItem
+  requestButton: RefObject<HTMLButtonElement | null>
+  onAsk: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="grid gap-6 px-5 pt-6 pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-10 sm:px-8 sm:pb-8">
+      <div className="min-w-0">{children}</div>
+      <div className="flex flex-col gap-2 sm:items-end">
+        <a
+          href={`https://www.imdb.com/title/${item.imdbId}/`}
+          target="_blank"
+          rel="noreferrer"
+          className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
+        >
+          View on IMDb
+          <ExternalLinkIcon className="size-4" aria-hidden="true" />
+        </a>
+        <button
+          ref={requestButton}
+          type="button"
+          onClick={onAsk}
+          className="group/askarr bg-secondary hover:bg-accent inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-2 pe-5 font-bold transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
+        >
+          <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:scale-110">
+            <AskarrMark className="size-4" />
+          </span>
+          Request with Askarr
+        </button>
+        <p className="text-muted-foreground text-2xs sm:text-right">Details and images from TMDB</p>
+      </div>
+    </div>
+  )
+}
+
 function Sheet({ item, asking, onAsking }: { item: PreviewItem; asking: boolean; onAsking: (asking: boolean) => void }) {
   const { details, error, loading } = useTitleDetails(item.imdbId)
+  const playButton = useRef<HTMLButtonElement>(null)
+  const trailer = useTrailer(playButton)
   const requestButton = useRef<HTMLButtonElement>(null)
   const askHeading = useRef<HTMLHeadingElement>(null)
 
@@ -210,244 +516,15 @@ function Sheet({ item, asking, onAsking }: { item: PreviewItem; asking: boolean;
     wasAsking.current = asking
   }, [asking])
 
-  // idle -> open -> closing -> idle. 'closing' keeps the player mounted while it
-  // fades and the stage folds back, so closing animates instead of vanishing.
-  const [stage, setStage] = useState<'idle' | 'open' | 'closing'>('idle')
-  const [trailerReady, setTrailerReady] = useState(false)
-  const [backdropLoaded, setBackdropLoaded] = useState(false)
-  const playButton = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
-  }, [])
-
-  const playing = stage === 'open'
-  const playerMounted = stage !== 'idle'
-
-  function openTrailer() {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
-    setTrailerReady(false)
-    setStage('open')
-  }
-
-  function closeTrailer() {
-    setStage('closing')
-    closeTimer.current = setTimeout(() => {
-      setStage('idle')
-      requestAnimationFrame(() => playButton.current?.focus({ preventScroll: true }))
-    }, CLOSE_MS)
-  }
-
-  const backdrop = details?.backdropUrl ?? null
-  // Without a TMDB backdrop, the title's own cover, blurred, stands in for one.
-  const fallbackBackdrop = !backdrop ? (item.poster ?? details?.posterUrl ?? null) : null
-  const year = details?.year ?? item.year
-  const meta = [year ? String(year) : '', runtimeLabel(details)].filter(Boolean)
-  const trailer = details?.trailerKey
-    ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(details.trailerKey)}?autoplay=1&rel=0&playsinline=1`
-    : null
-
   return (
     <article className="@container relative">
-      {/* The backdrop, and the stage the trailer plays on (16:9, under a strip for its close button). */}
-      <div
-        className={`group/stage ease-soft relative overflow-hidden transition-[height,background-color] duration-700 ${
-          playing ? 'h-[calc(56.25cqw+3.5rem)] bg-black' : 'bg-secondary h-44 sm:h-64'
-        }`}
-      >
-        {backdrop && (
-          <img
-            src={backdrop}
-            alt=""
-            decoding="async"
-            onLoad={() => setBackdropLoaded(true)}
-            className={`ease-soft absolute inset-0 size-full object-cover transition-[opacity,scale] duration-700 ${
-              playing ? 'opacity-0' : backdropLoaded ? 'scale-100 opacity-100' : 'scale-105 opacity-0'
-            } ${trailer && !playing ? 'group-hover/stage:scale-[1.03]' : ''}`}
-          />
-        )}
-        {fallbackBackdrop && (
-          <img
-            src={fallbackBackdrop}
-            alt=""
-            aria-hidden="true"
-            className={`ease-soft absolute inset-0 size-full scale-125 object-cover blur-2xl transition-opacity duration-700 motion-safe:animate-backdrop ${
-              playing ? 'opacity-0' : 'opacity-50'
-            }`}
-          />
-        )}
-        <div
-          aria-hidden="true"
-          className={`from-card via-card/55 to-card/0 ease-soft absolute inset-0 bg-linear-to-t transition-opacity duration-700 ${playing ? 'opacity-0' : ''}`}
-        />
-
-        {trailer && !playerMounted && (
-          <button
-            ref={playButton}
-            type="button"
-            aria-label={`Play the ${item.title} trailer`}
-            onClick={openTrailer}
-            className="group/play absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 pb-10 text-white outline-none motion-safe:animate-[backdrop-in_400ms_ease-out_both] sm:pb-0"
-          >
-            <span className="flex size-14 scale-90 items-center justify-center rounded-full bg-white/15 opacity-0 shadow-2xl ring-1 ring-white/40 backdrop-blur-md transition duration-300 ring-inset group-hover/play:scale-100 group-hover/play:bg-white/25 group-hover/play:opacity-100 group-focus-visible/play:scale-100 group-focus-visible/play:opacity-100 group-focus-visible/play:ring-2 sm:size-16 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100">
-              <PlayIcon className="size-6 translate-x-px fill-current" aria-hidden="true" />
-            </span>
-            <span className="text-ui translate-y-1 font-bold tracking-widest text-white/90 uppercase opacity-0 transition duration-300 [text-shadow:0_1px_10px_rgb(0_0_0/0.7)] group-hover/play:translate-y-0 group-hover/play:opacity-100 group-focus-visible/play:translate-y-0 group-focus-visible/play:opacity-100 max-sm:hidden [@media(hover:none)]:translate-y-0 [@media(hover:none)]:opacity-100">
-              Trailer
-            </span>
-          </button>
-        )}
-
-        {playerMounted && trailer && (
-          <>
-            {/* The player grows in from slightly small once it has loaded, and on close fades
-                and shrinks back while the stage folds up around it. */}
-            <iframe
-              src={trailer}
-              title={`${item.title} trailer`}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              onLoad={() => setTrailerReady(true)}
-              className={`ease-soft absolute inset-x-0 top-14 h-[calc(100%-3.5rem)] w-full origin-top border-0 transition-[opacity,scale] ${
-                playing && trailerReady ? 'scale-100 opacity-100 delay-100 duration-700' : 'scale-[0.96] opacity-0 duration-300'
-              }`}
-            />
-            {playing && !trailerReady && (
-              <div className="absolute inset-x-0 top-14 bottom-0 grid place-items-center">
-                <LoaderCircleIcon className="size-7 animate-spin text-white/70" aria-label="Loading the trailer" />
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={closeTrailer}
-              className={`text-ui ease-soft absolute top-3 left-3 z-20 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 font-bold text-white transition-[opacity,translate,background-color] duration-500 hover:bg-white/20 ${
-                playing ? 'translate-y-0 opacity-100 motion-safe:animate-rise' : 'pointer-events-none -translate-y-2 opacity-0'
-              }`}
-            >
-              <Minimize2Icon className="size-4" aria-hidden="true" /> Close trailer
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Over the stage; only the poster takes the pointer, so the play button works around it. */}
-      <header
-        className={`ease-soft pointer-events-none relative z-20 flex gap-5 px-5 transition-[margin] duration-700 sm:gap-7 sm:px-8 ${
-          playing ? 'mt-5' : '-mt-24 sm:-mt-32'
-        }`}
-      >
-        <div
-          className={`ease-soft pointer-events-auto shrink-0 transition-[width] duration-700 motion-safe:animate-rise ${
-            playing ? 'w-20 sm:w-24' : 'w-28 sm:w-40'
-          }`}
-          style={{ animationDelay: '80ms' }}
-        >
-          <Cover
-            seed={item.imdbId}
-            src={item.poster ?? details?.posterUrl}
-            eager
-            className="aspect-2/3 rounded-lg shadow-2xl ring-1 shadow-black/60 ring-white/15"
-          />
-        </div>
-        <div className="flex min-w-0 flex-col justify-end pb-1">
-          <p
-            className="text-muted-foreground text-2xs flex items-center gap-2 font-bold tracking-widest uppercase motion-safe:animate-rise"
-            style={{ animationDelay: '140ms' }}
-          >
-            <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[item.target]}`} />
-            {TARGET_LINE[item.target]}
-          </p>
-          <Dialog.Title
-            className="mt-2 text-2xl leading-tight font-bold tracking-tight text-balance motion-safe:animate-rise sm:text-4xl"
-            style={{ animationDelay: '190ms' }}
-          >
-            {details?.title || item.title}
-          </Dialog.Title>
-          {(meta.length > 0 || details?.rating) && (
-            <p
-              className="text-muted-foreground mt-2.5 text-sm tabular-nums motion-safe:animate-rise"
-              style={{ animationDelay: '240ms' }}
-            >
-              {meta.join(' · ')}
-              {details?.rating ? (
-                <>
-                  {meta.length > 0 && <span aria-hidden="true"> · </span>}
-                  <span className="text-ink font-bold">★ {details.rating.toFixed(1)}</span>
-                </>
-              ) : null}
-            </p>
-          )}
-        </div>
-      </header>
-
+      <Stage item={item} details={details} trailer={trailer} playButton={playButton} />
+      <SheetHeader item={item} details={details} playing={trailer.playing} />
       <Swap shown={!asking} from="left">
-        <div className="grid gap-6 px-5 pt-6 pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:gap-10 sm:px-8 sm:pb-8">
-          <div className="min-w-0">
-            {loading ? (
-              <div className="space-y-3" aria-busy="true">
-                <div className="flex gap-2">
-                  <div className="shimmer bg-secondary h-6 w-16 rounded-md" />
-                  <div className="shimmer bg-secondary h-6 w-20 rounded-md" />
-                  <div className="shimmer bg-secondary h-6 w-14 rounded-md" />
-                </div>
-                <div className="shimmer bg-secondary h-4 w-full rounded" />
-                <div className="shimmer bg-secondary h-4 w-11/12 rounded" />
-                <div className="shimmer bg-secondary h-4 w-2/3 rounded" />
-              </div>
-            ) : error ? (
-              <Dialog.Description className="text-muted-foreground text-sm">{error}</Dialog.Description>
-            ) : (
-              <div className="space-y-5">
-                {details && details.genres.length > 0 && (
-                  <ul className="flex flex-wrap gap-1.5" aria-label="Genres">
-                    {details.genres.map((genre, index) => (
-                      <li
-                        key={genre}
-                        className="border-foreground/15 text-muted-foreground rounded-md border px-2 py-0.5 text-xs font-medium motion-safe:animate-pop"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        {genre}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Dialog.Description
-                  className="text-foreground/85 max-w-prose text-base leading-relaxed text-pretty motion-safe:animate-rise"
-                  style={{ animationDelay: '120ms' }}
-                >
-                  {details?.overview || 'No plot summary for this one yet.'}
-                </Dialog.Description>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <a
-              href={`https://www.imdb.com/title/${item.imdbId}/`}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-primary text-primary-foreground shine inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 font-bold shadow-lg shadow-black/30 transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
-            >
-              View on IMDb
-              <ExternalLinkIcon className="size-4" aria-hidden="true" />
-            </a>
-            <button
-              ref={requestButton}
-              type="button"
-              onClick={() => onAsking(true)}
-              className="group/askarr bg-secondary hover:bg-accent inline-flex h-11 items-center justify-center gap-2.5 rounded-full ps-2 pe-5 font-bold transition hover:-translate-y-0.5 active:translate-y-0 max-sm:w-full"
-            >
-              <span className="bg-foreground/10 grid size-7 place-items-center rounded-full transition-transform duration-500 group-hover/askarr:scale-110">
-                <AskarrMark className="size-4" />
-              </span>
-              Request with Askarr
-            </button>
-            <p className="text-muted-foreground text-2xs sm:text-right">Details and images from TMDB</p>
-          </div>
-        </div>
+        <Details item={item} requestButton={requestButton} onAsk={() => onAsking(true)}>
+          <Overview details={details} error={error} loading={loading} />
+        </Details>
       </Swap>
-
       <Swap shown={asking} from="right">
         <AskarrStep item={item} details={details} shown={asking} headingRef={askHeading} onBack={() => onAsking(false)} />
       </Swap>

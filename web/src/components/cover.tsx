@@ -40,7 +40,7 @@ export function Cover({
   const [failed, setFailed] = useState(false)
 
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ background: duotone(seed) }}>
+    <div className={`bg-duotone relative overflow-hidden ${className}`} style={{ '--duotone': duotone(seed) }}>
       {src && !failed && (
         <img
           src={src}
@@ -53,8 +53,8 @@ export function Cover({
           }}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={`absolute inset-0 size-full object-cover transition-[opacity,filter,scale] duration-700 ease-out ${
-            loaded ? 'blur-0 scale-100 opacity-100' : 'scale-110 opacity-0 blur-md'
+          className={`absolute inset-0 size-full object-cover transition duration-700 ease-out ${
+            loaded ? 'blur-none scale-100 opacity-100' : 'scale-110 opacity-0 blur-md'
           }`}
         />
       )}

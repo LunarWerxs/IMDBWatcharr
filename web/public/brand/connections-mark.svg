@@ -1,0 +1,12 @@
+<!-- Connections' mark in its own colours (from Connections' brand kit, flattened: at button size its gradients are invisible), cropped to the mark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="170 170 660 660">
+  <path d="M721.4 327.7V498H551.1" fill="none" stroke="#fdbf14" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="500.2" cy="498" r="87.5" fill="#fdb20e"/>
+  <path d="M312.8 721h357.9" fill="none" stroke="#3cb153" stroke-width="100" stroke-linecap="round"/>
+  <circle cx="261.9" cy="721" r="87.5" fill="#36af52"/>
+  <circle cx="721.6" cy="721" r="104" fill="#36af52"/>
+  <path d="M312.8 279h357.9" fill="none" stroke="#4090fe" stroke-width="100" stroke-linecap="round"/>
+  <circle cx="261.9" cy="279" r="87.5" fill="#4090fe"/>
+  <circle cx="721.4" cy="279" r="104" fill="#ef4430"/>
+  <circle cx="262.1" cy="500" r="55" fill="#a5a4a5"/>
+</svg>

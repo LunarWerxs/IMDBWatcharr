@@ -21,6 +21,13 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        // The page's calls to action: IMDb yellow, bold, with a light sweeping across on hover.
+        cta: "shine bg-primary font-bold text-primary-foreground hover:bg-primary/90",
+        // A quiet icon button beside something more important (the link box's open button).
+        "ghost-muted":
+          "text-muted-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted dark:hover:bg-muted/50",
+        // The black header's text buttons: yellow on hover, like IMDb's.
+        "ghost-brand": "hover:bg-muted/50 hover:text-primary aria-expanded:bg-muted/50",
       },
       size: {
         default:
@@ -36,6 +43,12 @@ const buttonVariants = cva(
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        // A standalone call to action; a leading logo tile (data-icon="tile") sits closer to the edge.
+        cta: "h-10 gap-2.5 px-5 has-data-[icon=tile]:ps-1.5",
+        // The search bar's button: as tall as the field, joined to it from sm up, where the pair's
+        // own ring shows focus (the button's would be clipped by the join).
+        search:
+          "h-12 gap-2 rounded-md border-0 px-7 text-base sm:h-full sm:rounded-l-none sm:focus-visible:ring-0",
       },
     },
     defaultVariants: {

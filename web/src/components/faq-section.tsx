@@ -1,14 +1,13 @@
 import { ChevronDownIcon } from 'lucide-react'
 
 import { SectionTitle } from '@/components/site-chrome'
-import { FAQ, faqJsonLd } from '@/lib/faq'
-
-const PAGE_URL = 'https://watcharr.lunarwerx.com/'
+import { FAQ } from '@/lib/faq'
 
 /**
  * The questions, as a list that opens one answer at a time, IMDb-style. It is
  * in the prerendered page, so search engines and AI readers get the answers
- * as text, and its structured data comes from the same entries.
+ * as text, and the build writes its structured data from the same entries
+ * into the page's head (scripts/prerender-web.mjs).
  */
 export function FaqSection() {
   return (
@@ -30,7 +29,6 @@ export function FaqSection() {
           </details>
         ))}
       </div>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqJsonLd(PAGE_URL) }} />
     </section>
   )
 }

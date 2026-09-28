@@ -38,12 +38,12 @@ export function UpdateNote({
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="group/note inline-flex items-center gap-2 rounded-full border border-orange-500/70 bg-orange-500/15 px-3 py-0.5 text-xs font-bold text-orange-700 transition-colors hover:bg-orange-500/25 motion-safe:animate-pop dark:text-orange-300"
-          style={{ animationDelay: '450ms' }}
+          className="group/note border-warn/70 bg-warn/15 text-warn-ink hover:bg-warn/25 animation-delay-var inline-flex items-center gap-2 rounded-full border px-3 py-0.5 text-xs font-bold transition-colors motion-safe:animate-pop"
+          style={{ '--delay': '450ms' }}
         >
           <span className="relative flex size-2" aria-hidden="true">
-            <span className="absolute inline-flex size-full rounded-full bg-orange-500 opacity-75 motion-safe:animate-ping" />
-            <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
+            <span className="bg-warn absolute inline-flex size-full rounded-full opacity-75 motion-safe:animate-ping" />
+            <span className="bg-warn relative inline-flex size-2 rounded-full" />
           </span>
           Won’t update by itself
           <ChevronDownIcon className="size-3.5 transition-transform group-data-[state=open]/note:rotate-180" aria-hidden="true" />
@@ -54,7 +54,7 @@ export function UpdateNote({
           align="start"
           sideOffset={10}
           collisionPadding={16}
-          className="bg-popover text-popover-foreground ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(20rem,calc(100vw-2rem))] rounded-lg border-t-4 border-orange-500 p-4 shadow-2xl ring-1"
+          className="bg-popover text-popover-foreground ring-foreground/10 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-50 w-[min(20rem,calc(100vw-2rem))] border-warn rounded-lg border-t-4 p-4 shadow-2xl ring-1"
         >
           <p className="font-bold">Keep this list up to date</p>
           <p className="text-muted-foreground mt-1.5 text-sm text-pretty">

@@ -43,7 +43,7 @@ try {
     },
   });
 
-  const { render } = await import(pathToFileURL(path.join(outDir, "prerender.mjs")).href);
+  const { render, structuredData } = await import(pathToFileURL(path.join(outDir, "prerender.mjs")).href);
   const markup = render();
   if (!markup || !markup.includes("<main")) {
     throw new Error("prerender-web: the render produced no <main>; refusing to write an empty shell");
@@ -54,7 +54,12 @@ try {
   if (found !== 1) {
     throw new Error(`prerender-web: expected exactly one ${EMPTY_ROOT} in web/dist/index.html, found ${found}`);
   }
-  await writeFile(indexPath, html.replace(EMPTY_ROOT, `<div id="root">${markup}</div>`), "utf8");
+  if (html.split("</head>").length !== 2) {
+    throw new Error("prerender-web: expected exactly one </head> in web/dist/index.html");
+  }
+  const page = html.replace(EMPTY_ROOT, `<div id="root">${markup}</div>`).replace("</head>", `    ${structuredData()}
+  </head>`);
+  await writeFile(indexPath, page, "utf8");
   console.log(`prerender-web: wrote ${(markup.length / 1024).toFixed(1)} kB of first-view HTML into web/dist/index.html`);
   await stampSitemap();
 } finally {

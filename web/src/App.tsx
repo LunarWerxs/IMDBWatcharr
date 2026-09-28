@@ -103,8 +103,10 @@ export default function App() {
     document.getElementById('source-url')?.focus()
   }
 
-  // A list saved to the account, brought back up with its links and posters.
-  function openSavedList(listUrl: string) {
+  // One click on a list, from the account's saved lists or the form's example:
+  // it goes in the field and is built straight away, with no Generate to press.
+  function openList(listUrl: string) {
+    if (pending) return
     setSourceUrl(listUrl)
     void buildFeeds(listUrl)
     revealFeeds()
@@ -127,12 +129,13 @@ export default function App() {
             canSubmit={canSubmit}
             signedIn={Boolean(session?.signedIn)}
             onSubmit={handleSubmit}
+            onTry={openList}
           />
 
           {session?.signedIn && (
             <MyFeeds
               refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
-              onOpen={openSavedList}
+              onOpen={openList}
               onUnfollowed={handleUnfollowed}
             />
           )}
