@@ -22,8 +22,8 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 - **$0.** Paste a public IMDb watchlist or list URL, get two links back that fill in on the list's
   first read from IMDb. No signup, no
   card, no trial period, no usage cap enforced by pricing.
-- Optional sign-in with Connections (LunarWerx's own account system) is also free and only
-  changes whether the feed is refreshed automatically.
+- Optional sign-in with Connections is also free and only changes whether the feed is refreshed
+  automatically.
 
 ## Self-hosted version
 

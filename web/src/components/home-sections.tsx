@@ -214,7 +214,7 @@ export function KeepUpdating({
   return (
     <div className="bg-card border-primary ring-foreground/10 mt-12 flex flex-col gap-4 rounded-lg border-l-4 p-5 ring-1 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <p className="font-medium text-pretty">
-        Sign in, free, and we check your list about every fifteen minutes.
+        Sign in and we check your list about every fifteen minutes.
       </p>
       <SignInWithConnections href={signInHref()} onClick={onSignIn} className="shrink-0" />
     </div>

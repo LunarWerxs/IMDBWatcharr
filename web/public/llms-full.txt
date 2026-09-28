@@ -29,7 +29,7 @@ built and licensed for personal, non-commercial, single-household use; see Limit
 
 Both links come back at once and serve the list from its first read from IMDb, which usually lands
 within about five minutes, then keep working with no account. Signing in
-with Connections (LunarWerx's own OAuth) claims the feed and puts it on an automatic refresh
+with Connections claims the feed and puts it on an automatic refresh
 schedule, checked again roughly every 15 minutes by a GitHub Actions job, not by the website
 itself.
 

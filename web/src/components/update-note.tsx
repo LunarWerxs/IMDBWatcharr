@@ -58,8 +58,8 @@ export function UpdateNote({
         >
           <p className="font-bold">Keep this list up to date</p>
           <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
-            Right now we only read it again when you paste it here. Sign in, free, and we check it
-            about every fifteen minutes.
+            Right now we only read it again when you paste it here. Sign in and we check it about
+            every fifteen minutes.
           </p>
           <SignInWithConnections
             href={signInHref(listUrl)}
@@ -69,9 +69,6 @@ export function UpdateNote({
             }}
             className="mt-3 w-full"
           />
-          <p className="text-muted-foreground mt-2 text-center text-xs">
-            One free LunarWerx account. No password, just a code by email.
-          </p>
           <Popover.Arrow className="fill-popover" />
         </Popover.Content>
       </Popover.Portal>
