@@ -269,6 +269,17 @@
     text-shadow: 0 1px 10px var(--color-scrim);
 }
 
+/* A sideways row's scrollbar: out of sight until the row moves (arrows, a swipe, the wheel), then a slim
+   gold bar. poster-row.tsx sets data-scrolling while it moves. */
+@utility scrollbar-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+
+    &[data-scrolling] {
+        scrollbar-color: color-mix(in oklab, var(--primary) 75%, transparent) transparent;
+    }
+}
+
 /* IMDb's bookmark ribbon, cut from a rectangle (the poster row's corner flag). */
 @utility clip-ribbon {
     clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);

@@ -1,5 +1,14 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, ClapperboardIcon, MinusIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClapperboardIcon,
+  EyeOffIcon,
+  FilmIcon,
+  MinusIcon,
+  TvIcon,
+} from 'lucide-react'
 
 import { Cover } from '@/components/cover'
 import { SectionTitle } from '@/components/site-chrome'
@@ -10,16 +19,19 @@ import { scrollBehavior } from '@/lib/motion'
 // The popup only matters once a poster is clicked, so it loads after the page.
 const TitleDialog = lazyPart(() => import('@/components/title-dialog').then((module) => module.TitleDialog))
 
-const TARGET_LABELS: Record<PreviewItem['target'], string> = {
-  radarr: 'Movie → Radarr',
-  sonarr: 'Series → Sonarr',
-  skipped: 'Skipped',
-}
+// Where each title goes, as the glass chip on its cover: the app's icon from the feed cards, and its name.
+const TARGET_CHIPS = {
+  radarr: { icon: FilmIcon, label: 'Radarr', spoken: 'a movie for Radarr' },
+  sonarr: { icon: TvIcon, label: 'Sonarr', spoken: 'a series for Sonarr' },
+  skipped: { icon: EyeOffIcon, label: 'Skipped', spoken: 'skipped' },
+} satisfies Record<PreviewItem['target'], unknown>
 
 const ITEM_WIDTH = 'w-36 shrink-0 snap-start sm:w-44'
 
 function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number; onOpen: (item: PreviewItem) => void }) {
   const sent = item.target !== 'skipped'
+  const chip = TARGET_CHIPS[item.target]
+  const ChipIcon = chip.icon
   return (
     <li
       className={`${ITEM_WIDTH} animation-delay-var motion-safe:animate-pop`}
@@ -28,7 +40,7 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
       <button
         type="button"
         onClick={() => onOpen(item)}
-        aria-label={`${item.title}${item.year ? ` (${item.year})` : ''}: details`}
+        aria-label={`${item.title}${item.year ? ` (${item.year})` : ''}, ${chip.spoken}: details`}
         className="group/poster block w-full rounded-md text-left"
         title={sent ? undefined : 'Sonarr needs a TVDB id for this one, or neither app takes this kind of title.'}
       >
@@ -45,6 +57,16 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
           >
             {sent ? <CheckIcon className="text-primary size-4" /> : <MinusIcon className="size-4 text-white/60" />}
           </span>
+          <span
+            aria-hidden="true"
+            // Frosted glass over the cover, so it reads on any picture in either theme.
+            className={`absolute top-2 right-2 flex items-center gap-1 rounded-full border border-white/20 bg-black/40 py-0.5 ps-1.5 pe-2 text-2xs font-bold shadow-md shadow-black/30 backdrop-blur-md ${
+              sent ? 'text-white' : 'text-white/70'
+            }`}
+          >
+            <ChipIcon className={`size-3 ${sent ? 'text-primary' : ''}`} />
+            {chip.label}
+          </span>
           {/* Without a cover, the tile carries the title itself. */}
           {!item.poster && (
             <span className="absolute inset-x-0 bottom-0 line-clamp-3 bg-linear-to-t from-black/85 via-black/50 to-transparent p-3 pt-8 text-sm leading-tight font-bold text-white">
@@ -54,13 +76,6 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
         </div>
         <span className="mt-2 block truncate text-sm font-bold group-hover/poster:underline">{item.title}</span>
         <span className="text-muted-foreground text-ui block">{item.year ?? 'Year unknown'}</span>
-        <span
-          className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs ${
-            sent ? 'border-foreground/30 text-foreground/85' : 'border-foreground/15 text-muted-foreground'
-          }`}
-        >
-          {TARGET_LABELS[item.target]}
-        </span>
       </button>
     </li>
   )
@@ -143,6 +158,18 @@ export function PosterRow({
     const frame = requestAnimationFrame(readEdges)
     return () => cancelAnimationFrame(frame)
   }, [items.length])
+  // The scrollbar shows only while the row moves: data-scrolling (see scrollbar-quiet) stays on until it
+  // has been still for a moment. Set on the element itself, so scrolling never re-renders the row.
+  const stillTimer = useRef(0)
+  useEffect(() => () => window.clearTimeout(stillTimer.current), [])
+  const onScroll = () => {
+    readEdges()
+    const row = rowRef.current
+    if (!row) return
+    row.dataset.scrolling = ''
+    window.clearTimeout(stillTimer.current)
+    stillTimer.current = window.setTimeout(() => delete row.dataset.scrolling, 900)
+  }
   const page = (direction: 1 | -1) => {
     const row = rowRef.current
     row?.scrollBy({ left: direction * row.clientWidth * 0.85, behavior: scrollBehavior() })
@@ -159,9 +186,9 @@ export function PosterRow({
       <div className="group/row relative">
         <ul
           ref={rowRef}
-          onScroll={readEdges}
+          onScroll={onScroll}
           key={result?.slug ?? 'none'}
-          className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
+          className="scrollbar-quiet -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
         >
           {items.length > 0
             ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} onOpen={openPoster} />)
