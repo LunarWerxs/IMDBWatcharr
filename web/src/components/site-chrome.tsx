@@ -103,7 +103,7 @@ function LunarWerxLink() {
 }
 
 /**
- * The top bar: dark charcoal whatever the theme (the `dark` class gives
+ * The top bar: just off black whatever the theme (the `dark` class gives
  * everything in it the dark tokens), sticky, with the product mark on the left:
  * the Watcharr mark in its on-dark colours, the same mark as the favicon, never
  * IMDb's logo.
