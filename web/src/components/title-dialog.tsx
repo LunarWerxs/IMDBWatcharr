@@ -5,6 +5,9 @@ import { Dialog } from 'radix-ui'
 import { Cover } from '@/components/cover'
 import { readTitleDetails, type PreviewItem, type TitleDetails } from '@/lib/api'
 
+// How long the player takes to fade and the stage to fold before the player unmounts.
+const CLOSE_MS = 450
+
 const TARGET_LINE: Record<PreviewItem['target'], string> = {
   radarr: 'Movie · goes to Radarr',
   sonarr: 'Series · goes to Sonarr',
@@ -62,10 +65,33 @@ function useTitleDetails(imdbId: string) {
 
 function Sheet({ item }: { item: PreviewItem }) {
   const { details, error, loading } = useTitleDetails(item.imdbId)
-  const [playing, setPlaying] = useState(false)
+  // idle -> open -> closing -> idle. 'closing' keeps the player mounted while it
+  // fades and the stage folds back, so closing animates instead of vanishing.
+  const [stage, setStage] = useState<'idle' | 'open' | 'closing'>('idle')
   const [trailerReady, setTrailerReady] = useState(false)
   const [backdropLoaded, setBackdropLoaded] = useState(false)
   const playButton = useRef<HTMLButtonElement>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+  }, [])
+
+  const playing = stage === 'open'
+  const playerMounted = stage !== 'idle'
+
+  function openTrailer() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setTrailerReady(false)
+    setStage('open')
+  }
+
+  function closeTrailer() {
+    setStage('closing')
+    closeTimer.current = setTimeout(() => {
+      setStage('idle')
+      requestAnimationFrame(() => playButton.current?.focus({ preventScroll: true }))
+    }, CLOSE_MS)
+  }
 
   const backdrop = details?.backdropUrl ?? null
   // Without a TMDB backdrop, the title's own cover, blurred, stands in for one.
@@ -80,7 +106,7 @@ function Sheet({ item }: { item: PreviewItem }) {
     <article className="@container relative">
       {/* The backdrop, and the stage the trailer plays on (16:9, under a strip for its close button). */}
       <div
-        className={`group/stage relative overflow-hidden transition-[height] duration-500 ease-out ${
+        className={`group/stage ease-soft relative overflow-hidden transition-[height,background-color] duration-700 ${
           playing ? 'h-[calc(56.25cqw+3.5rem)] bg-black' : 'bg-secondary h-44 sm:h-64'
         }`}
       >
@@ -90,34 +116,33 @@ function Sheet({ item }: { item: PreviewItem }) {
             alt=""
             decoding="async"
             onLoad={() => setBackdropLoaded(true)}
-            className={`absolute inset-0 size-full object-cover transition-[opacity,scale] duration-700 ease-out ${
+            className={`ease-soft absolute inset-0 size-full object-cover transition-[opacity,scale] duration-700 ${
               playing ? 'opacity-0' : backdropLoaded ? 'scale-100 opacity-100' : 'scale-105 opacity-0'
             } ${trailer && !playing ? 'group-hover/stage:scale-[1.03]' : ''}`}
           />
         )}
-        {fallbackBackdrop && !playing && (
+        {fallbackBackdrop && (
           <img
             src={fallbackBackdrop}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-2xl motion-safe:animate-backdrop"
+            className={`ease-soft absolute inset-0 size-full scale-125 object-cover blur-2xl transition-opacity duration-700 motion-safe:animate-backdrop ${
+              playing ? 'opacity-0' : 'opacity-50'
+            }`}
           />
         )}
         <div
           aria-hidden="true"
-          className={`from-card via-card/55 to-card/0 absolute inset-0 bg-linear-to-t transition-opacity duration-500 ${playing ? 'opacity-0' : ''}`}
+          className={`from-card via-card/55 to-card/0 ease-soft absolute inset-0 bg-linear-to-t transition-opacity duration-700 ${playing ? 'opacity-0' : ''}`}
         />
 
-        {trailer && !playing && (
+        {trailer && !playerMounted && (
           <button
             ref={playButton}
             type="button"
             aria-label={`Play the ${item.title} trailer`}
-            onClick={() => {
-              setTrailerReady(false)
-              setPlaying(true)
-            }}
-            className="group/play absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 pb-10 text-white outline-none sm:pb-0"
+            onClick={openTrailer}
+            className="group/play absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 pb-10 text-white outline-none motion-safe:animate-[backdrop-in_400ms_ease-out_both] sm:pb-0"
           >
             <span className="flex size-14 scale-90 items-center justify-center rounded-full bg-white/15 opacity-0 shadow-2xl ring-1 ring-white/40 backdrop-blur-md transition duration-300 ring-inset group-hover/play:scale-100 group-hover/play:bg-white/25 group-hover/play:opacity-100 group-focus-visible/play:scale-100 group-focus-visible/play:opacity-100 group-focus-visible/play:ring-2 sm:size-16 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100">
               <PlayIcon className="size-6 translate-x-px fill-current" aria-hidden="true" />
@@ -128,8 +153,10 @@ function Sheet({ item }: { item: PreviewItem }) {
           </button>
         )}
 
-        {playing && trailer && (
+        {playerMounted && trailer && (
           <>
+            {/* The player grows in from slightly small once it has loaded, and on close fades
+                and shrinks back while the stage folds up around it. */}
             <iframe
               src={trailer}
               title={`${item.title} trailer`}
@@ -137,22 +164,21 @@ function Sheet({ item }: { item: PreviewItem }) {
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
               onLoad={() => setTrailerReady(true)}
-              className={`absolute inset-x-0 top-14 h-[calc(100%-3.5rem)] w-full border-0 transition-opacity delay-150 duration-500 ${
-                trailerReady ? 'opacity-100' : 'opacity-0'
+              className={`ease-soft absolute inset-x-0 top-14 h-[calc(100%-3.5rem)] w-full origin-top border-0 transition-[opacity,scale] ${
+                playing && trailerReady ? 'scale-100 opacity-100 delay-100 duration-700' : 'scale-[0.96] opacity-0 duration-300'
               }`}
             />
-            {!trailerReady && (
+            {playing && !trailerReady && (
               <div className="absolute inset-x-0 top-14 bottom-0 grid place-items-center">
                 <LoaderCircleIcon className="size-7 animate-spin text-white/70" aria-label="Loading the trailer" />
               </div>
             )}
             <button
               type="button"
-              onClick={() => {
-                setPlaying(false)
-                requestAnimationFrame(() => playButton.current?.focus({ preventScroll: true }))
-              }}
-              className="text-ui absolute top-3 left-3 z-20 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 font-bold text-white transition-colors hover:bg-white/20"
+              onClick={closeTrailer}
+              className={`text-ui ease-soft absolute top-3 left-3 z-20 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 font-bold text-white transition-[opacity,translate,background-color] duration-500 hover:bg-white/20 ${
+                playing ? 'translate-y-0 opacity-100 motion-safe:animate-rise' : 'pointer-events-none -translate-y-2 opacity-0'
+              }`}
             >
               <Minimize2Icon className="size-4" aria-hidden="true" /> Close trailer
             </button>
@@ -162,12 +188,12 @@ function Sheet({ item }: { item: PreviewItem }) {
 
       {/* Over the stage; only the poster takes the pointer, so the play button works around it. */}
       <header
-        className={`pointer-events-none relative z-20 flex gap-5 px-5 transition-[margin] duration-500 ease-out sm:gap-7 sm:px-8 ${
+        className={`ease-soft pointer-events-none relative z-20 flex gap-5 px-5 transition-[margin] duration-700 sm:gap-7 sm:px-8 ${
           playing ? 'mt-5' : '-mt-24 sm:-mt-32'
         }`}
       >
         <div
-          className={`pointer-events-auto shrink-0 transition-[width] duration-500 ease-out motion-safe:animate-rise ${
+          className={`ease-soft pointer-events-auto shrink-0 transition-[width] duration-700 motion-safe:animate-rise ${
             playing ? 'w-20 sm:w-24' : 'w-28 sm:w-40'
           }`}
           style={{ animationDelay: '80ms' }}

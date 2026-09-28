@@ -153,6 +153,8 @@
     --animate-fan: fan-in 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     --animate-backdrop: backdrop-in 1.4s ease-out both;
     --animate-drift: drift 16s ease-in-out infinite alternate;
+    /* Askarr's ease-out-soft: fast off the mark, a long gentle settle. */
+    --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
     @keyframes rise-in {
         from {
