@@ -147,6 +147,7 @@
     --animate-drift: drift 16s ease-in-out infinite alternate;
     --animate-hop: hop 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
     --animate-fade-in: backdrop-in 0.4s ease-out both;
+    --animate-turn: turn-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     /* Askarr's ease-out-soft: fast off the mark, a long gentle settle. */
     --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -172,6 +173,13 @@
     @keyframes backdrop-in {
         from {
             opacity: 0;
+        }
+    }
+    /* The theme button's new icon turning in. */
+    @keyframes turn-in {
+        from {
+            opacity: 0;
+            transform: rotate(-90deg) scale(0.6);
         }
     }
     /* A request travelling down from the phone to the PC in the Askarr picture. */
@@ -267,6 +275,45 @@
 /* Legible white text over any backdrop (the popup's trailer label). */
 @utility text-shadow-scrim {
     text-shadow: 0 1px 10px var(--color-scrim);
+}
+
+/* The questions fold open and shut instead of jumping. A browser without ::details-content just jumps. */
+@utility details-fold {
+    interpolate-size: allow-keywords;
+
+    &::details-content {
+        block-size: 0;
+        overflow-y: clip;
+        transition:
+            block-size 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+            content-visibility 0.4s allow-discrete;
+    }
+
+    &[open]::details-content {
+        block-size: auto;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        &::details-content {
+            transition: none;
+        }
+    }
+}
+
+/* The sticky header casts a soft shadow once the page scrolls under it (a scroll-driven animation; a
+   browser without one keeps the flat bar). */
+@keyframes header-lift {
+    to {
+        box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.55);
+    }
+}
+
+@utility lift-on-scroll {
+    @supports (animation-timeline: scroll()) {
+        animation: header-lift linear both;
+        animation-timeline: scroll();
+        animation-range: 0 120px;
+    }
 }
 
 /* A sideways row's scrollbar: out of sight until the row moves (arrows, a swipe, the wheel), then a slim

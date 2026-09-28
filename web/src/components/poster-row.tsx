@@ -60,16 +60,16 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
           <span
             aria-hidden="true"
             // Frosted glass over the cover, so it reads on any picture in either theme.
-            className={`absolute top-2 right-2 flex items-center gap-1 rounded-full border border-white/20 bg-black/40 py-0.5 ps-1.5 pe-2 text-2xs font-bold shadow-md shadow-black/30 backdrop-blur-md ${
+            className={`absolute bottom-2 left-2 flex items-center gap-1 rounded-full border border-white/20 bg-black/40 py-0.5 ps-1.5 pe-2 text-2xs font-bold shadow-md shadow-black/30 backdrop-blur-md ${
               sent ? 'text-white' : 'text-white/70'
             }`}
           >
             <ChipIcon className={`size-3 ${sent ? 'text-primary' : ''}`} />
             {chip.label}
           </span>
-          {/* Without a cover, the tile carries the title itself. */}
+          {/* Without a cover, the tile carries the title itself, above the chip. */}
           {!item.poster && (
-            <span className="absolute inset-x-0 bottom-0 line-clamp-3 bg-linear-to-t from-black/85 via-black/50 to-transparent p-3 pt-8 text-sm leading-tight font-bold text-white">
+            <span className="absolute inset-x-0 bottom-0 line-clamp-3 bg-linear-to-t from-black/85 via-black/50 to-transparent p-3 pt-8 pb-10 text-sm leading-tight font-bold text-white">
               {item.title}
             </span>
           )}

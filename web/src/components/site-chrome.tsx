@@ -118,7 +118,7 @@ export function SiteHeader({
   onSignIn: SignInClick
 }) {
   return (
-    <header className="dark text-foreground bg-chrome sticky top-0 z-40 border-b border-white/10">
+    <header className="dark text-foreground bg-chrome lift-on-scroll sticky top-0 z-40 border-b border-white/10">
       <div className={`${PAGE_WIDTH} flex h-14 items-center justify-between gap-3`}>
         <a href="/" className="flex min-w-0 items-center gap-2.5" aria-label="IMDb Watcharr home">
           <img src="/brand/watcharr-mark-on-dark.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
