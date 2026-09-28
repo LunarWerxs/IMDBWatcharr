@@ -10,13 +10,13 @@ pasting it again never changes them.
 
 ## Key facts
 
-- Anyone can build the two links without an account. They come back at once, start serving the list as soon as its first read from IMDb lands (usually within about five minutes), and keep working off that snapshot.
+- Anyone can build the two links without an account. They come back at once, start serving the list as soon as its first read from IMDb lands (usually within a few minutes), and keep working off that snapshot.
 - Signing in with Connections is what puts a feed on the refresh schedule, checking it again about every fifteen minutes.
 - Radarr setup: Settings, Lists, Add list, Advanced, RSS List, paste the Radarr URL.
 - Sonarr setup: Settings, Import Lists, Add list, Advanced, Custom List, paste the Sonarr URL.
 - Sonarr needs a TVDB id for every show; a show IMDb Watcharr cannot resolve to a TVDB id is left out of the Sonarr list, and the app reports how many were skipped.
 - If a scheduled sync fails, the routes keep serving the last good snapshot instead of breaking.
-- A brand-new list is not instant: the site cannot fetch IMDb itself, so a freshly pasted URL queues the list and the routes answer 503 until the next sync fills it in, usually within about five minutes. The page updates by itself when it lands.
+- A brand-new list is not instant: the site cannot fetch IMDb itself, so a freshly pasted URL queues the list and the routes answer 503 until the next sync fills it in, usually within a few minutes. The page updates by itself when it lands.
 - Only public lists can be read. A private watchlist or list gets a message saying to make it public on IMDb and paste it again.
 - Links from www.imdb.com, the phone site m.imdb.com, and IMDb's language paths (imdb.com/de/list/...) all work.
 - Source-available on GitHub under PolyForm Noncommercial 1.0.0, so it can be self-hosted for personal and other noncommercial use. Commercial use is not licensed, and no commercial license is sold.
@@ -25,7 +25,7 @@ pasting it again never changes them.
 ## Common questions
 
 ### Do I need an account to use IMDb Watcharr?
-No. Anyone can paste a public IMDb list URL and get both links back straight away; they serve the list from its first read from IMDb, which usually lands within about five minutes. Signing in with Connections, free, is what puts a feed on the refresh schedule, so it is re-checked roughly every fifteen minutes instead of staying on its first snapshot.
+No. Anyone can paste a public IMDb list URL and get both links back straight away; they serve the list from its first read from IMDb, which usually lands within a few minutes. Signing in with Connections is what puts a feed on the refresh schedule, so it is re-checked roughly every fifteen minutes instead of staying on its first snapshot.
 
 ### How do I add the list to Radarr?
 In Radarr, open Settings, then Lists, then Add list, switch to Advanced, choose RSS List, and paste the Radarr URL that IMDb Watcharr gave you. The link is derived from the IMDb list itself, so it never changes and does not need replacing later.
@@ -40,7 +40,7 @@ Sonarr needs a TVDB id for every show, and not every IMDb title resolves to one.
 No. It is free, there is no paid tier and no payment of any kind is wired up. It is also deliberately personal and non-commercial: IMDb attaches a usage disclaimer to every API response forbidding public and commercial use of the data, so this is a household tool rather than a product.
 
 ### Why does a list I just pasted return an error?
-A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly pasted URL is queued and the two routes answer with a 503 until the next sync fills the list in, usually within about five minutes. Once it has synced, the links keep serving the last good snapshot even if a later sync fails. If it never fills in, the list is probably private on IMDb: make it public and paste it again.
+A brand-new list is not instant. The site cannot fetch IMDb directly, so a freshly pasted URL is queued and the two routes answer with a 503 until the next sync fills the list in, usually within a few minutes. Once it has synced, the links keep serving the last good snapshot even if a later sync fails. If it never fills in, the list is probably private on IMDb: make it public and paste it again.
 
 ## Links
 

@@ -13,8 +13,8 @@ and a Sonarr custom list, so both apps can pick up the same movies and shows a p
 tracks on IMDb, refreshing on a schedule once the feed is claimed by signing in.
 
 Anyone can build a feed without an account: both URLs come back at once, start serving titles as soon
-as the list's first read from IMDb lands (usually within about five minutes), and keep working
-after that. Signing in with Connections, free, is what makes a list refresh on its own, about every
+as the list's first read from IMDb lands (usually within a few minutes), and keep working
+after that. Signing in with Connections is what makes a list refresh on its own, about every
 fifteen minutes.
 
 ## Quick start
@@ -80,8 +80,10 @@ egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and
   `ETag` instead of being rebuilt.
 - If a sync fails, the routes keep serving the last good snapshot and the failure is recorded on the
   feed rather than left to age silently.
-- TVDB ids come from TVMaze, looked up by the Worker (TVMaze is reachable from Cloudflare). Series
-  with no mapping are left out of the Sonarr list, and resolved ids are carried across syncs.
+- TVDB ids come from TVMaze, then TMDB when TVMaze has no IMDb link for the show (TMDB needs
+  `TMDB_TOKEN`), looked up by the Worker (both are reachable from Cloudflare). A show neither knows is
+  not asked about again for a day. Series with no mapping are left out of the Sonarr list, and
+  resolved ids are carried across syncs.
 
 ## Web app
 
@@ -284,7 +286,7 @@ of its original snapshot.
 
 **Do I need an account to use it?**
 No. You get both links straight away, and they serve the list from its first read from IMDb, which
-usually lands within about five minutes. Signing in with Connections is optional and free; it
+usually lands within a few minutes. Signing in with Connections is optional; it
 claims the feed and puts it on the automatic refresh schedule, so the underlying IMDb list is checked
 again roughly every fifteen minutes instead of staying fixed on that first snapshot.
 

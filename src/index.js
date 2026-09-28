@@ -628,9 +628,18 @@ const IMMUTABLE_ASSET_CACHE = "public, max-age=31536000, immutable";
 
 async function serveStaticAsset(request, env, url) {
   const response = await env.ASSETS.fetch(request);
+  const html = (response.headers.get("content-type") ?? "").startsWith("text/html");
+
+  // The site is one page, at /. Any other path the asset layer answers with
+  // that page is its fallback for a URL that does not exist: the visitor still
+  // gets the page, but as a 404, so a search engine does not index every
+  // mistyped or made-up URL as another copy of the home page (a soft 404).
+  if (html && response.status === 200 && url.pathname !== "/") {
+    return new Response(response.body, { status: 404, headers: response.headers });
+  }
+
   const hashed = url.pathname.startsWith("/assets/");
   const cacheable = response.status === 200 || response.status === 304;
-  const html = (response.headers.get("content-type") ?? "").startsWith("text/html");
   if (!hashed || !cacheable || html) {
     return response;
   }

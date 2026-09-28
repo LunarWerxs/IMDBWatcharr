@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
 import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/components/home-sections'
 import { MyFeeds } from '@/components/my-feeds'
@@ -157,6 +158,10 @@ export default function App() {
 
           <Reveal>
             <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+          </Reveal>
+
+          <Reveal>
+            <FaqSection />
           </Reveal>
 
           <Reveal>

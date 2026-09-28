@@ -28,7 +28,7 @@ built and licensed for personal, non-commercial, single-household use; see Limit
 4. In Sonarr: Settings → Import Lists → Add List → Advanced → Custom List → paste the Sonarr URL.
 
 Both links come back at once and serve the list from its first read from IMDb, which usually lands
-within about five minutes, then keep working with no account. Signing in
+within a few minutes, then keep working with no account. Signing in
 with Connections claims the feed and puts it on an automatic refresh
 schedule, checked again roughly every 15 minutes by a GitHub Actions job, not by the website
 itself.
@@ -40,7 +40,7 @@ itself.
 - Optional sign-in (via Connections) claims a feed for automatic ~15-minute refresh.
 - If a scheduled refresh ever fails, the feeds keep serving the last good snapshot instead of
   breaking or going empty.
-- Sonarr output resolves each show to a TVDB id via TVMaze; any show that cannot be matched is
+- Sonarr output resolves each show to a TVDB id via TVMaze, then TMDB; any show that cannot be matched is
   left out of the Sonarr list (not passed along broken), and the app reports how many were
   skipped.
 - ETag-based caching: an unchanged list re-serves the cached body instead of being rebuilt.
@@ -81,7 +81,7 @@ including self-hosting costs.
 source-available on GitHub (PolyForm Noncommercial 1.0.0) for free noncommercial self-hosting too.
 Commercial use is not licensed.
 
-**Do I need an account?** No. A feed works without one from the list's first read (usually within about five minutes); signing in with Connections, free, only adds automatic ~15-minute refresh.
+**Do I need an account?** No. A feed works without one from the list's first read (usually within a few minutes); signing in with Connections only adds automatic ~15-minute refresh.
 
 **How does this compare to Radarr's/Sonarr's own IMDb list import, or Trakt-based syncing?**
 Sonarr removed its built-in IMDb list import in 2025, and Radarr's IMDb list-ID import stopped
@@ -92,7 +92,7 @@ IMDb Watcharr skips the Trakt account.
 
 **Why does a freshly pasted list return an error?** A brand-new list is not instant. The site
 cannot fetch IMDb itself, so a new URL is queued and the Radarr/Sonarr routes answer `503` until
-the next sync fills the list in, usually within about five minutes. If it never fills in, the
+the next sync fills the list in, usually within a few minutes. If it never fills in, the
 list is probably private on IMDb: make it public and paste it again.
 
 ## Limitations
@@ -101,7 +101,8 @@ list is probably private on IMDb: make it public and paste it again.
 - A brand-new feed is not instant; expect a `503` until the first sync completes.
 - Scheduled syncs run on GitHub's `schedule` trigger, which drifts under GitHub's own load, so 15
   minutes is a floor, not a guaranteed clock.
-- Sonarr coverage depends on TVMaze's TVDB mapping; unmapped shows are skipped, not guessed at.
+- Sonarr coverage depends on TVMaze's and TMDB's TVDB mappings; unmapped shows (usually ones that were
+  announced and never made) are skipped, not guessed at.
 - IMDb's API carries a usage disclaimer forbidding public/commercial use of the data, so this tool
   is scoped to personal, non-commercial, single-household use, not a resale or public-index
   product.

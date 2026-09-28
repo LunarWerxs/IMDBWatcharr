@@ -22,8 +22,7 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 - **$0.** Paste a public IMDb watchlist or list URL, get two links back that fill in on the list's
   first read from IMDb. No signup, no
   card, no trial period, no usage cap enforced by pricing.
-- Optional sign-in with Connections is also free and only changes whether the feed is refreshed
-  automatically.
+- Optional sign-in with Connections only changes whether the feed is refreshed automatically.
 
 ## Self-hosted version
 
@@ -45,6 +44,8 @@ does require your own accounts with third-party infrastructure the software depe
 
 - IMDb's own GraphQL API is called without a user-supplied API key (no key exists for it).
 - TVMaze, used to resolve TVDB ids for Sonarr, is called without a user-supplied API key.
+- TMDB, used for the poster popup's details and as a second TVDB-id source, needs a free TMDB read
+  token on a self-hosted copy; without one those two extras are simply off.
 - There is no AI/LLM API call anywhere in this product, so there is no bring-your-own
   OpenAI/Anthropic/etc. key or per-token cost to account for.
 

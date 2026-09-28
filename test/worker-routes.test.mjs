@@ -849,6 +849,16 @@ describe("fetch - fallthrough", () => {
     assert.equal(response.headers.get("content-type"), "text/javascript");
   });
 
+  test("a URL that is not a page answers 404, so it is not indexed as another home page", async () => {
+    const { env } = makeEnv();
+    const home = await call(`${ORIGIN}/`, { env });
+    const madeUp = await call(`${ORIGIN}/some/made-up/page`, { env });
+
+    assert.equal(home.response.status, 200);
+    assert.equal(madeUp.response.status, 404);
+    assert.equal(madeUp.response.headers.get("content-type"), "text/html", "the visitor still gets the page");
+  });
+
   test("the SPA fallback under /assets/ is never pinned as immutable", async () => {
     const { env } = makeEnv();
     const { response } = await call(`${ORIGIN}/assets/missing-abc123.js`, { env });
