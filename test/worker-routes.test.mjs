@@ -720,6 +720,85 @@ describe("fetch - redirects and lookups", () => {
   });
 });
 
+describe("fetch - /api/title (the poster popup's details, from TMDB)", () => {
+  // TMDB is the far side of the boundary; everything done with its answers is real.
+  async function withTmdb(answers, run) {
+    const asked = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input instanceof Request ? input.url : input));
+      asked.push(url.pathname);
+      const answer = answers[url.pathname];
+      return answer ? Response.json(answer) : new Response("{}", { status: 404 });
+    };
+    try {
+      return await run(asked);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
+  test("a movie comes back with its trailer, its images and a rounded rating", async () => {
+    const { env } = makeEnv({ TMDB_TOKEN: "token" });
+    await withTmdb(
+      {
+        "/3/find/tt0111161": { movie_results: [{ id: 278 }], tv_results: [] },
+        "/3/movie/278": {
+          title: "The Shawshank Redemption",
+          release_date: "1994-09-23",
+          overview: "Two imprisoned men bond.",
+          genres: [{ name: "Drama" }, { name: "Crime" }],
+          runtime: 142,
+          vote_average: 8.712,
+          vote_count: 28000,
+          poster_path: "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
+          backdrop_path: "javascript:alert(1)",
+          videos: {
+            results: [
+              { site: "YouTube", type: "Teaser", key: "teaser12345" },
+              { site: "Vimeo", type: "Trailer", key: "vimeo123456" },
+              { site: "YouTube", type: "Trailer", key: "PLl99DlL6b4" },
+            ],
+          },
+        },
+      },
+      async (asked) => {
+        const { response, parsed } = await call(`${ORIGIN}/api/title/tt0111161`, { env });
+
+        assert.equal(response.status, 200);
+        assert.deepEqual(asked, ["/3/find/tt0111161", "/3/movie/278"]);
+        assert.deepEqual(parsed, {
+          imdbId: "tt0111161",
+          mediaType: "movie",
+          title: "The Shawshank Redemption",
+          year: 1994,
+          overview: "Two imprisoned men bond.",
+          genres: ["Drama", "Crime"],
+          runtimeMinutes: 142,
+          seasons: null,
+          rating: 8.7,
+          posterUrl: "https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
+          backdropUrl: null,
+          trailerKey: "PLl99DlL6b4",
+        });
+      },
+    );
+  });
+
+  test("an id TMDB does not know is a 404, a site without a token a 503, and a bad id is not this route", async () => {
+    await withTmdb({ "/3/find/tt0000001": { movie_results: [], tv_results: [] } }, async () => {
+      const unknown = await call(`${ORIGIN}/api/title/tt0000001`, { env: makeEnv({ TMDB_TOKEN: "token" }).env });
+      assert.equal(unknown.response.status, 404);
+    });
+
+    const unset = await call(`${ORIGIN}/api/title/tt0111161`, { env: makeEnv().env });
+    assert.equal(unset.response.status, 503);
+
+    const bad = await call(`${ORIGIN}/api/title/nm0000151`, { env: makeEnv({ TMDB_TOKEN: "token" }).env });
+    assert.deepEqual(bad.parsed, { error: "Not found." });
+  });
+});
+
 describe("fetch - fallthrough", () => {
   test("an unrouted /api/ path is a JSON 404, not the SPA", async () => {
     const { env, assets } = makeEnv();

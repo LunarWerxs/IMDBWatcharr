@@ -30,6 +30,22 @@ export type PreviewItem = {
   poster?: string | null
 }
 
+/** One title's details for the poster popup, from TMDB via the Worker. */
+export type TitleDetails = {
+  imdbId: string
+  mediaType: 'movie' | 'tv'
+  title: string
+  year: number | null
+  overview: string
+  genres: string[]
+  runtimeMinutes: number | null
+  seasons: number | null
+  rating: number | null
+  posterUrl: string | null
+  backdropUrl: string | null
+  trailerKey: string | null
+}
+
 export type CreateFeedResponse = FeedStatusResponse & {
   radarrRoutePath: string
   radarrFeedUrl: string
@@ -115,6 +131,27 @@ export async function readFeedStatus(slug: string): Promise<FeedStatusWithCounts
   const response = await fetch(`/api/feeds/${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
   if (!response.ok) throw new Error(`Status check failed with status ${response.status}.`)
   return (await response.json()) as FeedStatusWithCounts
+}
+
+// Each title is looked up once per visit; the Worker caches it for a day too.
+const titleDetailsCache = new Map<string, Promise<TitleDetails>>()
+
+/** A title's details for the poster popup; rejects with a readable reason when there are none. */
+export function readTitleDetails(imdbId: string): Promise<TitleDetails> {
+  let pending = titleDetailsCache.get(imdbId)
+  if (!pending) {
+    pending = fetch(`/api/title/${encodeURIComponent(imdbId)}`).then(async (response) => {
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error((payload as { error?: string } | null)?.error ?? 'No details for this title right now.')
+      }
+      return payload as TitleDetails
+    })
+    // A failure is not remembered, so opening the title again tries again.
+    pending.catch(() => titleDetailsCache.delete(imdbId))
+    titleDetailsCache.set(imdbId, pending)
+  }
+  return pending
 }
 
 export async function readSession(): Promise<Session> {

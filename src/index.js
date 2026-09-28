@@ -30,6 +30,7 @@ import {
   requestRefresh,
 } from "./store.js";
 import { requestSyncRun, requestSyncRunAfterResponse, SYNC_ROUTE_HANDLERS, writeFeedCaches } from "./sync.js";
+import { handleTitleRoute } from "./tmdb-details.js";
 import { enrichTvdbIdsForFeed } from "./tvdb.js";
 
 // How often a signed-out visitor may ask for the same list to be re-fetched.
@@ -580,6 +581,7 @@ const ROUTE_HANDLERS = [
   handleFeedRoute,
   handleLegacySlugRedirect,
   handleFeedStatusRoute,
+  handleTitleRoute,
 ];
 
 export default {
