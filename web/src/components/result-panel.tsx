@@ -3,7 +3,7 @@ import { ChevronDownIcon, LoaderCircleIcon } from 'lucide-react'
 
 import { CopyField } from '@/components/copy-field'
 import { Cover } from '@/components/cover'
-import { Panel, riseDelay, STAT_LINE, STATS, TargetCards, type Stat } from '@/components/feed-card'
+import { Panel, StatLine, TargetCards, type Stat } from '@/components/feed-card'
 import { NotePopover } from '@/components/note-popover'
 import type { SignInClick } from '@/components/site-chrome'
 import { UpdateNote } from '@/components/update-note'
@@ -103,7 +103,7 @@ function SkippedNote({ result, children }: { result: CreateFeedResponse; childre
   )
 }
 
-function StatItem({ stat, result, order }: { stat: Stat; result: CreateFeedResponse; order: number }) {
+function StatItem({ stat, result, delay }: { stat: Stat; result: CreateFeedResponse; delay: string }) {
   const value = result[stat.key]
   const shown = useCountUp(value)
   const Icon = stat.icon
@@ -115,7 +115,7 @@ function StatItem({ stat, result, order }: { stat: Stat; result: CreateFeedRespo
     </>
   )
   return (
-    <div className="animation-delay-var motion-safe:animate-rise" style={{ '--delay': riseDelay(order) }} title={stat.label}>
+    <div className="animation-delay-var motion-safe:animate-rise" style={{ '--delay': delay }} title={stat.label}>
       <dt className="sr-only">{stat.label}</dt>
       <dd className="flex items-center gap-1.5">
         {stat.key === 'sonarrUnresolvedCount' && value > 0 ? <SkippedNote result={result}>{body}</SkippedNote> : body}
@@ -208,11 +208,7 @@ function ResultHeader({ result, session, listUrl, onSignIn }: ResultProps) {
                 keeps serving what it has, so it does not look busy. */}
             {state === 'queued' && <LoaderCircleIcon className="text-muted-foreground size-4 shrink-0 animate-spin" />}
           </h3>
-          <dl className={STAT_LINE}>
-            {STATS.map((stat, index) => (
-              <StatItem key={stat.key} stat={stat} result={result} order={index} />
-            ))}
-          </dl>
+          <StatLine item={(stat, delay) => <StatItem key={stat.key} stat={stat} result={result} delay={delay} />} />
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
             <StatusPill state={state} />
             <UpdateNote session={session} result={result} listUrl={listUrl} onSignIn={onSignIn} />

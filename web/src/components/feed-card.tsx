@@ -4,7 +4,7 @@ import { ChevronRightIcon, EyeOffIcon, FilmIcon, ListVideoIcon, TvIcon } from 'l
 // The result card's shape, shared by the empty card on arrival (feed-panel.tsx)
 // and the filled-in one (result-panel.tsx), which loads after the page.
 
-export const TARGETS = [
+const TARGETS = [
   {
     app: 'Radarr',
     icon: FilmIcon,
@@ -24,7 +24,7 @@ export const TARGETS = [
 export type Target = (typeof TARGETS)[number]
 
 // The list's counts, as one line under its name: an icon, the number, a word.
-export const STATS = [
+const STATS = [
   { key: 'totalCount', label: 'Titles on the list', word: 'titles', icon: ListVideoIcon },
   { key: 'radarrCount', label: 'Movies for Radarr', word: 'movies', icon: FilmIcon },
   { key: 'sonarrCount', label: 'Shows for Sonarr', word: 'shows', icon: TvIcon },
@@ -33,11 +33,18 @@ export const STATS = [
 
 export type Stat = (typeof STATS)[number]
 
-export const STAT_LINE = 'mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm'
-
 /** How long an element waits to rise: `order` steps after the panel it sits in. */
-export function riseDelay(order: number): string {
+function riseDelay(order: number): string {
   return `${order * 70}ms`
+}
+
+/** The list's counts, as one line under its name; `item` draws each count, rising `delay` after the panel. */
+export function StatLine({ item }: { item: (stat: Stat, delay: string) => ReactNode }) {
+  return (
+    <dl className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+      {STATS.map((stat, index) => item(stat, riseDelay(index)))}
+    </dl>
+  )
 }
 
 export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {

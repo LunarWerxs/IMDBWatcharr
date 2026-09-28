@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from 'react'
 import { TriangleAlertIcon } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Panel, STAT_LINE, STATS, TargetCards } from '@/components/feed-card'
+import { Panel, StatLine, TargetCards } from '@/components/feed-card'
 import { SectionTitle, type SignInClick } from '@/components/site-chrome'
 import type { CreateFeedResponse, Session } from '@/lib/api'
 import { lazyPart } from '@/lib/lazy'
@@ -14,8 +14,8 @@ const ResultPanel = lazyPart(() => import('@/components/result-panel').then((mod
 /** The same line before there is anything to count, shimmering while a read is on its way. */
 function GhostStats({ loading }: { loading: boolean }) {
   return (
-    <dl className={STAT_LINE}>
-      {STATS.map((stat) => {
+    <StatLine
+      item={(stat) => {
         const Icon = stat.icon
         return (
           <div key={stat.key} title={stat.label}>
@@ -31,8 +31,8 @@ function GhostStats({ loading }: { loading: boolean }) {
             </dd>
           </div>
         )
-      })}
-    </dl>
+      }}
+    />
   )
 }
 

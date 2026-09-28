@@ -72,18 +72,24 @@ Cloudflare's egress outright: `api.graphql.imdb.com` and `caching.graphql.imdb.c
 `www.imdb.com/list/…` answers a `202` bot challenge. `imdb.com/robots.txt` returns `200` from the
 same Worker, so it is not connectivity; it is a rate-limit rule against Cloudflare's shared Worker
 egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and the Worker stores.
+The runner reads three lists at a time and logs how long each read and ingest took.
 
 - Data comes from [IMDb's own GraphQL API](https://api.graphql.imdb.com/): `list(id:"ls…")` for
   lists, `predefinedList(classType: WATCH_LIST, userId:"ur…")` for watchlists. A `p.…` profile id is
   translated to its `ur…` id through `userProfile(input:{profileId})` first.
 - The Worker fingerprints the snapshot, so an unchanged list re-serves the cached body with an
-  `ETag` instead of being rebuilt.
+  `ETag` instead of being rebuilt. A feed poll reads one row (the body it serves) and never the
+  titles, and `If-None-Match` is compared weakly: Cloudflare turns the `ETag` into `W/"…"` whenever
+  it compresses a body, which is every Radarr and Sonarr poll.
+- An ingest works out the titles, their TVDB ids and both bodies first and writes them in one D1
+  batch; a read of an unchanged list only looks at the shows still missing a TVDB id.
 - If a sync fails, the routes keep serving the last good snapshot and the failure is recorded on the
   feed rather than left to age silently.
 - TVDB ids come from TVMaze, then TMDB when TVMaze has no IMDb link for the show (TMDB needs
-  `TMDB_TOKEN`), looked up by the Worker (both are reachable from Cloudflare). A show neither knows is
-  not asked about again for a day. Series with no mapping are left out of the Sonarr list, and
-  resolved ids are carried across syncs.
+  `TMDB_TOKEN`), looked up by the Worker during an ingest (both are reachable from Cloudflare); a
+  paste answers from what is stored and never waits on them. A show neither knows is not asked about
+  again for a day. Series with no mapping are left out of the Sonarr list, and resolved ids are
+  carried across syncs.
 
 ## Web app
 
@@ -91,6 +97,9 @@ egress IPs. A GitHub runner reaches the same API fine. So the runner fetches and
 made to feel like IMDb: a black header, charcoal ground (or a light theme), IMDb yellow for actions,
 and Roboto (self-hosted). It builds into `web/dist/`, which the Worker serves as its assets, and the
 build prerenders the first view into `index.html` so the page paints before the JavaScript runs.
+What nobody sees on arrival (the filled-in result, the title popup, the sign-in lightbox, My feeds,
+the alert bell and the toasts) is split out with `lazyPart` (`web/src/lib/lazy.ts`) and fetched once
+the page is idle, so the first download is the page itself and nothing waits on a click.
 
 One page, top to bottom:
 
@@ -110,7 +119,7 @@ Styling follows the Architect's shadcn rules: special buttons and the search fie
 `web/src/components/ui/` rather than restyled per use, colours are tokens in `web/src/index.css`,
 and the only inline styles are CSS custom properties (`--delay` and friends, typed in
 `web/src/css-properties.d.ts`) read by named utilities. `npm run og` redraws the share card and the
-icons from their SVGs.
+icons from their SVGs (the card's and the studio banner's sources sit in `web/art/`, not served).
 
 ```bash
 npm install
