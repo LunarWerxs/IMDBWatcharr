@@ -38,7 +38,7 @@ export function OneClickSetup({ result }: { result: CreateFeedResponse }) {
 
   return (
     <div
-      className="bg-secondary ring-foreground/10 mt-3 hidden items-center justify-center gap-8 rounded-lg px-8 py-6 ring-1 md:flex"
+      className="bg-secondary ring-foreground/10 mt-3 hidden items-center justify-center gap-5 rounded-lg px-5 py-3.5 ring-1 md:flex"
       style={{ '--sticker-page': 'var(--secondary)' }}
     >
       <span className="sticker-slot shrink-0" data-peeled={peeled || undefined}>
@@ -55,7 +55,7 @@ export function OneClickSetup({ result }: { result: CreateFeedResponse }) {
             setHint(true)
           }}
         >
-          <BookmarkPlusIcon className="size-4" aria-hidden="true" />
+          <BookmarkPlusIcon className="size-3.5" aria-hidden="true" />
           Add to Radarr / Sonarr
         </a>
         <span className="sticker-footprint" aria-hidden="true">
