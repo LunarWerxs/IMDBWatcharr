@@ -43,7 +43,7 @@ edit the dossier, not this block. Everything ABOVE the marker is yours.
 - **CI:** `ci.yml`, `sync-feeds.yml`
 - **Deploys via:** cloudflare-workers
 - **Domain:** radarr, sonarr, imdb, media-list-sync, watchlist, rss-feed-generation
-- **Remote:** https://github.com/LunarWerxs/IMDBWatcharr.git
+- **Remote:** https://github.com/LunarWerxs/Watcharr.git
 
 ### Architecture
 

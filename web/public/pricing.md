@@ -9,7 +9,7 @@ Machine-readable pricing summary for agentic buyers and shopping/comparison agen
 | Product | Watcharr |
 | Price | $0 (free) |
 | Paid tier | None, no payment integration exists anywhere in the app |
-| License | PolyForm Noncommercial 1.0.0 (`github.com/LunarWerxs/IMDBWatcharr`, see LICENSING.md); free to read, run and self-host for personal and other noncommercial use |
+| License | PolyForm Noncommercial 1.0.0 (`github.com/LunarWerxs/Watcharr`, see LICENSING.md); free to read, run and self-host for personal and other noncommercial use |
 | Commercial use | Not licensed, and not for sale: IMDb's API forbids commercial use of its data, so there is no commercial license to buy |
 | Account required | No, for the base feature (creating and using a feed) |
 | Account required for | Automatic feed refresh (~every 15 minutes), via optional sign-in with Connections |

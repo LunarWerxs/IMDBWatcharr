@@ -48,6 +48,6 @@ A brand-new list is not instant. The site cannot fetch IMDb directly, so a fresh
 ## Links
 
 - Home: https://watcharr.lunarwerx.com/
-- Source code: https://github.com/LunarWerxs/IMDBWatcharr
+- Source code: https://github.com/LunarWerxs/Watcharr
 - Studio: https://lunarwerx.com
 - Askarr, the same studio's app for requesting single movies and shows into your own Radarr and Sonarr from anywhere: https://askarr.com

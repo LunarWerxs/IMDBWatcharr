@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 
-export const REPO_URL = 'https://github.com/LunarWerxs/IMDBWatcharr'
+export const REPO_URL = 'https://github.com/LunarWerxs/Watcharr'
 
 /**
  * Icon at rest, widening to show "Selfhost" on hover or keyboard focus.

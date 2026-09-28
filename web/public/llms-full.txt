@@ -50,7 +50,7 @@ itself.
   left out of the Sonarr list (not passed along broken), and the app reports how many were
   skipped.
 - ETag-based caching: an unchanged list re-serves the cached body instead of being rebuilt.
-- Source-available on GitHub (github.com/LunarWerxs/IMDBWatcharr) under PolyForm Noncommercial
+- Source-available on GitHub (github.com/LunarWerxs/Watcharr) under PolyForm Noncommercial
   1.0.0 and self-hostable end to end for noncommercial use: Cloudflare Worker, D1 database, and
   the GitHub Actions sync job. Commercial use is not licensed and no commercial license is sold,
   because IMDb's API forbids commercial use of its data.
@@ -120,7 +120,7 @@ list is probably private on IMDb: make it public and paste it again.
 ## Links
 
 - Home: https://watcharr.lunarwerx.com/
-- Source code: https://github.com/LunarWerxs/IMDBWatcharr
+- Source code: https://github.com/LunarWerxs/Watcharr
 - Pricing: https://watcharr.lunarwerx.com/pricing.md
 - Short brief: https://watcharr.lunarwerx.com/llms.txt
 - Studio: https://lunarwerx.com/

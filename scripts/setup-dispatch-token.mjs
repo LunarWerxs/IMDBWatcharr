@@ -14,7 +14,7 @@
 // any command line.
 import { spawn } from "node:child_process";
 
-const REPO = "LunarWerxs/IMDBWatcharr";
+const REPO = "LunarWerxs/Watcharr";
 const WORKFLOW = "sync-feeds.yml";
 const CLOUDFLARE_ACCOUNT_ID = "36d7c731fd0352ef08ea7e46d2d20793";
 const PAT_URL =
@@ -122,7 +122,7 @@ async function main() {
     console.log(`
 A GitHub page opens for a new fine-grained token. Check that it has:
   Resource owner:     LunarWerxs
-  Repository access:  Only select repositories -> IMDBWatcharr
+  Repository access:  Only select repositories -> Watcharr
   Permissions:        Actions -> Read and write (nothing else)
 then press Generate token, copy it, and paste it here.
 (if no page opened: ${PAT_URL})
