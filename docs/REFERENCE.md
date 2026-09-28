@@ -16,13 +16,17 @@ development and deployment. What it does and how to set it up is in the [README]
 ```
 Cloudflare Worker (imdbwatcharr)   watcharr.lunarwerx.com
 ├── web/dist                  built React SPA, served through the ASSETS binding
-├── D1                        feed metadata, item snapshots, resolved TVDB ids,
+├── D1                        feed metadata, item snapshots, resolved TVDB and TMDB ids,
 │                             feed ownership, and the cached Radarr XML / Sonarr JSON
 └── Sign in with Connections  AEGIS OAuth; a signed session cookie, no user data stored
                                         ▲
                                         │ POST /api/ingest
 GitHub Actions (sync-feeds.yml)         reads IMDb, pushes snapshots
 ```
+
+Every feed link also answers as a small Radarr or Sonarr v3 API (`{link}/api/v3/movie`, `/series` and
+the list form's pickers, any API key), which is what lets Radarr's and Sonarr's own list types read it
+every 15 and 5 minutes; the same link still serves RSS (Radarr) and custom-list JSON (Sonarr).
 
 One Worker serves both the site and the API: it runs first on every request and hands anything it
 does not answer to the static assets, so there is no proxy in front of the API and a deploy is one
@@ -69,6 +73,10 @@ The runner reads three lists at a time and logs how long each read and ingest to
   paste answers from what is stored and never waits on them. A show neither knows is not asked about
   again for a day. Series with no mapping are left out of the Sonarr list, and resolved ids are
   carried across syncs.
+- Movies' TMDB ids come from TMDB's `/find` by IMDb id (needs `TMDB_TOKEN`), at most 250 per ingest;
+  the runner then calls `POST /api/resolve-ids` until none are left or the count stops falling, and a
+  Radarr poll of a list with movies still unresolved looks up the next batch after answering (at most
+  every two minutes). A movie TMDB does not know is stored as 0 and served in the RSS answer only.
 
 ## Web app
 
@@ -171,7 +179,8 @@ instead of on the next tick. Without it everything still works, just on the sche
 from any shell without the token ever being printed.
 
 Optionally give it `TMDB_TOKEN` too, a [TMDB](https://www.themoviedb.org/settings/api) API read access
-token (`wrangler secret put TMDB_TOKEN`). Clicking a poster then opens the title's details: plot,
+token (`wrangler secret put TMDB_TOKEN`). It gives each movie its TMDB id, which Radarr's own list
+type needs (without it, use the Radarr link as an RSS List), and clicking a poster opens the title's details: plot,
 genres, runtime, rating, a backdrop and the trailer, looked up by IMDb id through `GET /api/title/tt…`
 and cached for a day. TMDB answers Cloudflare, which IMDb does not. Without it the popup shows the
 title, year and cover the list already gave us.
