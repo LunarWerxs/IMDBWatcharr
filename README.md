@@ -24,6 +24,13 @@ fifteen minutes.
 3. Copy the two URLs it gives back
 4. Radarr `RSS List` gets the movie URL, Sonarr `Custom List` gets the TV URL
 
+Or, on a computer, skip steps 3 and 4: drag the result's **Add to Radarr / Sonarr** bookmark to the
+bookmarks bar and click it inside Radarr or Sonarr. It runs in that app's own page, uses that page's
+API key (which never leaves the app), asks for a Quality Profile and Root Folder, saves or updates the
+list with Search on Add on (Sonarr: Search for Missing, Monitor all), and reads it at once. Clicked
+again there, it can remove the list. The script is `web/src/lib/arr-setup.js`, Askarr's one-click
+setup pointed at this list's feed.
+
 The URLs are derived from the IMDb identifier, so the same list always maps to the same URLs. Links
 from the phone site (`m.imdb.com`) and IMDb's language paths (`imdb.com/de/list/…`) work too:
 
@@ -291,6 +298,10 @@ Pushing to `main` runs:
   the page says so and asks the owner to make it public, then paste it again.
 - **Scheduled runs drift.** GitHub delays `schedule` triggers under load, so 5 and 15 minutes are
   floors rather than a clock.
+- **Radarr and Sonarr read these lists on their own, slower clock.** Radarr re-reads an RSS List at
+  most every 12 hours and Sonarr a Custom List every 6 (read off Radarr 6.4 and Sonarr 4.0), so a
+  title added on IMDb reaches them hours after the feed has it. The one-click bookmark asks for an
+  immediate first read; after that the apps' own schedule applies.
 - **IMDb's API carries a usage disclaimer** on every response: public, commercial, and non-private
   use of the data is not allowed. This is a personal, non-commercial tool feeding one household's
   Radarr and Sonarr, which is the lane that language leaves open.

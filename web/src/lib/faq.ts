@@ -18,12 +18,12 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'How do I add an IMDb list to Radarr?',
     answer:
-      'In Radarr, open Settings, then Lists, then Add List, switch to Advanced, and choose RSS List. Paste the Radarr link IMDb Watcharr made for your list. It comes from the IMDb list itself, so it never changes.',
+      'In Radarr, open Settings, then Lists, then Add List, switch to Advanced, and choose RSS List. Paste the Radarr link IMDb Watcharr made for your list. It comes from the IMDb list itself, so it never changes. On a computer you can skip this: drag Add to Radarr / Sonarr to your bookmarks bar and click it inside Radarr.',
   },
   {
     question: 'How do I add an IMDb list to Sonarr?',
     answer:
-      'In Sonarr, open Settings, then Import Lists, then Add List, switch to Advanced, and choose Custom List. Paste the Sonarr link IMDb Watcharr made. It is a separate link from the Radarr one, because Sonarr adds shows by their TheTVDB id.',
+      'In Sonarr, open Settings, then Import Lists, then Add List, switch to Advanced, and choose Custom List. Paste the Sonarr link IMDb Watcharr made. It is a separate link from the Radarr one, because Sonarr adds shows by their TheTVDB id. The Add to Radarr / Sonarr bookmark does this for you too, clicked inside Sonarr.',
   },
   {
     question: 'Why is a show missing from my Sonarr list?',

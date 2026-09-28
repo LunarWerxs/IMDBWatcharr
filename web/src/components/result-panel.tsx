@@ -4,6 +4,7 @@ import { ChevronDownIcon, LoaderCircleIcon } from 'lucide-react'
 import { CopyField } from '@/components/copy-field'
 import { Cover } from '@/components/cover'
 import { Panel, StatLine, TargetCards, type Stat } from '@/components/feed-card'
+import { OneClickSetup } from '@/components/one-click-setup'
 import { NotePopover } from '@/components/note-popover'
 import type { SignInClick } from '@/components/site-chrome'
 import { UpdateNote } from '@/components/update-note'
@@ -236,6 +237,7 @@ export function ResultPanel(props: ResultProps) {
     <Panel key={result.slug} className="motion-safe:animate-rise">
       <ResultHeader {...props} />
       <TargetCards link={(target) => <CopyField value={result[target.urlKey]} label={target.label} />} />
+      <OneClickSetup result={result} />
     </Panel>
   )
 }
