@@ -527,6 +527,10 @@ function Sheet({ item, asking, onAsking }: { item: PreviewItem; asking: boolean;
   )
 }
 
+/** A round button sitting on the backdrop picture in the sheet's top corners. */
+const OVER_PICTURE =
+  'absolute top-3 z-30 grid size-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65'
+
 /**
  * The popup a poster opens, after Askarr's title sheet: backdrop and trailer on
  * top, the cover rising over it, then genres, plot and where to go next.
@@ -564,10 +568,18 @@ export function TitleDialog({ item, onClose }: { item: PreviewItem | null; onClo
               onAsking={(next) => setAskingFor(next ? item.imdbId : null)}
             />
           )}
-          <Dialog.Close
-            aria-label="Close"
-            className="absolute top-3 right-3 z-30 grid size-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:rotate-90 hover:bg-black/65"
-          >
+          {/* On the Askarr step, a way back where people look for one: the top left, facing the close button. */}
+          {asking && (
+            <button
+              type="button"
+              aria-label="Back to the title"
+              onClick={() => setAskingFor(null)}
+              className={`${OVER_PICTURE} motion-safe:animate-fade-in left-3 hover:-translate-x-0.5`}
+            >
+              <ArrowLeftIcon className="size-4.5" aria-hidden="true" />
+            </button>
+          )}
+          <Dialog.Close aria-label="Close" className={`${OVER_PICTURE} right-3 hover:rotate-90`}>
             <XIcon className="size-4.5" aria-hidden="true" />
           </Dialog.Close>
         </Dialog.Content>
