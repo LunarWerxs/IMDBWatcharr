@@ -3,7 +3,8 @@
 // IMDb refuses every request from Cloudflare's egress, so the Worker cannot
 // fetch its own data. A GitHub Actions run (scripts/sync-feeds.mjs) asks
 // /api/sync-targets what to read, reads it from IMDb, and hands each result
-// back through /api/ingest. Both routes are shared-secret authenticated.
+// back through /api/ingest, then asks /api/resolve-ids for the rest of a big
+// list's TMDB ids. All three routes are shared-secret authenticated.
 //
 // What gets read: every claimed feed, on every run, and any feed somebody has
 // asked for (refresh_requested_at), whether or not they signed in. A new feed
@@ -28,13 +29,14 @@ import {
   getOrCreateFeed,
   markFeedFailure,
   nowIso,
-  readKnownTvdbIds,
+  readKnownIds,
   readSyncTargets,
+  readUnresolvedMovies,
   readUnresolvedSeries,
   replaceFeedItems,
-  updateFeedAndTvdbIds,
+  updateFeedAndIds,
 } from "./store.js";
-import { resolveTvdbIds } from "./tvdb.js";
+import { resolveTmdbIds, resolveTvdbIds } from "./external-ids.js";
 
 // The workflow a pasted list dispatches. workflow_dispatch needs only the
 // token's Actions permission, where repository_dispatch would need write
@@ -48,6 +50,11 @@ const DISPATCH_INTERVAL_MS = 60_000;
 // GitHub normally answers a dispatch in well under a second; past this, give up
 // rather than hold a Worker invocation open (the queue still has the list).
 const DISPATCH_TIMEOUT_MS = 4_000;
+
+// Movies looked up on TMDB per request, one call each: comfortably inside a
+// Worker's subrequest limit. A bigger list gets the rest through
+// /api/resolve-ids, which the runner calls until none are left.
+const MOVIE_LOOKUPS_PER_REQUEST = 250;
 
 // Length-independent comparison, so a wrong secret cannot be narrowed down by
 // timing the reply.
@@ -128,10 +135,11 @@ function validateSnapshot(snapshot) {
 }
 
 /** A snapshot item as a feed_items row, the shape everything downstream reads. */
-function toStoredItem(item, tvdbId) {
+function toStoredItem(item, known) {
   return {
     imdb_id: item.imdbId,
-    tvdb_id: tvdbId,
+    tvdb_id: known?.tvdbId ?? null,
+    tmdb_id: known?.tmdbId ?? null,
     position: item.position,
     title: item.title,
     year: item.year,
@@ -141,8 +149,36 @@ function toStoredItem(item, tvdbId) {
   };
 }
 
-function withTvdbIds(items, found) {
-  return items.map((item) => (found.has(item.imdb_id) ? { ...item, tvdb_id: found.get(item.imdb_id) } : item));
+function withIds(items, { tvdb = new Map(), tmdb = new Map() }) {
+  return items.map((item) => ({
+    ...item,
+    tvdb_id: tvdb.get(item.imdb_id) ?? item.tvdb_id,
+    tmdb_id: tmdb.get(item.imdb_id) ?? item.tmdb_id,
+  }));
+}
+
+/**
+ * Look up what a stored feed still lacks: every show's TVDB id, and the next
+ * batch of movies' TMDB ids. They are saved with `fields` in one round trip,
+ * and the feed comes back with how many movies are still to look up.
+ */
+async function resolveStoredIds(env, feed, fields) {
+  const [shows, movies] = await Promise.all([
+    readUnresolvedSeries(env.DB, feed.id),
+    readUnresolvedMovies(env.DB, feed.id, MOVIE_LOOKUPS_PER_REQUEST),
+  ]);
+  const [tvdb, tmdb] = await Promise.all([resolveTvdbIds(env, shows), resolveTmdbIds(env, movies.imdbIds)]);
+
+  // A show neither source could answer for last time may resolve now; without
+  // this it stays out of Sonarr's lists until the list itself changes. Only
+  // Sonarr's Custom List body is stored, and only it changes with them.
+  if (tvdb.size) {
+    const items = withIds(await getFeedItems(env.DB, feed.id), { tvdb });
+    fields.sonarr_cache = JSON.stringify(buildSonarrCustomListPayload(items));
+    fields.cache_updated_at = nowIso();
+  }
+  const updated = await updateFeedAndIds(env.DB, feed, fields, { tvdb, tmdb });
+  return { ...updated, moviesLeft: movies.total - tmdb.size };
 }
 
 /** A read of a list that has not changed since the last one. */
@@ -157,23 +193,14 @@ async function syncUnchangedFeed(env, feed, sourceFingerprint) {
     last_synced_at: timestamp,
     updated_at: timestamp,
   };
-
-  // A show neither source could answer for last time may resolve now; without
-  // this it stays out of Sonarr until the list itself changes. Only the Sonarr
-  // body can change with it, and only then are the titles read at all.
-  const found = await resolveTvdbIds(env, await readUnresolvedSeries(env.DB, feed.id));
-  if (found.size) {
-    const items = withTvdbIds(await getFeedItems(env.DB, feed.id), found);
-    fields.sonarr_cache = JSON.stringify(buildSonarrCustomListPayload(items));
-    fields.cache_updated_at = timestamp;
-  }
-  return updateFeedAndTvdbIds(env.DB, feed, fields, found);
+  return resolveStoredIds(env, feed, fields);
 }
 
 /**
- * Store a snapshot. The titles, their TVDB ids (carried over from the last
- * read, then looked up for any show still without one) and both bodies the
- * feed routes serve are all worked out first and written in one batch.
+ * Store a snapshot. The titles, their TVDB and TMDB ids (carried over from the
+ * last read, then looked up for every show and the first batch of movies still
+ * without one) and both bodies the feed routes serve are all worked out first
+ * and written in one batch.
  */
 async function syncFeedFromSnapshot(env, feed, snapshot) {
   const sourceFingerprint = await hashText(buildSnapshotFingerprintPayload(snapshot), 32);
@@ -181,10 +208,15 @@ async function syncFeedFromSnapshot(env, feed, snapshot) {
     return syncUnchangedFeed(env, feed, sourceFingerprint);
   }
 
-  const known = await readKnownTvdbIds(env.DB, feed.id);
-  const stored = snapshot.items.map((item) => toStoredItem(item, known.get(item.imdbId) ?? null));
-  const unresolved = filterItemsForTarget(stored, "sonarr").filter((item) => !item.tvdb_id);
-  const items = withTvdbIds(stored, await resolveTvdbIds(env, unresolved.map((item) => item.imdb_id)));
+  const known = await readKnownIds(env.DB, feed.id);
+  const stored = snapshot.items.map((item) => toStoredItem(item, known.get(item.imdbId)));
+  const shows = filterItemsForTarget(stored, "sonarr").filter((item) => !item.tvdb_id);
+  const movies = filterItemsForTarget(stored, "radarr").filter((item) => item.tmdb_id === null);
+  const [tvdb, tmdb] = await Promise.all([
+    resolveTvdbIds(env, shows.map((item) => item.imdb_id)),
+    resolveTmdbIds(env, movies.slice(0, MOVIE_LOOKUPS_PER_REQUEST).map((item) => item.imdb_id)),
+  ]);
+  const items = withIds(stored, { tvdb, tmdb });
 
   const timestamp = nowIso();
   const fields = {
@@ -202,12 +234,13 @@ async function syncFeedFromSnapshot(env, feed, snapshot) {
     cache_updated_at: timestamp,
     updated_at: timestamp,
   };
-  return replaceFeedItems(env.DB, feed, items, {
+  const saved = await replaceFeedItems(env.DB, feed, items, {
     ...fields,
     // Built from the feed as it will be once this lands: its RSS names the list and the read's time.
     radarr_cache: buildCachedFeedXmlTemplate({ ...feed, ...fields }, filterItemsForTarget(items, "radarr"), "radarr"),
     sonarr_cache: JSON.stringify(buildSonarrCustomListPayload(items)),
   });
+  return { ...saved, moviesLeft: movies.length - tmdb.size };
 }
 
 /**
@@ -341,10 +374,38 @@ async function handleIngestRoute({ request, env, url }) {
       status: feed.status,
       itemCount: feed.item_count,
       fingerprint: feed.source_fingerprint,
+      moviesLeft: feed.moviesLeft,
     });
   } catch (error) {
     return json({ error: error.message }, { status: 400 });
   }
 }
 
-export const SYNC_ROUTE_HANDLERS = [handleSyncTargetsRoute, handleIngestRoute];
+/**
+ * The next batch of a stored list's TMDB ids (and any show's TVDB id still
+ * missing), for a list too big for one request. The runner calls it after an
+ * ingest while movies are left and the count keeps falling.
+ */
+async function handleResolveIdsRoute({ request, env, url }) {
+  if (request.method !== "POST" || url.pathname !== "/api/resolve-ids") {
+    return null;
+  }
+
+  if (!isAuthorizedSyncRequest(request, env)) {
+    return json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  try {
+    const payload = await request.json();
+    const feed = await getFeedByUrl(env.DB, normalizeImdbUrl(payload?.sourceUrl ?? "").canonicalUrl);
+    if (!feed) {
+      return json({ error: "No such feed." }, { status: 404 });
+    }
+    const { moviesLeft } = await resolveStoredIds(env, feed, {});
+    return json({ ok: true, moviesLeft });
+  } catch (error) {
+    return json({ error: error.message }, { status: 400 });
+  }
+}
+
+export const SYNC_ROUTE_HANDLERS = [handleSyncTargetsRoute, handleIngestRoute, handleResolveIdsRoute];

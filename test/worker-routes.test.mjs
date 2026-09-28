@@ -648,6 +648,61 @@ describe("fetch - feed routes", () => {
   });
 });
 
+// Radarr's and Sonarr's own list types ("Radarr", "Sonarr") re-read every 15
+// and 5 minutes, and read a Radarr or Sonarr v3 API: the feed link is their
+// Full URL. What they parse is the contract; a shape they cannot read stops
+// every import without an error on this side.
+describe("fetch - the feed link as a Radarr or Sonarr server", () => {
+  test("Radarr gets the list's movies keyed on TMDB id, and Sonarr its shows keyed on TVDB id", async () => {
+    const DB = makeDb([
+      ["FROM feeds WHERE source_url = ?", feedRow()],
+      ["SELECT tmdb_id AS id", { results: [{ id: 278, title: "The Shawshank Redemption", year: 1994 }] }],
+      ["SELECT tvdb_id AS id", { results: [{ id: 81189, title: "Breaking Bad", year: null }] }],
+    ]);
+    const { env } = makeEnv({ DB });
+
+    const radarr = await call(`${ORIGIN}/radarr/l/ls055592025/api/v3/movie?excludeLocalCovers=true`, {
+      env,
+      headers: { "x-api-key": "anything" },
+    });
+    const sonarr = await call(`${ORIGIN}/sonarr/l/ls055592025/api/v3/series`, { env });
+
+    assert.equal(radarr.response.status, 200);
+    assert.equal(radarr.response.headers.get("cache-control"), "no-store");
+    const [movie] = radarr.parsed;
+    assert.deepEqual(
+      { tmdbId: movie.tmdbId, title: movie.title, year: movie.year, qualityProfileId: movie.qualityProfileId },
+      { tmdbId: 278, title: "The Shawshank Redemption", year: 1994, qualityProfileId: 1 },
+    );
+    // Radarr parses these two as non-nullable dates: present-but-null fails its whole list.
+    assert.ok(!("inCinemas" in movie) && !("physicalRelease" in movie));
+    // Only movie title types are asked for.
+    assert.ok(DB.find("SELECT tmdb_id AS id")[0].args.includes("movie"));
+
+    const [series] = sonarr.parsed;
+    assert.deepEqual(
+      { tvdbId: series.tvdbId, title: series.title, year: series.year, languageProfileId: series.languageProfileId },
+      { tvdbId: 81189, title: "Breaking Bad", year: 0, languageProfileId: 1 },
+    );
+  });
+
+  test("the list form's pickers answer on their own, and anything else under the API is a 404", async () => {
+    const DB = makeDb();
+    const { env } = makeEnv({ DB });
+
+    const profiles = await call(`${ORIGIN}/radarr/l/ls055592025/api/v3/qualityprofile`, { env });
+    const languages = await call(`${ORIGIN}/sonarr/l/ls055592025/api/v3/languageprofile`, { env });
+    const noLanguages = await call(`${ORIGIN}/radarr/l/ls055592025/api/v3/languageprofile`, { env });
+    const unknown = await call(`${ORIGIN}/radarr/l/ls055592025/api/v3/system`, { env });
+
+    assert.deepEqual(profiles.parsed, [{ id: 1, name: "Watcharr" }]);
+    assert.deepEqual(languages.parsed, [{ id: 1, name: "Any" }]);
+    assert.equal(noLanguages.response.status, 404, "Radarr has no language profiles");
+    assert.equal(unknown.response.status, 404);
+    assert.equal(DB.calls.length, 0, "a picker needs no feed");
+  });
+});
+
 describe("fetch - redirects and lookups", () => {
   test("the old /p/ path 302s onto the targeted radarr route", async () => {
     const { env } = makeEnv();

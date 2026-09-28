@@ -5,7 +5,8 @@
 // Worker, and the list page answers a 202 challenge), so the Worker cannot fetch
 // its own data. A GitHub Actions runner can. This script runs there, asks the
 // Worker what to read, reads each list from IMDb, and hands the snapshots back
-// to /api/ingest.
+// to /api/ingest. A list with more movies than one request looks up on TMDB is
+// finished through /api/resolve-ids.
 //
 // Env:
 //   WORKER_ORIGIN  the Worker's base URL
@@ -45,8 +46,8 @@ async function readSyncTargets() {
   return payload.feeds ?? [];
 }
 
-async function postIngest(body) {
-  const response = await fetch(`${WORKER_ORIGIN}/api/ingest`, {
+async function post(path, body) {
+  const response = await fetch(`${WORKER_ORIGIN}${path}`, {
     method: "POST",
     headers: { ...authHeaders, "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -54,11 +55,13 @@ async function postIngest(body) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(`Ingest failed with status ${response.status}: ${payload.error ?? "no detail"}`);
+    throw new Error(`${path} failed with status ${response.status}: ${payload.error ?? "no detail"}`);
   }
 
   return payload;
 }
+
+const postIngest = (body) => post("/api/ingest", body);
 
 // Record the failure on the feed so the page can say why it is empty or
 // stale, rather than letting it age silently. A private or missing list is
@@ -102,6 +105,23 @@ const looksDown = () => succeeded === 0 && failed >= OUTAGE_AFTER_FAILURES;
 const READ_CONCURRENCY = 3;
 const seconds = (since) => `${((Date.now() - since) / 1000).toFixed(1)}s`;
 
+// Radarr's own list type keys a movie on its TMDB id, which the Worker looks up
+// a few hundred at a time. For a bigger list, ask for the next batch while any
+// are left, the count keeps falling (what TMDB cannot answer stays left) and
+// the run has time; whatever remains is picked up on the list's next read.
+const MAX_RESOLVE_PASSES = 12;
+
+async function resolveRest(sourceUrl, left) {
+  for (let pass = 0; left > 0 && pass < MAX_RESOLVE_PASSES && Date.now() - startedAt <= TIME_BUDGET_MS; pass += 1) {
+    const { moviesLeft } = await post("/api/resolve-ids", { sourceUrl });
+    if (!(moviesLeft < left)) {
+      return moviesLeft;
+    }
+    left = moviesLeft;
+  }
+  return left;
+}
+
 async function readOne({ sourceUrl, owned, requested }) {
   const label = `${owned ? "owned" : "guest"}${requested ? ", requested" : ""}`;
   const began = Date.now();
@@ -111,8 +131,11 @@ async function readOne({ sourceUrl, owned, requested }) {
     const ingestBegan = Date.now();
     const result = await postIngest({ sourceUrl, snapshot });
     succeeded += 1;
+    // A failed batch is not a failed read: the ids are asked for again next time.
+    const left = result.moviesLeft ? await resolveRest(sourceUrl, result.moviesLeft).catch(() => "some") : 0;
+    const ids = result.moviesLeft ? `, TMDB ids ${left ? `${left} left` : "all found"}` : "";
     console.log(
-      `  ok   ${sourceUrl} (${label}) -> ${snapshot.items.length} items, status ${result.status} (read ${read}, ingest ${seconds(ingestBegan)})`,
+      `  ok   ${sourceUrl} (${label}) -> ${snapshot.items.length} items, status ${result.status}${ids} (read ${read}, ingest ${seconds(ingestBegan)})`,
     );
   } catch (error) {
     if (error instanceof NotFoundError) {

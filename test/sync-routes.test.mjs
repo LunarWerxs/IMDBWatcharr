@@ -174,5 +174,44 @@ describe("fetch - /api/ingest", () => {
     // delete + one insert + the feed update, all in one batch.
     assert.equal(DB.find("batch(3)").length, 1);
   });
+
+  // Radarr's own list type keys a movie on its TMDB id, looked up per movie. A
+  // Worker request may only make so many calls, so one ingest looks up a batch
+  // and says how many are left; the runner asks /api/resolve-ids for the rest.
+  test("one ingest looks up at most 250 movies' TMDB ids and reports how many are left", async () => {
+    const DB = makeDb([
+      ["FROM feeds WHERE source_url = ?", feedRow({ status: "pending", item_count: 0 })],
+      ["FROM feed_items", { results: [] }],
+    ]);
+    const { env } = makeEnv({ DB, INGEST_SECRET, TMDB_TOKEN: "token" });
+    const asked = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input instanceof Request ? input.url : input));
+      asked.push(url.pathname);
+      return Response.json({ movie_results: [{ id: asked.length }] });
+    };
+    const items = Array.from({ length: 251 }, (_, index) => ({
+      imdbId: `tt${String(index + 1).padStart(7, "0")}`,
+      title: `Movie ${index + 1}`,
+      year: 2000,
+      titleType: "movie",
+    }));
+    try {
+      const { response, parsed } = await call(`${ORIGIN}/api/ingest`, {
+        method: "POST",
+        body: { sourceUrl: CANONICAL_LIST, snapshot: { listTitle: "Big", items } },
+        env,
+        headers: { authorization: `Bearer ${INGEST_SECRET}` },
+      });
+
+      assert.equal(response.status, 200);
+      assert.equal(asked.length, 250);
+      assert.equal(asked[0], "/3/find/tt0000001", "first on the list first");
+      assert.equal(parsed.moviesLeft, 1);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 

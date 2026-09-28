@@ -1,7 +1,7 @@
 // Every D1 statement the Worker runs, in one place, so the route handlers read
 // as HTTP and the SQL reads as SQL.
 
-import { hashText, SERIES_TITLE_TYPES } from "./imdb.js";
+import { hashText, MOVIE_TITLE_TYPES, SERIES_TITLE_TYPES } from "./imdb.js";
 
 // A claimed feed older than this is re-fetched when Radarr or Sonarr polls it.
 const STALE_AFTER_MS = 1000 * 60 * 60 * 6;
@@ -20,8 +20,20 @@ const FEED_COLUMNS = `id, slug, source_url, source_kind, list_title, list_author
 const CACHE_COLUMNS = { radarr: "radarr_cache", sonarr: "sonarr_cache" };
 
 // D1 binds at most 100 parameters to one statement, so a snapshot's rows go in
-// ten to an INSERT rather than one each.
-const ITEM_COLUMNS = ["feed_id", "imdb_id", "tvdb_id", "position", "title", "year", "title_type", "added_at", "poster_url", "created_at"];
+// nine to an INSERT rather than one each.
+const ITEM_COLUMNS = [
+  "feed_id",
+  "imdb_id",
+  "tvdb_id",
+  "tmdb_id",
+  "position",
+  "title",
+  "year",
+  "title_type",
+  "added_at",
+  "poster_url",
+  "created_at",
+];
 const ITEMS_PER_INSERT = Math.floor(100 / ITEM_COLUMNS.length);
 const ITEM_ROW = `(${ITEM_COLUMNS.map(() => "?").join(", ")})`;
 
@@ -79,26 +91,60 @@ export async function getFeedItems(db, feedId) {
   return result.results ?? [];
 }
 
-/** The TVDB ids already resolved for a feed's titles, which a new snapshot carries forward. */
-export async function readKnownTvdbIds(db, feedId) {
+const SERIES_TYPES = [...SERIES_TITLE_TYPES];
+const MOVIE_TYPES = [...MOVIE_TITLE_TYPES];
+const placeholders = (values) => values.map(() => "?").join(", ");
+
+/**
+ * The TVDB and TMDB ids already found for a feed's titles, which a new snapshot
+ * carries forward. A TMDB miss (0) is not carried, so a changed list asks again.
+ */
+export async function readKnownIds(db, feedId) {
   const result = await db
-    .prepare("SELECT imdb_id, tvdb_id FROM feed_items WHERE feed_id = ? AND tvdb_id IS NOT NULL")
+    .prepare("SELECT imdb_id, tvdb_id, tmdb_id FROM feed_items WHERE feed_id = ? AND (tvdb_id IS NOT NULL OR tmdb_id > 0)")
     .bind(feedId)
     .all();
-  return new Map((result.results ?? []).map((row) => [row.imdb_id, row.tvdb_id]));
+  return new Map(
+    (result.results ?? []).map((row) => [row.imdb_id, { tvdbId: row.tvdb_id ?? null, tmdbId: row.tmdb_id > 0 ? row.tmdb_id : null }]),
+  );
 }
 
 /** The IMDb ids of a feed's shows that have no TVDB id yet. */
 export async function readUnresolvedSeries(db, feedId) {
-  const types = [...SERIES_TITLE_TYPES];
+  const result = await db
+    .prepare(`SELECT imdb_id FROM feed_items WHERE feed_id = ? AND tvdb_id IS NULL AND title_type IN (${placeholders(SERIES_TYPES)})`)
+    .bind(feedId, ...SERIES_TYPES)
+    .all();
+  return (result.results ?? []).map((row) => row.imdb_id);
+}
+
+/**
+ * The next `limit` of a feed's movies not yet looked up on TMDB, first on the
+ * list first, and how many there are in all.
+ */
+export async function readUnresolvedMovies(db, feedId, limit) {
+  const where = `feed_id = ? AND tmdb_id IS NULL AND title_type IN (${placeholders(MOVIE_TYPES)})`;
+  const [count, next] = await db.batch([
+    db.prepare(`SELECT COUNT(*) AS total FROM feed_items WHERE ${where}`).bind(feedId, ...MOVIE_TYPES),
+    db.prepare(`SELECT imdb_id FROM feed_items WHERE ${where} ORDER BY position ASC LIMIT ?`).bind(feedId, ...MOVIE_TYPES, limit),
+  ]);
+  return { total: count.results?.[0]?.total ?? 0, imdbIds: (next.results ?? []).map((row) => row.imdb_id) };
+}
+
+/**
+ * What Radarr's or Sonarr's own list type reads: the movies with a TMDB id, or
+ * the shows with a TVDB id, in list order. Only the three columns it serves.
+ */
+export async function readArrItems(db, feedId, feedTarget) {
+  const [idColumn, types] = feedTarget === "radarr" ? ["tmdb_id", MOVIE_TYPES] : ["tvdb_id", SERIES_TYPES];
   const result = await db
     .prepare(
-      `SELECT imdb_id FROM feed_items
-        WHERE feed_id = ? AND tvdb_id IS NULL AND title_type IN (${types.map(() => "?").join(", ")})`,
+      `SELECT ${idColumn} AS id, title, year FROM feed_items
+        WHERE feed_id = ? AND ${idColumn} > 0 AND title_type IN (${placeholders(types)}) ORDER BY position ASC`,
     )
     .bind(feedId, ...types)
     .all();
-  return (result.results ?? []).map((row) => row.imdb_id);
+  return result.results ?? [];
 }
 
 // `fields` only ever holds column names written in this codebase, never input.
@@ -123,6 +169,7 @@ export async function replaceFeedItems(db, feed, items, fields) {
             feed.id,
             item.imdb_id,
             item.tvdb_id,
+            item.tmdb_id,
             item.position,
             item.title,
             item.year,
@@ -143,14 +190,38 @@ export async function replaceFeedItems(db, feed, items, fields) {
   return { ...feed, ...fields };
 }
 
-/** Save TVDB ids found for titles already stored and set `fields` on the feed, in one round trip. */
-export async function updateFeedAndTvdbIds(db, feed, fields, tvdbIds = new Map()) {
-  await db.batch([
-    ...[...tvdbIds].map(([imdbId, tvdbId]) =>
-      db.prepare("UPDATE feed_items SET tvdb_id = ? WHERE feed_id = ? AND imdb_id = ?").bind(tvdbId, feed.id, imdbId),
-    ),
-    updateFeed(db, feed.id, fields),
-  ]);
+// One UPDATE per this many titles: an id and an IMDb id in the CASE, the IMDb
+// id again in the IN list, plus the feed, stay under D1's 100 bound values.
+const IDS_PER_UPDATE = 30;
+
+// `column` is tvdb_id or tmdb_id, never input.
+function setIds(db, feedId, column, ids) {
+  const pairs = [...ids];
+  const statements = [];
+  for (let offset = 0; offset < pairs.length; offset += IDS_PER_UPDATE) {
+    const chunk = pairs.slice(offset, offset + IDS_PER_UPDATE);
+    statements.push(
+      db
+        .prepare(
+          `UPDATE feed_items SET ${column} = CASE imdb_id ${chunk.map(() => "WHEN ? THEN ?").join(" ")} END
+            WHERE feed_id = ? AND imdb_id IN (${placeholders(chunk)})`,
+        )
+        .bind(...chunk.flat(), feedId, ...chunk.map(([imdbId]) => imdbId)),
+    );
+  }
+  return statements;
+}
+
+/** Save ids found for titles already stored and set `fields` on the feed, in one round trip. */
+export async function updateFeedAndIds(db, feed, fields, { tvdb = new Map(), tmdb = new Map() } = {}) {
+  const statements = [
+    ...setIds(db, feed.id, "tvdb_id", tvdb),
+    ...setIds(db, feed.id, "tmdb_id", tmdb),
+    ...(Object.keys(fields).length ? [updateFeed(db, feed.id, fields)] : []),
+  ];
+  if (statements.length) {
+    await db.batch(statements);
+  }
   return { ...feed, ...fields };
 }
 
