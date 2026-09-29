@@ -125,7 +125,10 @@ function Detail({ feed, peeks, api, onGone, onShare }: { feed: Feed; peeks: Peek
   return (
     <article className="min-w-0" aria-labelledby="feed-title">
       <header className="flex flex-col gap-5 sm:flex-row sm:items-end">
-        <CoverMosaic posters={covers.slice(0, 4)} className="size-32 rounded-xl shadow-lg shadow-black/30 sm:size-40" />
+        {/* On a phone the picked card above already shows this cover. */}
+        <div className="hidden md:block">
+          <CoverMosaic posters={covers.slice(0, 4)} className="size-40 rounded-xl shadow-lg shadow-black/30" />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="text-ink text-ui font-bold tracking-wider uppercase">{shared ? 'Shared feed' : 'Feed'}</p>
           <h2 id="feed-title" className="mt-1 truncate text-3xl font-bold tracking-tight sm:text-4xl">
@@ -228,8 +231,9 @@ export function HomeV3({ session, focusSlug }: { session: Session | null; focusS
   }
 
   return (
-    <div className="grid gap-6 pt-8 pb-4 sm:pt-10 md:grid-cols-[16rem_minmax(0,1fr)] md:gap-10 lg:grid-cols-[18rem_minmax(0,1fr)]">
-      <aside className="md:self-start">
+    // minmax(0, 1fr) on a phone too: the row of feed cards would otherwise widen the column past the screen.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pt-8 pb-4 sm:pt-10 md:grid-cols-[16rem_minmax(0,1fr)] md:gap-10 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <aside className="min-w-0 md:self-start">
         <Sidebar feeds={feeds} current={current} peeks={peeks} onPick={setPicked} onNew={() => setDialog('new')} />
       </aside>
 
