@@ -118,14 +118,21 @@ click it inside Radarr or Sonarr) with the two copy buttons beside it, and on a 
 bookmarks bar, the copy buttons alone; Share (people and the join link, in a window); a ⋯ for rename
 (in place), delete, leave or stop following; its IMDb lists; and a strip of its covers that open the
 title popup (`ScrollRow` in `web/src/components/scroll-row.tsx`, shared with the signed-out poster row:
-arrows for a mouse, and a slim scrollbar only while it moves). The feeds themselves are a rail of covers down the side, so the feed is plainly what to
-work on: it opens over the page under the pointer or the keyboard, and its pin keeps it open
-(`watcharr:feeds-pinned` in local storage). On a phone they are a row of small pills.
+arrows for a mouse, and a slim gold scrollbar only while it moves, drawn from the browser's own
+scrollbar parts where it has them so Windows adds no step arrows). The feeds themselves are a rail of
+covers down the side that stays in view as the page scrolls, so the feed is plainly what to work on:
+it opens over the page under the pointer or the keyboard, the feed picked has a gold edge like the
+phone's pills, and its pin keeps it open (`watcharr:feeds-pinned` in local storage). The rail clips
+rather than hides its overflow: a hidden overflow is still a scroll box, and keyboard focus landing in
+the folded rail used to scroll its covers out of sight. On a phone the feeds are a row of small pills.
+The buttons wrap in pairs (the two copy buttons; Share with the ⋯), a copy button keeps its width
+while it says Copied, and in light theme the grey buttons are white faces with an edge, since the
+theme's grey is the page's own.
 
 It shows what the moment needs and folds the rest away:
 
 - No feeds yet: only the first-feed form, with three real lists to try.
-- One feed: no side list; New feed sits beside the name.
+- One feed: no side list; New feed sits at the far end of the buttons (beside the ⋯ on a phone).
 - A feed just made opens with the Radarr and Sonarr setup showing; any other keeps it folded under
   "Where do these go in Radarr and Sonarr?" until a copy button is pressed. A feed just joined opens
   with its add-a-list field.
@@ -135,7 +142,9 @@ It shows what the moment needs and folds the rest away:
   wrong, Open on IMDb and Take it out. A list that cannot be read starts open, with the reason.
 - Deleting, leaving, taking a list out, removing someone or making a new join link asks first, in
   the page's own window (`web/src/components/ask.tsx`), never the browser's.
-- The header bell (`#needs-attention`) opens the first feed with a list that keeps failing.
+- The header bell (`#needs-attention`) opens the first feed with a list that keeps failing, and
+  reads its count again whenever the library changes a feed (`FEEDS_CHANGED` in
+  `web/src/lib/feed-page.ts`), so taking a failing list out clears it.
 - The header's LunarWerx and GitHub icons name themselves ("LunarWerx", "Self-host") in a small
   pop-up on hover or keyboard focus (`web/src/components/icon-tip.tsx`, CSS only, so the header adds
   nothing to the first download).
@@ -326,6 +335,18 @@ npm test             # every test, then the web lint
 npm run web:build    # build the SPA
 npm run dev          # wrangler dev --remote (Worker only)
 ```
+
+Screenshots of every library interaction, for a visual check (375, 768 and 1280 wide, dark and light,
+and reduced motion; headless, nothing opens on the desktop; each step's result, console errors and
+failed requests land in `report*.json` beside them):
+
+```bash
+npm run web:dev
+PLAYWRIGHT_CORE=<a playwright-core folder or package> node scripts/library-screens.mjs http://localhost:5173 shots
+```
+
+Playwright hides scrollbars unless told otherwise; the script keeps them, so a missing scrollbar in
+its shots is real.
 
 Remote D1 migrations:
 

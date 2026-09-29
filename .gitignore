@@ -24,5 +24,8 @@ web/dist/
 /tmp/
 /.arkitect/reports/
 
+# scripts/library-screens.mjs's default output.
+/shots/
+
 # Local-only: wrangler dev's secrets file. Never committed.
 .dev.vars
