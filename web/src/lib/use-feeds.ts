@@ -3,7 +3,7 @@
 // follows) or by several (a shared list). The page shows one kind of thing,
 // feeds; which kind a feed is only decides what it can do (only a shared one
 // has people).
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   changeSharedList,
@@ -19,6 +19,7 @@ import {
   type SharedMember,
   type SharedSource,
 } from '@/lib/api'
+import { FEEDS_CHANGED } from '@/lib/feed-page'
 import { notify } from '@/lib/notify'
 
 export type Health = 'ready' | 'pending' | 'error'
@@ -138,6 +139,14 @@ export function useFeeds() {
 
   const feeds = mine && shared ? [...shared.map(fromShared), ...mine.map(fromMyFeed)] : null
 
+  // After the first read, every change is news to the header's bell (notifications-badge.tsx).
+  const firstRead = useRef(true)
+  useEffect(() => {
+    if (!mine || !shared) return
+    if (firstRead.current) firstRead.current = false
+    else window.dispatchEvent(new Event(FEEDS_CHANGED))
+  }, [mine, shared])
+
   const waiting = Boolean(feeds?.some((feed) => feed.health === 'pending'))
   useEffect(() => {
     if (!waiting) return
@@ -168,7 +177,7 @@ export function useFeeds() {
       await reload()
       return `list:${made.slug}`
     }
-    const made = await run(() => createSharedList(name, urls), `Made "${name}" from ${urls.length} lists.`)
+    const made = await run(() => createSharedList(name, urls), `Made “${name}” from ${urls.length} lists.`)
     if (!made) return null
     setShared(made.lists)
     return made.slug ? `shared:${made.slug}` : null
@@ -184,7 +193,7 @@ export function useFeeds() {
   async function unfollow(feed: Feed) {
     if (!feed.myFeed) return false
     const sourceUrl = feed.myFeed.sourceUrl
-    const result = await run(() => unfollowFeed(sourceUrl).then(() => true), `Stopped following "${feed.name}".`)
+    const result = await run(() => unfollowFeed(sourceUrl).then(() => true), `Stopped following “${feed.name}”.`)
     if (result) await reload()
     return Boolean(result)
   }
@@ -257,6 +266,11 @@ export function coversOf(feed: Feed, found: Map<string, Peek>, count: number): s
   return titlesOf(feed, found, count).map((item) => item.poster as string)
 }
 
+/** "1 person", "3 people". */
+export function peopleIn(count: number): string {
+  return count === 1 ? '1 person' : `${count} people`
+}
+
 /** True while a feed has never been read: it has nothing to count yet. */
 export function unread(feed: Feed): boolean {
   return feed.health !== 'ready' && feed.sources.every((source) => source.itemCount === 0)
@@ -271,6 +285,9 @@ export function countsOf(feed: Feed, found: Map<string, Peek>): string {
   const peek = feed.kind === 'single' ? found.get(feed.slug) : undefined
   const movies = feed.movies ?? peek?.movies
   const shows = feed.shows ?? peek?.shows
-  if (movies === undefined || shows === undefined) return `${feed.sources[0]?.itemCount ?? 0} titles`
+  if (movies === undefined || shows === undefined) {
+    const titles = feed.sources[0]?.itemCount ?? 0
+    return `${titles} title${titles === 1 ? '' : 's'}`
+  }
   return `${movies} movie${movies === 1 ? '' : 's'} · ${shows} show${shows === 1 ? '' : 's'}`
 }

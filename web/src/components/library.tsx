@@ -37,7 +37,7 @@ import { NEEDS_ATTENTION } from '@/lib/feed-page'
 import { lazyPart } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import { countsOf, coversOf, titlesOf, unread, useFeeds, usePeeks, type Feed, type FeedsApi } from '@/lib/use-feeds'
+import { countsOf, coversOf, peopleIn, titlesOf, unread, useFeeds, usePeeks, type Feed, type FeedsApi } from '@/lib/use-feeds'
 
 const TitleDialog = lazyPart(() => import('@/components/title-dialog').then((module) => module.TitleDialog))
 
@@ -164,7 +164,7 @@ function Sidebar({
   return (
     <>
       {/* A phone: the feeds as small pills to swipe through, so the feed below is what the eye lands on. */}
-      <nav ref={pills} aria-label="Your feeds" className="scrollbar-quiet -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pt-1 pb-2 md:hidden">
+      <nav ref={pills} aria-label="Your feeds" className="scrollbar-quiet -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pt-1 pb-2 md:hidden">
         {feeds.map((feed, index) => {
           const active = feed.key === current.key
           return (
@@ -202,11 +202,13 @@ function Sidebar({
         the page while the pointer is on it or the keyboard is in it (closing a moment after, so a pass
         across it does not flicker), and the pin keeps it open, remembered in this browser. Keyboard
         focus only, not focus: a click leaves focus on the feed picked, and the rail would stay open.
+        Clipped rather than hidden: a hidden overflow is still a scroll box, and focus landing in the
+        folded rail scrolled it sideways, leaving the covers cut off or gone.
       */}
       <nav
         aria-label="Your feeds"
         className={cn(
-          'group/rail bg-card ring-foreground/10 sticky top-18 z-30 hidden overflow-hidden rounded-xl p-2 ring-1 md:block',
+          'group/rail bg-card ring-foreground/10 sticky top-18 z-30 hidden overflow-clip rounded-xl p-2 ring-1 md:block',
           'transition-[width,box-shadow] duration-300 ease-(--ease-soft) motion-reduce:transition-none',
           pinned
             ? 'w-full'
@@ -239,8 +241,9 @@ function Sidebar({
               ref={marker}
               aria-hidden="true"
               className={cn(
-                // Folded, it hugs the cover (its 2.5rem and the row's padding); open, the whole row.
-                'bg-accent absolute top-0 left-0 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height,width] data-placed:duration-350 motion-reduce:transition-none',
+                // Folded, it hugs the cover (its 2.5rem and the row's padding); open, the whole row. The gold
+                // edge is the phone pills' own, so a row under the pointer never looks picked as well.
+                'bg-accent ring-primary/60 absolute top-0 left-0 ring-1 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height,width] data-placed:duration-350 motion-reduce:transition-none',
                 pinned ? 'w-full' : 'w-14 group-hover/rail:w-full group-has-[:focus-visible]/rail:w-full',
               )}
             />
@@ -268,7 +271,7 @@ function Sidebar({
                     <span className={cn('min-w-0 flex-1', label)}>
                       <span className="block truncate text-sm font-semibold">{feed.name}</span>
                       <span className="text-muted-foreground block truncate text-xs">
-                        {feed.kind === 'shared' ? `${feed.members.length} people · ${sizeOf(feed, peeks)}` : sizeOf(feed, peeks)}
+                        {feed.kind === 'shared' ? `${peopleIn(feed.members.length)} · ${sizeOf(feed, peeks)}` : sizeOf(feed, peeks)}
                       </span>
                     </span>
                   </button>
@@ -297,7 +300,7 @@ function Detail({
   peeks: Peeks
   api: FeedsApi
   fresh: Fresh | null
-  /** Beside the name, top right: the New feed button when there is no side list to hold it. */
+  /** At the far end of the buttons: the New feed button when there is no side list to hold it. */
   corner?: ReactNode
   onGone: () => void
   onShare: () => void
@@ -328,7 +331,7 @@ function Detail({
 
   return (
     <article className="min-w-0" aria-labelledby="feed-title">
-      <header className={cn('relative flex items-end gap-4 sm:gap-5', corner && 'sm:pe-32')}>
+      <header className="flex items-end gap-4 sm:gap-5">
         <div className="shrink-0 motion-safe:animate-pop">
           <CoverMosaic
             posters={titles.slice(0, 4).map((item) => item.poster as string)}
@@ -339,28 +342,24 @@ function Detail({
         <div className="min-w-0 flex-1 motion-safe:animate-rise">
           {eyebrow && <p className="text-ink text-ui mb-1 font-bold tracking-wider uppercase">{eyebrow}</p>}
           {renaming ? (
+            // The title's own size and line, so the name turns into a field where it stands.
             <RenameField
               feed={feed}
               api={api}
               onDone={() => setRenaming(false)}
-              className="h-12 text-2xl font-bold tracking-tight sm:text-3xl"
+              className="-mx-2.5 -my-px h-auto py-0 text-3xl font-bold tracking-tight sm:text-4xl md:text-4xl"
             />
           ) : (
-            <h2 id="feed-title" tabIndex={-1} className="truncate text-3xl font-bold tracking-tight outline-none sm:text-4xl">
+            <h2 id="feed-title" tabIndex={-1} className="line-clamp-2 text-3xl font-bold tracking-tight break-words outline-none sm:text-4xl">
               {feed.name}
             </h2>
           )}
-          <p className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            {!(feed.health === 'pending' && unread(feed)) && (
-              <>
-                <span>{countsOf(feed, peeks)}</span>
-                <span aria-hidden="true">·</span>
-              </>
-            )}
+          {/* No separator: the status has its own dot, and a line that wraps would end on one. */}
+          <p className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            {!(feed.health === 'pending' && unread(feed)) && <span>{countsOf(feed, peeks)}</span>}
             <HealthDot health={feed.health} label={health} className={feed.health === 'error' ? 'text-destructive' : undefined} />
           </p>
         </div>
-        {corner && <div className="absolute top-0 right-0 hidden sm:block">{corner}</div>}
       </header>
 
       <div
@@ -383,19 +382,24 @@ function Detail({
             onDragged={() => setBookmark('dropped')}
           />
         </span>
-        <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
-        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
-        <CopyAppButton app="Radarr" url={feed.radarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
-        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
-        {shared && (
-          <Button type="button" variant="secondary" size="cta" onClick={onShare}>
-            <UsersIcon />
-            Share
-            <AvatarStack members={feed.members} max={3} className="ms-1" />
-          </Button>
-        )}
-        <FeedMenu feed={feed} api={api} onGone={onGone} onRename={() => setRenaming(true)} />
-        {corner && <span className="sm:hidden">{corner}</span>}
+        {/* The two links wrap as a pair, and Share with the ⋯, so a narrow row never splits either. */}
+        <span className="flex gap-2">
+          <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
+          <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
+          <CopyAppButton app="Radarr" url={feed.radarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
+          <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
+        </span>
+        <span className="flex items-center gap-2">
+          {shared && (
+            <Button type="button" variant="secondary" size="cta" onClick={onShare}>
+              <UsersIcon />
+              Share
+              <AvatarStack members={feed.members} max={3} className="ms-1" />
+            </Button>
+          )}
+          <FeedMenu feed={feed} api={api} onGone={onGone} onRename={() => setRenaming(true)} />
+        </span>
+        {corner && <span className="ms-auto">{corner}</span>}
       </div>
 
       {/* What the bookmark is for, only while it is being dragged, just dropped or clicked here. */}
@@ -438,7 +442,7 @@ function Detail({
       </div>
 
       <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={beat(3)} aria-labelledby="lists-title">
-        <h3 id="lists-title" tabIndex={-1} className="border-b pb-2 font-bold outline-none">
+        <h3 id="lists-title" tabIndex={-1} className="-mx-2 border-b px-2 pb-2 font-bold outline-none">
           IMDb list{feed.sources.length === 1 ? '' : 's'}{' '}
           <span className="text-muted-foreground font-normal">{feed.sources.length}</span>
         </h3>
@@ -638,7 +642,7 @@ function Shelves({
       fresh={fresh?.key === current.key ? fresh : null}
       corner={
         feeds.length === 1 ? (
-          <Button type="button" variant="secondary" size="sm" onClick={() => setDialog({ open: 'new' })}>
+          <Button type="button" variant="ghost" size="cta" className="text-muted-foreground" onClick={() => setDialog({ open: 'new' })}>
             <PlusIcon />
             New feed
           </Button>
@@ -667,7 +671,7 @@ function Shelves({
             pinned ? 'md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[18rem_minmax(0,1fr)]' : 'md:grid-cols-[4.5rem_minmax(0,1fr)]',
           )}
         >
-          <aside className="min-w-0 md:self-start">
+          <aside className="min-w-0">
             <Sidebar
               feeds={feeds}
               current={current}

@@ -11,20 +11,25 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { readNotifications } from '@/lib/api'
-import { NEEDS_ATTENTION } from '@/lib/feed-page'
+import { FEEDS_CHANGED, NEEDS_ATTENTION } from '@/lib/feed-page'
 
 // A signed-out visitor can never own a feed, so the header only renders this
 // once a session is known signed in.
 export function NotificationsBadge() {
   const [count, setCount] = useState(0)
 
+  // Read once, and again whenever the library changes a feed: taking a failing list out clears it.
   useEffect(() => {
     let cancelled = false
-    readNotifications().then((value) => {
-      if (!cancelled) setCount(value.count)
-    })
+    const read = () =>
+      readNotifications().then((value) => {
+        if (!cancelled) setCount(value.count)
+      })
+    void read()
+    window.addEventListener(FEEDS_CHANGED, read)
     return () => {
       cancelled = true
+      window.removeEventListener(FEEDS_CHANGED, read)
     }
   }, [])
 
@@ -48,7 +53,7 @@ export function NotificationsBadge() {
           </a>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
+      <TooltipContent className="dark">
         {count} feed{count === 1 ? '' : 's'} failing to sync
       </TooltipContent>
     </Tooltip>

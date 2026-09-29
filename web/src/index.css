@@ -391,12 +391,37 @@
 
 /* A sideways row's scrollbar: out of sight until the row moves (arrows, a swipe, the wheel), then a slim
    gold bar. poster-row.tsx sets data-scrolling while it moves. */
+/* A slim gold bar that shows only while the row moves (scroll-row.tsx sets data-scrolling). Chromium
+   and Safari draw it from their own scrollbar parts, which leave out the step arrows the standard
+   properties keep on Windows (and Chromium ignores those parts once the standard ones are set);
+   Firefox has only the standard ones. */
 @utility scrollbar-quiet {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
+    @supports not selector(::-webkit-scrollbar) {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
 
-    &[data-scrolling] {
-        scrollbar-color: color-mix(in oklab, var(--primary) 75%, transparent) transparent;
+        &[data-scrolling] {
+            scrollbar-color: color-mix(in oklab, var(--primary) 75%, transparent) transparent;
+        }
+    }
+
+    &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    &::-webkit-scrollbar-track,
+    &::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        border-radius: 9999px;
+        background: transparent;
+    }
+
+    &[data-scrolling]::-webkit-scrollbar-thumb {
+        background: color-mix(in oklab, var(--primary) 75%, transparent);
     }
 }
 
@@ -605,7 +630,9 @@
 }
 
 /* The shared Discord badge sits above everything on the page; while a popup
-   (sign-in, a title) dims the page it steps aside rather than glowing over it. */
-body:has([data-page-overlay]) #lwdc-badge {
+   (sign-in, a title) dims the page, or a toast shares its corner, it steps aside
+   rather than glowing over it. */
+body:has([data-page-overlay]) #lwdc-badge,
+body:has([data-sonner-toast]) #lwdc-badge {
     visibility: hidden;
 }

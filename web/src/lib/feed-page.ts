@@ -95,6 +95,9 @@ function startingList(session: Session): { list: string; build: boolean } | null
 /** The bell's link: the library picks the first feed with a list that keeps failing. */
 export const NEEDS_ATTENTION = 'needs-attention'
 
+/** A window event: the library changed the signed-in person's feeds (the bell reads its count again). */
+export const FEEDS_CHANGED = 'watcharr:feeds-changed'
+
 // Whether this browser was signed in last time, so the next visit can show the
 // library's outline instead of flashing the sales page while the session is read.
 // index.html reads it before anything draws; only a hint, never trusted for access.

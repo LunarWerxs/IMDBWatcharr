@@ -453,6 +453,8 @@ async function answer(request: Request, url: URL): Promise<Response | null> {
   }
   if (path === '/api/create' && method === 'POST') return createFeed(request, body)
   if (/^\/api\/feeds\/[a-f0-9]{12}$/.test(path)) {
+    // Alex's watchlist is made up, so the Worker has never heard of it: it is answered here.
+    if (path.endsWith(`/${await feedSlug(PRIVATE_WATCHLIST)}`)) return refuse(PRIVATE_ERROR, 404)
     const response = await realFetch(request)
     return response.ok ? json(asYours(await response.json())) : response
   }

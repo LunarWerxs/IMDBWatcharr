@@ -9,7 +9,7 @@ const inputVariants = cva(
     variants: {
       variant: {
         default:
-          "h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-input/50 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80",
+          "h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-input/50 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80",
         // IMDb's search field: white in both themes, joined to its button from sm up, room on
         // the right for a clear button, and the pair's own ring showing focus.
         search:

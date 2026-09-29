@@ -75,10 +75,13 @@ export function ScrollRow({
       atEnd: list.scrollLeft + list.clientWidth > list.scrollWidth - 8,
     })
   }
-  // Once the items are laid out, see whether there is anything to scroll to.
+  // Once the items are laid out, and whenever the row changes width, see whether there is anything to scroll to.
   useEffect(() => {
-    const frame = requestAnimationFrame(readEdges)
-    return () => cancelAnimationFrame(frame)
+    const list = row.current
+    if (!list) return
+    const watcher = new ResizeObserver(readEdges)
+    watcher.observe(list)
+    return () => watcher.disconnect()
   }, [count])
   // The scrollbar shows only while the row moves: data-scrolling stays on until it has been still for a
   // moment. Set on the element itself, so scrolling never re-renders the row.

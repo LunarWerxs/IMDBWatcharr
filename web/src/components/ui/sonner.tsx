@@ -42,6 +42,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // A message that wraps does not leave its last word alone on a line.
+          title: "text-pretty",
         },
       }}
       {...props}

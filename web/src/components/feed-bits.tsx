@@ -38,7 +38,7 @@ import { prefersReducedMotion } from '@/lib/motion'
 import { notify } from '@/lib/notify'
 import { formatRelativeTime } from '@/lib/relative-time'
 import { cn } from '@/lib/utils'
-import type { Feed, FeedsApi, Health } from '@/lib/use-feeds'
+import { peopleIn, type Feed, type FeedsApi, type Health } from '@/lib/use-feeds'
 
 // ── Folding ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ export function AvatarStack({ members, max = 3, className }: { members: SharedMe
   const shown = members.slice(0, max)
   const more = members.length - shown.length
   return (
-    <span className={cn('flex items-center -space-x-1.5', className)} aria-label={`${members.length} people`}>
+    <span className={cn('flex items-center -space-x-1.5', className)} aria-label={peopleIn(members.length)}>
       {shown.map((member) => (
         <Avatar key={member.id} name={member.name} you={member.you} className="size-6 text-2xs" />
       ))}
@@ -244,9 +244,18 @@ export function CopyAppButton({
       title={url}
       aria-label={`Copy the ${app} link`}
     >
-      {copied ? <CheckIcon className="motion-safe:animate-pop" /> : <Icon />}
-      {copied ? 'Copied' : app}
-      {!copied && <CopyIcon className="opacity-60" />}
+      {/* Both faces in one cell, the hidden one keeping the width: the buttons beside it never move. */}
+      <span className="grid gap-[inherit] *:col-start-1 *:row-start-1 *:flex *:items-center *:justify-center *:gap-[inherit]">
+        <span className={cn(copied && 'invisible')}>
+          <Icon />
+          {app}
+          <CopyIcon className="opacity-60" />
+        </span>
+        <span className={cn(!copied && 'invisible')} aria-hidden={!copied}>
+          {copied && <CheckIcon className="motion-safe:animate-pop" />}
+          Copied
+        </span>
+      </span>
     </Button>
   )
 }
@@ -277,7 +286,7 @@ export function SetupSteps({ feed }: { feed: Feed }) {
               {url}
             </p>
             <div className="mt-3 flex items-center justify-between gap-2">
-              <span className="text-muted-foreground text-xs">Paste it as the Full URL. Any API key works.</span>
+              <span className="text-muted-foreground text-xs text-pretty">Paste it as the Full URL. Any API key works.</span>
               <CopyAppButton app={app} url={url} />
             </div>
           </div>
@@ -688,7 +697,7 @@ export function InviteLink({ feed, api }: { feed: Feed; api: FeedsApi }) {
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-muted-foreground text-xs text-pretty">Whoever opens it and signs in can add their own IMDb lists.</p>
-        <Button type="button" variant="ghost" size="sm" onClick={() => void reset()} disabled={api.busy}>
+        <Button type="button" variant="ghost" size="sm" className="-me-2.5" onClick={() => void reset()} disabled={api.busy}>
           <RefreshCwIcon />
           New link
         </Button>
@@ -820,7 +829,7 @@ export function NewFeedForm({
           </Button>
         )}
         <Button type="submit" variant="cta" size="cta" disabled={api.busy || empty || invalid}>
-          {several ? `Make one feed from ${filled.length || links.length}` : 'Make feed'}
+          {filled.length > 1 ? `Make one feed from ${filled.length}` : 'Make feed'}
         </Button>
       </div>
     </form>
