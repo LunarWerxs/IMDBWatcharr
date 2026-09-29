@@ -36,7 +36,7 @@ export function NotificationsBadge() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button asChild variant="ghost" size="icon" className="relative">
-          <a href={`#${NEEDS_ATTENTION}`} aria-label={`${count} feed${count === 1 ? '' : 's'} need attention`}>
+          <a href={`#${NEEDS_ATTENTION}`} aria-label={`${count} ${count === 1 ? 'feed needs' : 'feeds need'} attention`}>
             <BellIcon className="size-4" />
             <Badge
               variant="destructive"
