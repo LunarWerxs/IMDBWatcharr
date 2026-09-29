@@ -143,6 +143,12 @@ Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 | `GET /api/me`, `/api/my-feeds`                | Session state and the feeds you have claimed, each with its sync health |
 | `GET /api/notifications`                      | Just the feeds that have failed enough syncs in a row to need attention |
 | `POST /api/unfollow`                          | Stop refreshing one of your feeds                                    |
+| `GET /radarr/s/:slug`, `/sonarr/s/:slug`      | A shared list's Radarr RSS and Sonarr custom list: every IMDb list in it, each title once |
+| `GET /{radarr,sonarr}/s/:slug/api/v3/…`       | The same shared list as a Radarr / Sonarr v3 API, pickers included    |
+| `GET /api/shared`, `POST /api/shared`         | Your shared lists (with members, lists and counts); make one (`{ name }`) |
+| `GET /api/shared/invite/:code`                | What a join link shows before joining: name, maker, size (no sign-in needed) |
+| `POST /api/shared/join`                       | Join with a join link's code (`{ code }`)                             |
+| `POST /api/shared/:slug/{sources,sources/remove,members/remove,invite,rename,delete}` | Add or remove an IMDb list, remove a person or leave, and the owner's new join link, rename and delete |
 | anything else                                 | The page, with status `404`, so made-up URLs are not indexed as the home page |
 
 ## The sync job
@@ -203,6 +209,24 @@ this is in-app only: no separate mail service to configure.
 Each row has an Unfollow button (with a confirm) that calls `POST /api/unfollow` to stop that feed
 from auto-refreshing; its Radarr/Sonarr URLs keep serving the last synced snapshot, they just stop
 updating.
+
+### Shared lists
+
+A signed-in visitor can make a shared list ([src/shared-lists.js](../src/shared-lists.js), tables in
+[migrations/0010_add_shared_lists.sql](../migrations/0010_add_shared_lists.sql)): one pair of links,
+`/radarr/s/:slug` and `/sonarr/s/:slug`, fed by several IMDb lists. The maker hands out a join link
+(`/?join=<code>`); anyone who opens it and signs in joins and adds their own lists. The links serve
+the union of every list's titles, the first of each IMDb id (and, on the v3 API, of each TMDB or TVDB
+id), in the order the lists were added.
+
+- The slug is random and public; the join code is a separate 128-bit secret, so handing out the
+  Radarr link never lets anybody in. The maker can make a new join link, which kills the old one.
+- Anyone can take out the lists they added; the maker can take out any list, remove people (their
+  lists go with them) and rename or delete it. A member who leaves takes their lists too.
+- A feed in any shared list is on the 15-minute schedule like a claimed one (`readSyncTargets`), and
+  adding a list new to the site dispatches a sync run.
+- Limits: 10 shared lists per maker, 25 IMDb lists and 20 people per shared list.
+- The page API never sends anyone's sign-in id; people show by the name Connections gave.
 
 ## Analytics
 

@@ -44,6 +44,9 @@ itself.
 - No account required to generate or use a feed; two links come back at once and fill in on the list's first read.
 - Deterministic URLs: the same IMDb list always maps to the same Radarr/Sonarr links.
 - Optional sign-in (via Connections) claims a feed for automatic ~15-minute refresh.
+- Shared lists (signed in): one Radarr link and one Sonarr link fed by several IMDb lists. The
+  person who makes one sends a join link, everyone who joins adds their own watchlists, and a
+  title on two lists is served once. Each list in it is refreshed about every 15 minutes.
 - If a scheduled refresh ever fails, the feeds keep serving the last good snapshot instead of
   breaking or going empty.
 - Sonarr output resolves each show to a TVDB id via TVMaze, then TMDB; any show that cannot be matched is

@@ -249,7 +249,8 @@ export function KeepUpdating({
   return (
     <div className="bg-card border-primary ring-foreground/10 mt-12 flex flex-col gap-4 rounded-lg border-l-4 p-5 ring-1 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <p className="font-medium text-pretty">
-        Sign in and we check your list about every fifteen minutes.
+        Sign in and we check your list about every fifteen minutes. You can also make a shared list: one Radarr
+        and one Sonarr link that everyone in the house adds their IMDb lists to.
       </p>
       <SignInWithConnections href={signInHref()} onClick={onSignIn} className="shrink-0" />
     </div>

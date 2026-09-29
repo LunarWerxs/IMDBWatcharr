@@ -91,19 +91,58 @@ function startingList(session: Session): { list: string; build: boolean } | null
   return last ? { list: last, build: !session.signedIn } : null
 }
 
+// A shared list's join link is the site with ?join=<code> (src/shared-lists.js).
+const JOIN_PARAM = 'join'
+
+// Set when a visitor chooses to sign in from a join link, so the page that has
+// them signed in joins straight away instead of asking a second time.
+const JOIN_AFTER_SIGN_IN_KEY = 'imdbwatch:join-after-sign-in'
+
+/** Take a shared list's join code out of the address, tidying the address. */
+export function takeJoinFromAddress(): string | null {
+  const url = new URL(window.location.href)
+  const code = url.searchParams.get(JOIN_PARAM)
+  if (code) {
+    url.searchParams.delete(JOIN_PARAM)
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+  return code && /^[a-f0-9]{32}$/i.test(code) ? code.toLowerCase() : null
+}
+
+/** The sign-in link from a join link: it comes back to the same invite. */
+export function joinSignInHref(code: string): string {
+  return `/auth/login?returnTo=${encodeURIComponent(`/?${JOIN_PARAM}=${code}`)}`
+}
+
+export function rememberJoinAfterSignIn(code: string) {
+  store(JOIN_AFTER_SIGN_IN_KEY, code)
+}
+
+/** True once, when this tab went to sign in so as to join this list. */
+export function takeJoinAfterSignIn(code: string): boolean {
+  const expected = stored(JOIN_AFTER_SIGN_IN_KEY)
+  if (expected) store(JOIN_AFTER_SIGN_IN_KEY, null)
+  return expected === code
+}
+
 /** Read the session once, then hand the page the list it should open with. */
 export function useStartingList({
   onSession,
   onList,
+  onJoin,
 }: {
   onSession: (session: Session) => void
   onList: (list: string, build: boolean) => void
+  /** A shared list's join link brought the visitor here. */
+  onJoin: (code: string) => void
 }) {
   useEffect(() => {
     let cancelled = false
     readSession().then((session) => {
       if (cancelled) return
       onSession(session)
+      const join = takeJoinFromAddress()
+      if (join) onJoin(join)
       const start = startingList(session)
       if (start) onList(start.list, start.build)
     })

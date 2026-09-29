@@ -194,6 +194,86 @@ export async function readNotifications(): Promise<NotificationsResponse> {
   }
 }
 
+/** An IMDb list feeding a shared list, and who put it there. */
+export type SharedSource = Pick<
+  MyFeed,
+  'slug' | 'sourceUrl' | 'listTitle' | 'status' | 'itemCount' | 'lastSyncedAt' | 'lastError' | 'consecutiveFailures' | 'alerting'
+> & {
+  /** The name the person who added it signed in with; null when Connections gave none. */
+  addedBy: string | null
+  yours: boolean
+  removable: boolean
+}
+
+export type SharedMember = {
+  id: number
+  name: string | null
+  owner: boolean
+  you: boolean
+}
+
+/** One Radarr link and one Sonarr link fed by several people's IMDb lists (src/shared-lists.js). */
+export type SharedList = {
+  slug: string
+  name: string
+  /** True for the person who made it: only they rename, delete, remove people or hand out the join link. */
+  owner: boolean
+  radarrUrl: string
+  sonarrUrl: string
+  inviteUrl: string | null
+  movieCount: number
+  showCount: number
+  members: SharedMember[]
+  sources: SharedSource[]
+}
+
+/** What a join link shows before joining. */
+export type SharedInvite = {
+  name: string
+  ownerName: string | null
+  sourceCount: number
+  memberCount: number
+  joined: boolean
+}
+
+/** Every change answers with all of the person's shared lists, so the page swaps them in whole. */
+type SharedListsResponse = { lists: SharedList[]; slug?: string }
+
+export async function readSharedLists(): Promise<SharedList[]> {
+  const response = await fetch('/api/shared', { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`Could not load your shared lists (status ${response.status}).`)
+  return ((await response.json()) as SharedListsResponse).lists
+}
+
+export function createSharedList(name: string): Promise<SharedListsResponse> {
+  return postJson<SharedListsResponse>('/api/shared', { name })
+}
+
+export async function readSharedInvite(code: string): Promise<SharedInvite> {
+  const response = await fetch(`/api/shared/invite/${encodeURIComponent(code)}`, { credentials: 'same-origin' })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error((payload as { error?: string } | null)?.error ?? 'This invite link does not work.')
+  }
+  return payload as SharedInvite
+}
+
+export function joinSharedList(code: string): Promise<SharedListsResponse> {
+  return postJson<SharedListsResponse>('/api/shared/join', { code })
+}
+
+type SharedAction =
+  | { action: 'sources'; body: { sourceUrl: string } }
+  | { action: 'sources/remove'; body: { feedSlug: string } }
+  | { action: 'members/remove'; body: { memberId: number } }
+  | { action: 'rename'; body: { name: string } }
+  | { action: 'invite' | 'delete'; body?: undefined }
+
+/** Change one shared list: add or remove an IMDb list or a person, rename it, reset its join link or delete it. */
+export function changeSharedList(slug: string, { action, body }: SharedAction): Promise<SharedListsResponse> {
+  return postJson<SharedListsResponse>(`/api/shared/${encodeURIComponent(slug)}/${action}`, body ?? {})
+}
+
 // WHY: /api/unfollow (src/index.js) has existed since claiming shipped, but
 // nothing in the SPA ever called it - a signed-in visitor could see a feed in
 // "My feeds" but had no way to stop auto-refreshing it short of the raw API.

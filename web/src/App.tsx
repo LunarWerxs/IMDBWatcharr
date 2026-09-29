@@ -1,4 +1,4 @@
-import { Suspense, useState, type FormEvent } from 'react'
+import { Suspense, useCallback, useState, type FormEvent } from 'react'
 
 import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
@@ -12,8 +12,11 @@ import { lazyPart } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
 import { usePopupSignIn } from '@/lib/sign-in'
 
-// Only a signed-in visitor has feeds, and the lightbox only shows while the sign-in window is open.
+// Only a signed-in visitor has feeds and shared lists, only a join link shows an
+// invite, and the lightbox only shows while the sign-in window is open.
 const MyFeeds = lazyPart(() => import('@/components/my-feeds').then((module) => module.MyFeeds))
+const SharedLists = lazyPart(() => import('@/components/shared-lists').then((module) => module.SharedLists))
+const JoinInvite = lazyPart(() => import('@/components/join-invite').then((module) => module.JoinInvite))
 const SignInLightbox = lazyPart(() => import('@/components/sign-in-lightbox').then((module) => module.SignInLightbox))
 
 /**
@@ -36,6 +39,12 @@ export default function App() {
   // The URL a poll should keep re-checking. Kept separate from `sourceUrl` so
   // editing the input mid-sync cannot redirect a poll already in flight.
   const [activeUrl, setActiveUrl] = useState('')
+  // A shared list's join link brought the visitor here; once they join, the
+  // shared lists re-read and bring that one into view.
+  const [invite, setInvite] = useState<{ code: string | null; joinedSlug: string | null }>({
+    code: null,
+    joinedSlug: null,
+  })
 
   async function buildFeeds(listUrl: string) {
     setPending(true)
@@ -59,7 +68,10 @@ export default function App() {
       setSourceUrl(list)
       if (build) void buildFeeds(list)
     },
+    onJoin: (code) => setInvite((current) => ({ ...current, code })),
   })
+
+  const handleJoined = useCallback((slug: string) => setInvite({ code: null, joinedSlug: slug }), [])
 
   useFeedStatusPoll(result, setResult)
 
@@ -117,6 +129,18 @@ export default function App() {
       <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
         <Hero />
 
+        {invite.code && (
+          <Suspense fallback={null}>
+            <JoinInvite
+              code={invite.code}
+              session={session}
+              onSignIn={handleSignIn}
+              onJoined={handleJoined}
+              onDismiss={() => setInvite((current) => ({ ...current, code: null }))}
+            />
+          </Suspense>
+        )}
+
         <FeedForm
           sourceUrl={sourceUrl}
           onSourceUrlChange={setSourceUrl}
@@ -135,6 +159,12 @@ export default function App() {
               onOpen={openList}
               onUnfollowed={handleUnfollowed}
             />
+          </Suspense>
+        )}
+
+        {session?.signedIn && (
+          <Suspense fallback={null}>
+            <SharedLists focusSlug={invite.joinedSlug} />
           </Suspense>
         )}
 

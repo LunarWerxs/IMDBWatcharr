@@ -112,6 +112,7 @@ function sharedListView(list, rows, sub, publicOrigin) {
         itemCount: source.item_count,
         lastSyncedAt: source.last_synced_at ?? null,
         lastError: source.last_error ?? null,
+        consecutiveFailures: source.consecutive_failures ?? 0,
         alerting: isFeedAlerting(source.consecutive_failures),
         addedBy: nameOf.get(source.added_by_sub) ?? null,
         yours: source.added_by_sub === sub,

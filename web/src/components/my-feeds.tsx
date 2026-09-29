@@ -5,69 +5,15 @@
 // web-analytics live-view idea (products/web_analytics/, MIT): a small
 // status dashboard over data the backend already sends, no new pipeline.
 import { useEffect, useState } from 'react'
-import {
-  AlertTriangleIcon,
-  CheckCircle2Icon,
-  ClockIcon,
-  LinkIcon,
-  LoaderCircleIcon,
-  XIcon,
-} from 'lucide-react'
+import { ClockIcon, LinkIcon, XIcon } from 'lucide-react'
 
+import { FeedHealthBadge } from '@/components/feed-health-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { SectionTitle } from '@/components/site-chrome'
 import { readMyFeeds, unfollowFeed, type MyFeed } from '@/lib/api'
 import { notify } from '@/lib/notify'
-
-/** "3 minutes ago", "2 hours ago", … - coarse on purpose, this is a glance, not a log. */
-function formatRelativeTime(iso: string | null): string {
-  if (!iso) return 'never'
-  const seconds = Math.max(0, (Date.now() - Date.parse(iso)) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.round(hours / 24)
-  return `${days} day${days === 1 ? '' : 's'} ago`
-}
-
-function FeedHealthBadge({ feed }: { feed: MyFeed }) {
-  if (feed.alerting) {
-    return (
-      <Badge variant="destructive">
-        <AlertTriangleIcon className="size-3" />
-        <span className="font-normal">{feed.consecutiveFailures} failed syncs in a row</span>
-      </Badge>
-    )
-  }
-
-  if (feed.status === 'error') {
-    return (
-      <Badge variant="outline">
-        <AlertTriangleIcon className="text-destructive size-3" />
-        <span className="text-destructive font-normal">Last sync failed</span>
-      </Badge>
-    )
-  }
-
-  if (feed.status === 'ready') {
-    return (
-      <Badge variant="secondary">
-        <CheckCircle2Icon className="size-3" />
-        <span className="font-normal">Healthy</span>
-      </Badge>
-    )
-  }
-
-  return (
-    <Badge variant="outline">
-      <LoaderCircleIcon className="size-3 animate-spin" />
-      <span className="font-normal">Waiting for IMDb</span>
-    </Badge>
-  )
-}
+import { formatRelativeTime } from '@/lib/relative-time'
 
 function MyFeedRow({
   feed,

@@ -31,6 +31,11 @@ export const FAQ: readonly FaqEntry[] = [
       'Sonarr can only add shows that are listed on TheTVDB. Watcharr looks each show up on TVMaze and on TMDB to find it there. A show neither knows, usually one that was announced and never made, is left out rather than passed along broken, and it joins your link if it is ever listed.',
   },
   {
+    question: 'Can my family share one Radarr link and one Sonarr link?',
+    answer:
+      'Yes. Sign in and make a shared list. It has one Radarr link and one Sonarr link, and you can add as many IMDb lists to it as you like. Send the join link to family or friends: once they sign in, they add their own watchlists. Every list’s titles go into the same two links, a title on two lists only once, and each list is checked about every fifteen minutes. Anyone can take out the lists they added, and whoever made the shared list can remove people or make a new join link.',
+  },
+  {
     question: 'How is this different from adding an IMDb list to Radarr or Sonarr directly?',
     answer:
       'Sonarr removed its built-in IMDb list import in 2025, and Radarr’s IMDb list import stopped working after IMDb changed its export format. Watcharr fills that gap: one pasted URL becomes a list your Radarr and your Sonarr read as if from another Radarr or Sonarr, every 15 and 5 minutes, and if a later read of the list fails, both keep serving the last good one.',
