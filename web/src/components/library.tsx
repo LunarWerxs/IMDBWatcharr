@@ -487,6 +487,9 @@ function Shelves({
 
   if (feeds === null) return <LibrarySkeleton />
 
+  // The bell's pick becomes the feed it found, so that feed stays on screen once its list reads again.
+  if (picked === NEEDS_ATTENTION) setPicked(feeds.find((feed) => feed.alerting)?.key ?? null)
+
   const current =
     (picked === NEEDS_ATTENTION ? feeds.find((feed) => feed.alerting) : feeds.find((feed) => feed.key === picked)) ?? feeds[0]
 
