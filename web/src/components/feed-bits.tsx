@@ -129,14 +129,18 @@ function sized(poster: string, drawnWidth: number): string {
   return poster.replace(/_UX\d+_/, `_UX${width}_`)
 }
 
-/** A cover image, `width` CSS pixels wide, that fades in once it has arrived. */
-export function CoverImage({ src, width, className }: { src: string; width: number; className?: string }) {
+/**
+ * A cover image, `width` CSS pixels wide, that fades in once it has arrived.
+ * `lazy` for one that may start off screen; a feed's own cover is always in
+ * view and small, and the browser holds lazy images back for seconds.
+ */
+export function CoverImage({ src, width, lazy = false, className }: { src: string; width: number; lazy?: boolean; className?: string }) {
   return (
     <img
       ref={markLoaded}
       src={sized(src, width)}
       alt=""
-      loading="lazy"
+      loading={lazy ? 'lazy' : 'eager'}
       decoding="async"
       onLoad={(event) => markLoaded(event.currentTarget)}
       className={cn(

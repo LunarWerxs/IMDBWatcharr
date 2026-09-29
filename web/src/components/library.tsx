@@ -348,7 +348,7 @@ function Detail({
                   title={item.title}
                   className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-[box-shadow,translate] duration-300 ease-(--ease-soft) outline-none hover:-translate-y-1 hover:shadow-lg hover:shadow-black/40 focus-visible:ring-2"
                 >
-                  <CoverImage src={item.poster as string} width={96} className="transition-transform duration-500 group-hover/poster:scale-105" />
+                  <CoverImage src={item.poster as string} width={96} lazy className="transition-transform duration-500 group-hover/poster:scale-105" />
                 </button>
               </li>
             ))}
