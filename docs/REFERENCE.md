@@ -111,11 +111,15 @@ library starts a new feed with the link that was in the field and a second one t
 
 Signed in, the sales page is gone and the page is the library (`web/src/components/library.tsx`,
 built from `web/src/components/feed-bits.tsx`). It shows one kind of thing, a feed: one Radarr link
-and one Sonarr link, fed by one IMDb list or by several people's (`web/src/lib/use-feeds.ts`). Feeds
-sit down the side like playlists (a row of cards to swipe on a phone), and the one picked fills the
-rest: its cover, name and counts, two big copy buttons, Share (people and the join link, in a
-window), a ⋯ for rename (in place), delete, leave or stop following, its IMDb lists, and a strip of
-its covers that open the title popup.
+and one Sonarr link, fed by one IMDb list or by several people's (`web/src/lib/use-feeds.ts`). The
+feed picked fills the page: its cover, name and counts; on a computer the Add to Radarr / Sonarr
+bookmark (`BookmarkSticker` in `web/src/components/one-click-setup.tsx`: drag it to the bookmarks bar,
+click it inside Radarr or Sonarr) with the two copy buttons beside it, and on a phone, with no
+bookmarks bar, the copy buttons alone; Share (people and the join link, in a window); a ⋯ for rename
+(in place), delete, leave or stop following; its IMDb lists; and a strip of its covers that open the
+title popup. The feeds themselves are a rail of covers down the side, so the feed is plainly what to
+work on: it opens over the page under the pointer or the keyboard, and its pin keeps it open
+(`watcharr:feeds-pinned` in local storage). On a phone they are a row of small pills.
 
 It shows what the moment needs and folds the rest away:
 

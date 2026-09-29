@@ -438,6 +438,13 @@
         opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* The big one, beside a feed's other buttons in the library: as tall as they are. */
+.sticker-lg {
+    height: 2.5rem;
+    padding-inline: 1rem 1.25rem;
+    font-size: 0.875rem;
+}
+
 /* The curling corner: the sticker's paler back, folding into view at the top end. */
 .sticker::after {
     content: "";

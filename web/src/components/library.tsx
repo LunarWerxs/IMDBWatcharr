@@ -1,12 +1,14 @@
-// The signed-in page: a library of feeds. Feeds down the side (a row of cards
-// on a phone), the one picked filling the rest: its cover and name, its two
-// copy buttons, then its lists and a strip of what is on it. It shows only
+// The signed-in page: a library of feeds. The one picked fills the page: its
+// cover and name, the Add to Radarr / Sonarr bookmark and its two links, then
+// its lists and a strip of what is on it. The feeds themselves sit in a rail of
+// covers that opens on hover (pills on a phone), so the feed is what the eye
+// works on. It shows only
 // what the moment needs: no side list for a single feed, the Radarr and Sonarr
 // setup open only for a feed just made, a list's details only when its row is
 // opened, people and the join link in a Share window, the rare actions
 // behind a ⋯. A brand-new account starts on the one thing it can do.
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangleIcon, ChevronDownIcon, PlusIcon, UsersIcon } from 'lucide-react'
+import { ChevronDownIcon, PinIcon, PinOffIcon, PlusIcon, UsersIcon } from 'lucide-react'
 
 import { AskProvider } from '@/components/ask'
 import {
@@ -26,6 +28,7 @@ import {
   SourceRow,
 } from '@/components/feed-bits'
 import { LibrarySkeleton } from '@/components/library-skeleton'
+import { BookmarkSticker } from '@/components/one-click-setup'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { PreviewItem, Session } from '@/lib/api'
@@ -60,28 +63,84 @@ function sizeOf(feed: Feed, peeks: Peeks): string {
   return `${total} title${total === 1 ? '' : 's'}`
 }
 
+/** A dot on a feed's cover when it needs a look: red, a list keeps failing; amber, breathing, being read. */
 function FeedSign({ feed }: { feed: Feed }) {
-  if (feed.alerting) return <AlertTriangleIcon className="text-destructive size-4 shrink-0" aria-label="Needs attention" />
-  if (feed.health === 'pending') return <HealthDot health="pending" label="" className="shrink-0" />
-  return null
+  if (!feed.alerting && feed.health !== 'pending') return null
+  return (
+    <span
+      className={cn(
+        'ring-card absolute -top-1 -right-1 size-2.5 rounded-full ring-2',
+        feed.alerting ? 'bg-destructive' : 'breathe bg-amber-400 text-amber-400',
+      )}
+    >
+      <span className="sr-only">{feed.alerting ? 'Needs attention' : 'Reading from IMDb'}</span>
+    </span>
+  )
+}
+
+// Whether this browser has dragged a feed's bookmark before: then it knows how, and the line saying so folds away.
+const BOOKMARK_KNOWN_KEY = 'watcharr:bookmark-known'
+
+function bookmarkKnown(): boolean {
+  try {
+    return localStorage.getItem(BOOKMARK_KNOWN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function rememberBookmarkKnown() {
+  try {
+    localStorage.setItem(BOOKMARK_KNOWN_KEY, '1')
+  } catch {
+    // No storage: the line comes back next visit, which is all it costs.
+  }
+}
+
+// Whether the side list stays open; otherwise it is a rail of covers that opens while the pointer is on it.
+const PINNED_KEY = 'watcharr:feeds-pinned'
+
+function readPinned(): boolean {
+  try {
+    return localStorage.getItem(PINNED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writePinned(pinned: boolean) {
+  try {
+    if (pinned) localStorage.setItem(PINNED_KEY, '1')
+    else localStorage.removeItem(PINNED_KEY)
+  } catch {
+    // No storage: it stays as picked until the page is left.
+  }
 }
 
 function Sidebar({
   feeds,
   current,
   peeks,
+  pinned,
+  onPin,
   onPick,
   onNew,
 }: {
   feeds: Feed[]
   current: Feed
   peeks: Peeks
+  pinned: boolean
+  onPin: (pinned: boolean) => void
   onPick: (key: string) => void
   onNew: () => void
 }) {
   const list = useRef<HTMLUListElement>(null)
   const marker = useRef<HTMLSpanElement>(null)
-  const cards = useRef<HTMLElement>(null)
+  const pills = useRef<HTMLElement>(null)
+  // Labels show when the list is pinned open, or while the rail is open under the pointer or the keyboard.
+  const label = pinned
+    ? ''
+    : 'opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100 motion-reduce:transition-none'
 
   // The highlight slides to the feed picked: placed once where it belongs, then it moves.
   useLayoutEffect(() => {
@@ -103,21 +162,17 @@ function Sidebar({
     }
   }, [current.key, feeds.length])
 
-  // On a phone, the card picked comes fully into view.
+  // On a phone, the feed picked comes fully into view.
   useEffect(() => {
-    cards.current
+    pills.current
       ?.querySelector<HTMLElement>('[aria-current="true"]')
       ?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest', inline: 'nearest' })
   }, [current.key])
 
   return (
     <>
-      {/* A phone: the feeds as a row of cards to swipe through. */}
-      <nav
-        ref={cards}
-        aria-label="Your feeds"
-        className="scrollbar-quiet -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pt-1 pb-2 md:hidden"
-      >
+      {/* A phone: the feeds as small pills to swipe through, so the feed below is what the eye lands on. */}
+      <nav ref={pills} aria-label="Your feeds" className="scrollbar-quiet -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pt-1 pb-2 md:hidden">
         {feeds.map((feed, index) => {
           const active = feed.key === current.key
           return (
@@ -128,73 +183,103 @@ function Sidebar({
               aria-current={active ? 'true' : undefined}
               style={beat(index)}
               className={cn(
-                'bg-card ring-foreground/10 animation-delay-var flex w-36 shrink-0 snap-start flex-col gap-2 rounded-xl p-2.5 text-left ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
-                active ? 'ring-primary ring-2' : 'motion-safe:active:scale-[0.98]',
+                'bg-card ring-foreground/10 animation-delay-var flex max-w-44 shrink-0 snap-start items-center gap-2 rounded-full py-1 ps-1 pe-3.5 text-sm font-semibold ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
+                active ? 'ring-primary ring-2' : 'text-muted-foreground motion-safe:active:scale-[0.97]',
               )}
             >
-              <CoverMosaic posters={coversOf(feed, peeks, 4)} size={124} className="aspect-square w-full" />
-              <span className="flex items-center gap-1.5 text-sm font-bold">
-                <span className="min-w-0 flex-1 truncate">{feed.name}</span>
+              <span className="relative shrink-0">
+                <CoverMosaic posters={coversOf(feed, peeks, 4)} size={32} className="size-8 rounded-full" />
                 <FeedSign feed={feed} />
               </span>
+              <span className="truncate">{feed.name}</span>
             </button>
           )
         })}
         <button
           type="button"
           onClick={onNew}
-          className="text-muted-foreground border-foreground/20 hover:text-foreground hover:border-foreground/40 flex w-24 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-xs font-medium transition-colors"
+          className="text-muted-foreground border-foreground/20 hover:text-foreground flex shrink-0 snap-start items-center gap-1 rounded-full border border-dashed px-3 text-sm font-medium transition-colors"
         >
-          <PlusIcon className="size-5" />
+          <PlusIcon className="size-4" />
           New feed
         </button>
       </nav>
 
-      {/* Wider: a column, like a music app's playlists. */}
-      <nav aria-label="Your feeds" className="bg-card ring-foreground/10 sticky top-18 hidden rounded-xl p-2 ring-1 md:block">
-        <div className="flex items-center justify-between ps-2 pt-1 pb-2">
-          <h2 className="text-sm font-bold">Your feeds</h2>
-          <Button type="button" variant="ghost-muted" size="icon" onClick={onNew} aria-label="New feed" title="New feed">
-            <PlusIcon />
-          </Button>
-        </div>
-        {/* minmax(0, 1fr): a long name truncates inside the column instead of widening it. */}
-        <ul ref={list} className="relative grid grid-cols-[minmax(0,1fr)] gap-0.5">
-          <span
-            ref={marker}
-            aria-hidden="true"
-            className="bg-accent absolute inset-x-0 top-0 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height] data-placed:duration-350 motion-reduce:transition-none"
-          />
-          {feeds.map((feed, index) => {
-            const active = feed.key === current.key
-            return (
-              <li key={feed.key} className="animation-delay-var min-w-0 motion-safe:animate-rise" style={beat(index)}>
-                <button
-                  type="button"
-                  onClick={() => onPick(feed.key)}
-                  aria-current={active ? 'true' : undefined}
-                  className={cn(
-                    'group/feed relative flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors',
-                    !active && 'hover:bg-muted',
-                  )}
-                >
-                  <CoverMosaic
-                    posters={coversOf(feed, peeks, 4)}
-                    size={40}
-                    className="size-10 transition-transform duration-300 ease-(--ease-soft) motion-safe:group-hover/feed:scale-105"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{feed.name}</span>
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {feed.kind === 'shared' ? `${feed.members.length} people · ${sizeOf(feed, peeks)}` : sizeOf(feed, peeks)}
+      {/*
+        Wider: a rail of covers, so the feed on the right is plainly the thing to work on. It opens over
+        the page while the pointer or the keyboard is in it (closing a moment after, so a pass across
+        it does not flicker), and the pin keeps it open, remembered in this browser.
+      */}
+      <nav
+        aria-label="Your feeds"
+        className={cn(
+          'group/rail bg-card ring-foreground/10 sticky top-18 z-30 hidden overflow-hidden rounded-xl p-2 ring-1 md:block',
+          'transition-[width,box-shadow] duration-300 ease-(--ease-soft) motion-reduce:transition-none',
+          pinned
+            ? 'w-full'
+            : 'w-18 delay-150 hover:w-64 hover:shadow-2xl hover:shadow-black/50 hover:delay-0 focus-within:w-64 focus-within:delay-0 lg:hover:w-72 lg:focus-within:w-72',
+        )}
+      >
+        {/* As wide as the open list, whatever the rail's width: nothing reflows while it opens. */}
+        <div className="w-60 lg:w-68">
+          <div className="flex items-center gap-1 pt-1 pb-2">
+            <Button type="button" variant="ghost-muted" size="icon" className="ms-3" onClick={onNew} aria-label="New feed" title="New feed">
+              <PlusIcon />
+            </Button>
+            <h2 className={cn('min-w-0 flex-1 truncate text-sm font-bold', label)}>Your feeds</h2>
+            <Button
+              type="button"
+              variant="ghost-muted"
+              size="icon"
+              className={label}
+              onClick={() => onPin(!pinned)}
+              aria-pressed={pinned}
+              aria-label={pinned ? 'Let the list fold away' : 'Keep the list open'}
+              title={pinned ? 'Let the list fold away' : 'Keep the list open'}
+            >
+              {pinned ? <PinOffIcon /> : <PinIcon />}
+            </Button>
+          </div>
+          {/* minmax(0, 1fr): a long name truncates inside the column instead of widening it. */}
+          <ul ref={list} className="relative grid grid-cols-[minmax(0,1fr)] gap-0.5">
+            <span
+              ref={marker}
+              aria-hidden="true"
+              className="bg-accent absolute inset-x-0 top-0 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height] data-placed:duration-350 motion-reduce:transition-none"
+            />
+            {feeds.map((feed, index) => {
+              const active = feed.key === current.key
+              return (
+                <li key={feed.key} className="animation-delay-var min-w-0 motion-safe:animate-rise" style={beat(index)}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(feed.key)}
+                    aria-current={active ? 'true' : undefined}
+                    className={cn(
+                      'group/feed relative flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors',
+                      !active && 'hover:bg-muted',
+                    )}
+                  >
+                    <span className="relative shrink-0">
+                      <CoverMosaic
+                        posters={coversOf(feed, peeks, 4)}
+                        size={40}
+                        className="size-10 transition-transform duration-300 ease-(--ease-soft) motion-safe:group-hover/feed:scale-105"
+                      />
+                      <FeedSign feed={feed} />
                     </span>
-                  </span>
-                  <FeedSign feed={feed} />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+                    <span className={cn('min-w-0 flex-1', label)}>
+                      <span className="block truncate text-sm font-semibold">{feed.name}</span>
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {feed.kind === 'shared' ? `${feed.members.length} people · ${sizeOf(feed, peeks)}` : sizeOf(feed, peeks)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       </nav>
     </>
   )
@@ -226,6 +311,7 @@ function Detail({
   const titles = titlesOf(feed, peeks, 18)
   const [setupOpen, setSetupOpen] = useState(fresh?.why === 'made')
   const [renaming, setRenaming] = useState(false)
+  const [bookmark, setBookmark] = useState<'new' | 'asked' | 'known'>(() => (bookmarkKnown() ? 'known' : 'new'))
   const failing = feed.sources.filter((source) => source.status === 'error').length
   const eyebrow = shared ? (feed.owner ? 'Shared feed' : `Shared by ${feed.ownerName ?? 'someone'}`) : null
   const health =
@@ -237,13 +323,12 @@ function Detail({
 
   return (
     <article className="min-w-0" aria-labelledby="feed-title">
-      <header className={cn('relative flex flex-col gap-5 sm:flex-row sm:items-end', corner && 'pe-28 sm:pe-32')}>
-        {/* On a phone the picked card above already shows this cover. */}
-        <div className="hidden md:block motion-safe:animate-pop">
+      <header className={cn('relative flex items-end gap-4 sm:gap-5', corner && 'sm:pe-32')}>
+        <div className="shrink-0 motion-safe:animate-pop">
           <CoverMosaic
             posters={titles.slice(0, 4).map((item) => item.poster as string)}
             size={160}
-            className="size-40 rounded-xl shadow-lg shadow-black/30"
+            className="size-20 rounded-xl shadow-lg shadow-black/30 sm:size-28 md:size-40"
           />
         </div>
         <div className="min-w-0 flex-1 motion-safe:animate-rise">
@@ -270,12 +355,35 @@ function Detail({
             <HealthDot health={feed.health} label={health} className={feed.health === 'error' ? 'text-destructive' : undefined} />
           </p>
         </div>
-        {corner && <div className="absolute top-0 right-0">{corner}</div>}
+        {corner && <div className="absolute top-0 right-0 hidden sm:block">{corner}</div>}
       </header>
 
-      <div className="animation-delay-var mt-6 flex flex-wrap items-center gap-2 motion-safe:animate-rise" style={beat(1)}>
-        <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" />
-        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" />
+      <div
+        className="animation-delay-var mt-6 flex flex-wrap items-center gap-2 motion-safe:animate-rise"
+        style={{ ...beat(1), '--sticker-page': 'var(--background)' }}
+      >
+        {/*
+          A computer has a bookmarks bar: the bookmark sets the feed up inside Radarr or Sonarr in one
+          click, so it leads and the links are the other way. A phone has none, so the links lead there.
+        */}
+        <span className="hidden md:inline-flex">
+          <BookmarkSticker
+            radarrUrl={feed.radarrUrl}
+            sonarrUrl={feed.sonarrUrl}
+            listTitle={feed.name}
+            size="lg"
+            describedBy="bookmark-how"
+            onHint={() => setBookmark('asked')}
+            onDragged={() => {
+              rememberBookmarkKnown()
+              setBookmark('known')
+            }}
+          />
+        </span>
+        <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" className="md:hidden" />
+        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" className="md:hidden" />
+        <CopyAppButton app="Radarr" url={feed.radarrUrl} size="cta" className="hidden md:inline-flex" />
+        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" />
         {shared && (
           <Button type="button" variant="secondary" size="cta" onClick={onShare}>
             <UsersIcon />
@@ -284,6 +392,20 @@ function Detail({
           </Button>
         )}
         <FeedMenu feed={feed} api={api} onGone={onGone} onRename={() => setRenaming(true)} />
+        {corner && <span className="sm:hidden">{corner}</span>}
+      </div>
+
+      {/* What the bookmark is for, until this browser has dragged one; or when it is clicked here instead. */}
+      <div className="hidden md:block">
+        <Fold open={bookmark !== 'known'}>
+          <p id="bookmark-how" role={bookmark === 'asked' ? 'status' : undefined} className="text-muted-foreground pt-2 text-sm text-pretty">
+            {bookmark === 'asked' ? (
+              <span className="text-foreground font-bold">Drag it to your bookmarks bar first, then click it in Radarr or Sonarr.</span>
+            ) : (
+              'Drag Add to Radarr / Sonarr to your bookmarks bar, then click it inside Radarr or Sonarr: it adds this feed there for you.'
+            )}
+          </p>
+        </Fold>
       </div>
 
       <div className="animation-delay-var mt-3 motion-safe:animate-rise" style={beat(2)}>
@@ -305,7 +427,10 @@ function Detail({
             {fresh?.why === 'made' && (
               <p className="mb-3 text-sm text-pretty">
                 <span className="font-bold">One last step:</span>{' '}
-                <span className="text-muted-foreground">put these two links in Radarr and Sonarr, and they fill in from here.</span>
+                <span className="text-muted-foreground">
+                  put these two links in Radarr and Sonarr, and they fill in from here. On a computer, the Add to Radarr / Sonarr
+                  bookmark does it for you.
+                </span>
               </p>
             )}
             <SetupSteps feed={feed} />
@@ -439,6 +564,7 @@ function Shelves({
   const [dialog, setDialog] = useState<{ open: 'new' | 'share' | null; links?: string[] }>({ open: null })
   const close = () => setDialog((current) => ({ ...current, open: null }))
   const [title, setTitle] = useState<{ item: PreviewItem | null; opened: boolean }>({ item: null, opened: false })
+  const [pinned, setPinned] = useState(readPinned)
   const peeks = usePeeks(feeds?.flatMap((feed) => feed.sources.map((source) => source.slug)) ?? [])
   const firstName = session?.name?.trim().split(/\s+/)[0]
   const defaultName = firstName ? `${firstName}’s lists` : 'My lists'
@@ -536,9 +662,25 @@ function Shelves({
         <div className="pt-8 pb-4 sm:pt-10">{detail}</div>
       ) : (
         // minmax(0, 1fr) on a phone too: the row of feed cards would otherwise widen the column past the screen.
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pt-8 pb-4 sm:pt-10 md:grid-cols-[16rem_minmax(0,1fr)] md:gap-10 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <div
+          className={cn(
+            'grid grid-cols-[minmax(0,1fr)] gap-4 pt-8 pb-4 transition-[grid-template-columns] duration-500 ease-(--ease-soft) sm:pt-10 md:gap-8 motion-reduce:transition-none',
+            pinned ? 'md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[18rem_minmax(0,1fr)]' : 'md:grid-cols-[4.5rem_minmax(0,1fr)]',
+          )}
+        >
           <aside className="min-w-0 md:self-start">
-            <Sidebar feeds={feeds} current={current} peeks={peeks} onPick={pick} onNew={() => setDialog({ open: 'new' })} />
+            <Sidebar
+              feeds={feeds}
+              current={current}
+              peeks={peeks}
+              pinned={pinned}
+              onPin={(next) => {
+                writePinned(next)
+                setPinned(next)
+              }}
+              onPick={pick}
+              onNew={() => setDialog({ open: 'new' })}
+            />
           </aside>
           {detail}
         </div>
