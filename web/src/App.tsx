@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
 
 import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
@@ -9,7 +9,7 @@ import { Reveal } from '@/components/reveal'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
 import { createFeed, createSharedList, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
-import { inDemo } from '@/lib/demo-mode'
+import { demoLayout, inDemo } from '@/lib/demo-mode'
 import { lazyPart, useHydrated } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
 import { notify } from '@/lib/notify'
@@ -21,6 +21,10 @@ const MyFeeds = lazyPart(() => import('@/components/my-feeds').then((module) => 
 const SharedLists = lazyPart(() => import('@/components/shared-lists').then((module) => module.SharedLists))
 const JoinInvite = lazyPart(() => import('@/components/join-invite').then((module) => module.JoinInvite))
 const SignInLightbox = lazyPart(() => import('@/components/sign-in-lightbox').then((module) => module.SignInLightbox))
+// The signed-in redesigns being chosen between, only in the demo (?demo=2, ?demo=3):
+// plain lazy, not lazyPart, so nobody else ever downloads them.
+const HomeV2 = lazy(() => import('@/components/home-v2').then((module) => ({ default: module.HomeV2 })))
+const HomeV3 = lazy(() => import('@/components/home-v3').then((module) => ({ default: module.HomeV3 })))
 
 /**
  * On a phone the results land below the fold, so pressing Generate brings the
@@ -36,11 +40,14 @@ function revealFeeds() {
 export default function App() {
   // Known only in the browser, and after hydrating, so the prerendered page never disagrees.
   const demo = useHydrated() && inDemo()
+  const layout = demo ? demoLayout() : 1
   const [sourceUrl, setSourceUrl] = useState('')
+  const [session, setSession] = useState<Session | null>(null)
+  // A redesign replaces the whole signed-in page, sales pitch and all.
+  const redesign = layout !== 1 && Boolean(session?.signedIn)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateFeedResponse | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   // The URL a poll should keep re-checking. Kept separate from `sourceUrl` so
   // editing the input mid-sync cannot redirect a poll already in flight.
   const [activeUrl, setActiveUrl] = useState('')
@@ -157,9 +164,9 @@ export default function App() {
       <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
       <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
-        {demo && <DemoBanner />}
+        {demo && <DemoBanner layout={layout} />}
 
-        <Hero />
+        {!redesign && <Hero />}
 
         {shared.joinCode && (
           <Suspense fallback={null}>
@@ -173,65 +180,77 @@ export default function App() {
           </Suspense>
         )}
 
-        <FeedForm
-          sourceUrl={sourceUrl}
-          onSourceUrlChange={setSourceUrl}
-          onClear={handleClear}
-          looksValid={looksValid}
-          pending={pending}
-          session={session}
-          onSubmit={handleSubmit}
-          onCombine={combineLists}
-          onSignIn={handleSignIn}
-          onTry={openList}
-        />
-
-        {session?.signedIn && (
+        {redesign ? (
           <Suspense fallback={null}>
-            <MyFeeds
-              refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
-              onOpen={openList}
-              onUnfollowed={handleUnfollowed}
+            {layout === 2 ? (
+              <HomeV2 key={shared.focusSlug ?? ''} session={session} focusSlug={shared.focusSlug} />
+            ) : (
+              <HomeV3 key={shared.focusSlug ?? ''} session={session} focusSlug={shared.focusSlug} />
+            )}
+          </Suspense>
+        ) : (
+          <>
+            <FeedForm
+              sourceUrl={sourceUrl}
+              onSourceUrlChange={setSourceUrl}
+              onClear={handleClear}
+              looksValid={looksValid}
+              pending={pending}
+              session={session}
+              onSubmit={handleSubmit}
+              onCombine={combineLists}
+              onSignIn={handleSignIn}
+              onTry={openList}
             />
-          </Suspense>
+
+            {session?.signedIn && (
+              <Suspense fallback={null}>
+                <MyFeeds
+                  refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
+                  onOpen={openList}
+                  onUnfollowed={handleUnfollowed}
+                />
+              </Suspense>
+            )}
+
+            {session?.signedIn && (
+              <Suspense fallback={null}>
+                <SharedLists focusSlug={shared.focusSlug} />
+              </Suspense>
+            )}
+
+            <Reveal>
+              <FeedsSection
+                pending={pending}
+                error={error}
+                result={result}
+                session={session}
+                listUrl={activeUrl}
+                onSignIn={handleSignIn}
+              />
+            </Reveal>
+
+            <Reveal>
+              <PosterRow pending={pending} result={result} listUrl={activeUrl} />
+            </Reveal>
+
+            <Reveal>
+              <HowItWorks />
+            </Reveal>
+
+            <Reveal>
+              <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+            </Reveal>
+
+            <Reveal>
+              <FaqSection />
+            </Reveal>
+
+            <Reveal>
+              <AskarrSection />
+            </Reveal>
+          </>
         )}
-
-        {session?.signedIn && (
-          <Suspense fallback={null}>
-            <SharedLists focusSlug={shared.focusSlug} />
-          </Suspense>
-        )}
-
-        <Reveal>
-          <FeedsSection
-            pending={pending}
-            error={error}
-            result={result}
-            session={session}
-            listUrl={activeUrl}
-            onSignIn={handleSignIn}
-          />
-        </Reveal>
-
-        <Reveal>
-          <PosterRow pending={pending} result={result} listUrl={activeUrl} />
-        </Reveal>
-
-        <Reveal>
-          <HowItWorks />
-        </Reveal>
-
-        <Reveal>
-          <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
-        </Reveal>
-
-        <Reveal>
-          <FaqSection />
-        </Reveal>
-
-        <Reveal>
-          <AskarrSection />
-        </Reveal>
       </main>
 
       <SiteFooter />

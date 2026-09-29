@@ -19,7 +19,7 @@ import {
   type SharedMember,
   type SharedSource,
 } from '@/lib/api'
-import { DEMO_GAME_NIGHT_INVITE as GAME_NIGHT_INVITE, DEMO_PARAM } from '@/lib/demo-mode'
+import { DEMO_GAME_NIGHT_INVITE as GAME_NIGHT_INVITE, DEMO_PARAM, demoLayout } from '@/lib/demo-mode'
 
 const YOU = 'Alex'
 const MAX_SOURCES = 25
@@ -117,6 +117,16 @@ type DemoShared = {
 
 let nextId = 100
 const stats = new Map<string, ListStats>()
+// Each list's real feed slug, so the page can read its covers from the live Worker.
+const slugs = new Map<string, string>()
+
+async function ensureSlug(url: string) {
+  if (isSupportedImdbUrl(url) && !slugs.has(listKey(url))) slugs.set(listKey(url), await feedSlug(url))
+}
+
+function slugOf(url: string): string {
+  return slugs.get(listKey(url)) ?? listKey(url)
+}
 const myFeeds: string[] = [LISTS.movies.url, LISTS.ghibli.url, PRIVATE_WATCHLIST]
 const shared: DemoShared[] = []
 
@@ -138,6 +148,7 @@ function source(url: string, addedBy: string): DemoSource {
 
 async function seed() {
   const known = Object.values(LISTS)
+  await Promise.all([...known.map((list) => list.url), PRIVATE_WATCHLIST].map(ensureSlug))
   const read = await Promise.all(known.map((list) => realStats(list.url, list.title)))
   known.forEach((list, index) => stats.set(listKey(list.url), read[index]))
   stats.set(listKey(PRIVATE_WATCHLIST), {
@@ -193,7 +204,7 @@ function sourceView(entry: DemoSource, youOwn: boolean): SharedSource {
   const read = entry.stats
   const failing = read?.status === 'error'
   return {
-    slug: listKey(entry.url),
+    slug: slugOf(entry.url),
     sourceUrl: canonicalUrl(entry.url),
     listTitle: read?.title ?? '',
     status: read?.status ?? 'pending',
@@ -232,8 +243,9 @@ function sharedView(list: DemoShared): SharedList {
   }
 }
 
+// A demo join link keeps the layout being looked at.
 function joinUrl(code: string): string {
-  return `${window.location.origin}/?${DEMO_PARAM}&join=${code}`
+  return `${window.location.origin}/?${DEMO_PARAM}=${demoLayout()}&join=${code}`
 }
 
 function mine() {
@@ -248,7 +260,7 @@ function myFeedView(url: string): MyFeed {
   const read = stats.get(listKey(url))
   const failing = read?.status === 'error'
   return {
-    slug: listKey(url),
+    slug: slugOf(url),
     sourceUrl: canonicalUrl(url),
     listTitle: read?.title ?? '',
     status: read?.status ?? 'pending',
@@ -306,7 +318,7 @@ function actOnShared(list: DemoShared, action: string, body: Record<string, unkn
     return addSource(list, String(body.sourceUrl ?? '').trim()) ?? lists()
   }
   if (action === 'sources/remove') {
-    const index = list.sources.findIndex((entry) => listKey(entry.url) === String(body.feedSlug))
+    const index = list.sources.findIndex((entry) => slugOf(entry.url) === String(body.feedSlug))
     if (index < 0 || (!owner && list.sources[index].addedBy !== YOU)) {
       return refuse('You can only remove the lists you added.', 403)
     }
@@ -446,6 +458,9 @@ async function answer(request: Request, url: URL): Promise<Response | null> {
   }
 
   await ready()
+  // A link added here gets its real slug first, so its covers can be read like the others'.
+  const links = [body.sourceUrl, ...(Array.isArray(body.sourceUrls) ? body.sourceUrls : [])]
+  await Promise.all(links.filter(Boolean).map((link) => ensureSlug(String(link).trim())))
   if (path === '/api/my-feeds') return json({ feeds: myFeeds.map(myFeedView) })
   if (path === '/api/notifications') {
     const alerting = myFeeds.map(myFeedView).filter((feed) => feed.alerting)

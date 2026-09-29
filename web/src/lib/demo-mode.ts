@@ -19,3 +19,19 @@ export const DEMO_INVITE_URL = `/?${DEMO_PARAM}&join=${DEMO_GAME_NIGHT_INVITE}`
 export function inDemo(): boolean {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has(DEMO_PARAM)
 }
+
+// The signed-in layouts the demo can show, while one is chosen: 1 is the
+// page as it ships, 2 and 3 are redesigns (home-v2.tsx, home-v3.tsx).
+export const DEMO_LAYOUTS = [
+  { layout: 1, name: 'As it is' },
+  { layout: 2, name: 'Rows that open' },
+  { layout: 3, name: 'Library' },
+] as const
+
+export type DemoLayout = (typeof DEMO_LAYOUTS)[number]['layout']
+
+/** Which layout ?demo=N asks for; 1 for a bare ?demo or anything else. */
+export function demoLayout(): DemoLayout {
+  const asked = Number(new URLSearchParams(window.location.search).get(DEMO_PARAM))
+  return DEMO_LAYOUTS.find((entry) => entry.layout === asked)?.layout ?? 1
+}
