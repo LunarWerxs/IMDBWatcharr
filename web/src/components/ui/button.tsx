@@ -32,8 +32,6 @@ const buttonVariants = cva(
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        reveal:
-          "h-7 gap-0 rounded-[min(var(--radius-md),12px)] px-2 text-[0.8rem] in-data-[slot=button-group]:rounded-lg hover:gap-1.5 focus-visible:gap-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         icon: "size-8",
         // A standalone call to action; a leading logo tile (data-icon="tile") sits closer to the edge.
         cta: "h-10 gap-2.5 px-5 has-data-[icon=tile]:ps-1.5",

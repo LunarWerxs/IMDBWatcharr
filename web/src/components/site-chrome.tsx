@@ -3,6 +3,7 @@ import { ChevronRightIcon, UserIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { GithubLink, REPO_URL } from '@/components/github-link'
+import { IconTip } from '@/components/icon-tip'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { rememberSignedIn, signInHref } from '@/lib/feed-page'
 import { lazyPart } from '@/lib/lazy'
@@ -89,18 +90,20 @@ function AccountControl({
  */
 function LunarWerxLink() {
   return (
-    <Button asChild variant="ghost" size="icon">
-      <a href={STUDIO_URL} aria-label="LunarWerx Studios" title="LunarWerx Studios">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path fill="currentColor" d="M8.88 1.72A10.5 10.5 0 1 0 20.69 16.05A9.3 9.3 0 0 1 8.88 1.72Z" />
-          <g fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.4 8.6 11.8 11.2l2.6 2.6" />
-            <path d="M16.2 8.2 18 14.2" />
-            <path d="M19.8 8.6 22.4 11.2l-2.6 2.6" />
-          </g>
-        </svg>
-      </a>
-    </Button>
+    <IconTip label="LunarWerx">
+      <Button asChild variant="ghost" size="icon">
+        <a href={STUDIO_URL} aria-label="LunarWerx Studios">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M8.88 1.72A10.5 10.5 0 1 0 20.69 16.05A9.3 9.3 0 0 1 8.88 1.72Z" />
+            <g fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.4 8.6 11.8 11.2l2.6 2.6" />
+              <path d="M16.2 8.2 18 14.2" />
+              <path d="M19.8 8.6 22.4 11.2l-2.6 2.6" />
+            </g>
+          </svg>
+        </a>
+      </Button>
+    </IconTip>
   )
 }
 
