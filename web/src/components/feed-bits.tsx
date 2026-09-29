@@ -119,12 +119,22 @@ function markLoaded(image: HTMLImageElement | null) {
   if (image?.complete && image.naturalWidth > 0) image.dataset.loaded = ''
 }
 
-/** A cover image that fades in once it has arrived. */
-export function CoverImage({ src, className }: { src: string; className?: string }) {
+/**
+ * The same cover at about the width it is drawn, for a sharp screen: IMDb's
+ * image host scales on request (src/imdb.js asks for 380 pixels, a whole
+ * poster's worth), and a 20-pixel tile does not need that.
+ */
+function sized(poster: string, drawnWidth: number): string {
+  const width = Math.min(380, Math.ceil((drawnWidth * 2) / 20) * 20)
+  return poster.replace(/_UX\d+_/, `_UX${width}_`)
+}
+
+/** A cover image, `width` CSS pixels wide, that fades in once it has arrived. */
+export function CoverImage({ src, width, className }: { src: string; width: number; className?: string }) {
   return (
     <img
       ref={markLoaded}
-      src={src}
+      src={sized(src, width)}
       alt=""
       loading="lazy"
       decoding="async"
@@ -139,9 +149,10 @@ export function CoverImage({ src, className }: { src: string; className?: string
 
 /**
  * A feed's cover, the way a playlist has one: four of its covers in a square,
- * or one when it has fewer, or a film mark while none are read yet.
+ * or one when it has fewer, or a film mark while none are read yet. `size` is
+ * how wide it is drawn, in CSS pixels, so each cover is fetched at that size.
  */
-export function CoverMosaic({ posters, className = 'size-12' }: { posters: string[]; className?: string }) {
+export function CoverMosaic({ posters, size, className }: { posters: string[]; size: number; className: string }) {
   const frame = cn('bg-secondary ring-foreground/10 shrink-0 overflow-hidden rounded-md ring-1', className)
   if (posters.length === 0) {
     return (
@@ -154,7 +165,7 @@ export function CoverMosaic({ posters, className = 'size-12' }: { posters: strin
   return (
     <span className={cn(frame, tiles.length === 4 ? 'grid grid-cols-2 grid-rows-2' : 'block')} aria-hidden="true">
       {tiles.map((poster) => (
-        <CoverImage key={poster} src={poster} />
+        <CoverImage key={poster} src={poster} width={tiles.length === 4 ? size / 2 : size} />
       ))}
     </span>
   )

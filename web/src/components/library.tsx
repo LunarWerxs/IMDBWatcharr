@@ -132,7 +132,7 @@ function Sidebar({
                 active ? 'ring-primary ring-2' : 'active:scale-[0.98]',
               )}
             >
-              <CoverMosaic posters={coversOf(feed, peeks, 4)} className="aspect-square w-full" />
+              <CoverMosaic posters={coversOf(feed, peeks, 4)} size={124} className="aspect-square w-full" />
               <span className="flex items-center gap-1.5 text-sm font-bold">
                 <span className="min-w-0 flex-1 truncate">{feed.name}</span>
                 <FeedSign feed={feed} />
@@ -180,6 +180,7 @@ function Sidebar({
                 >
                   <CoverMosaic
                     posters={coversOf(feed, peeks, 4)}
+                    size={40}
                     className="size-10 transition-transform duration-300 ease-(--ease-soft) group-hover/feed:scale-105"
                   />
                   <span className="min-w-0 flex-1">
@@ -241,6 +242,7 @@ function Detail({
         <div className="hidden md:block motion-safe:animate-pop">
           <CoverMosaic
             posters={titles.slice(0, 4).map((item) => item.poster as string)}
+            size={160}
             className="size-40 rounded-xl shadow-lg shadow-black/30"
           />
         </div>
@@ -346,7 +348,7 @@ function Detail({
                   title={item.title}
                   className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-[box-shadow,translate] duration-300 ease-(--ease-soft) outline-none hover:-translate-y-1 hover:shadow-lg hover:shadow-black/40 focus-visible:ring-2"
                 >
-                  <CoverImage src={item.poster as string} className="transition-transform duration-500 group-hover/poster:scale-105" />
+                  <CoverImage src={item.poster as string} width={96} className="transition-transform duration-500 group-hover/poster:scale-105" />
                 </button>
               </li>
             ))}
@@ -523,6 +525,8 @@ function Shelves({
 
   return (
     <>
+      {/* The page's heading for a screen reader; the eye has the feed's name. The first-run page has its own. */}
+      {feeds.length > 0 && <h1 className="sr-only">Your feeds</h1>}
       {feeds.length === 0 ? (
         <FirstRun api={api} firstName={firstName} draft={draft} onMade={made} />
       ) : feeds.length === 1 ? (
