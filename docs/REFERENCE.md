@@ -127,12 +127,14 @@ rather than hides its overflow: a hidden overflow is still a scroll box, and key
 the folded rail used to scroll its covers out of sight. On a phone the feeds are a row of small pills.
 The buttons wrap in pairs (the two copy buttons; Share with the ⋯), a copy button keeps its width
 while it says Copied, and in light theme the grey buttons are white faces with an edge, since the
-theme's grey is the page's own.
+theme's grey is the page's own. On a phone, toasts come down from just under the header, so they do
+not sit over what a button just opened; the shared Discord badge steps aside while one shows.
 
 It shows what the moment needs and folds the rest away:
 
 - No feeds yet: only the first-feed form, with three real lists to try.
-- One feed: no side list; New feed sits at the far end of the buttons (beside the ⋯ on a phone).
+- One feed: no side list; New feed sits at the far end of the buttons, on the column's edge (leading
+  the second line on a phone, where Share leads it for a shared feed).
 - A feed just made opens with the Radarr and Sonarr setup showing; any other keeps it folded under
   "Where do these go in Radarr and Sonarr?" until a copy button is pressed. A feed just joined opens
   with its add-a-list field.
