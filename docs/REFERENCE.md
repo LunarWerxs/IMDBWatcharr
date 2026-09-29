@@ -130,6 +130,14 @@ the demo is "read" about twelve seconds later. **See an invite** in the demo ban
 screen for a list Alex is not in yet (`/?demo&join=feedfacecafebeefdeadbeef00000001`), and the
 sign-in prompts link to the demo as **See how it looks**.
 
+**Layouts being chosen between.** The banner switches the signed-in page between `/?demo=1` (as it
+ships), `/?demo=2` (one column of feeds that open into tabs, `web/src/components/home-v2.tsx`) and
+`/?demo=3` (a library: feeds down the side, the picked one filling the rest, sharing in a window,
+`web/src/components/home-v3.tsx`). Both redesigns show one kind of thing, a feed (one Radarr link
+and one Sonarr link from one IMDb list or several, `web/src/lib/use-feeds.ts`), built from
+`web/src/components/feed-bits.tsx`, and only the demo loads them. Once one is picked it replaces the
+signed-in page and the other goes.
+
 How it works: `web/src/main.tsx` sees `?demo` (`web/src/lib/demo-mode.ts`) and, before the page
 starts, loads `web/src/lib/demo.ts`, which puts itself in front of `window.fetch` and answers
 `/api/me`, `/api/my-feeds`, `/api/notifications`, `/api/unfollow` and every `/api/shared` route from
