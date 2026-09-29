@@ -135,7 +135,10 @@ export function SiteHeader({
               <NotificationsBadge />
             </Suspense>
           )}
-          <LunarWerxLink />
+          {/* The studio's link is in the footer too; a phone needs the room for the name. */}
+          <span className="hidden sm:contents">
+            <LunarWerxLink />
+          </span>
           <GithubLink />
           <ThemeToggle />
           <AccountControl session={session} listUrl={listUrl} onSignIn={onSignIn} />
