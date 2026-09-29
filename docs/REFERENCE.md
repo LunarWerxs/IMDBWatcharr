@@ -126,7 +126,10 @@ It shows what the moment needs and folds the rest away:
 - No feeds yet: only the first-feed form, with three real lists to try.
 - One feed: no side list; New feed sits beside the name.
 - A feed just made opens with the Radarr and Sonarr setup showing; any other keeps it folded under
-  "Where do these go in Radarr and Sonarr?". A feed just joined opens with its add-a-list field.
+  "Where do these go in Radarr and Sonarr?" until a copy button is pressed. A feed just joined opens
+  with its add-a-list field.
+- The bookmark's line shows only while it is dragged, just dropped (for a few seconds) or clicked on
+  the page, where it does nothing but say to drag it.
 - An IMDb list is one line (whose, how big, a status dot) that opens for when it was read, what went
   wrong, Open on IMDb and Take it out. A list that cannot be read starts open, with the reason.
 - Deleting, leaving, taking a list out, removing someone or making a new join link asks first, in

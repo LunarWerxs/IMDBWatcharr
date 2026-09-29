@@ -18,6 +18,7 @@ export function BookmarkSticker({
   size = 'default',
   describedBy,
   onHint,
+  onDragBegin,
   onDragged,
 }: {
   radarrUrl: string
@@ -27,7 +28,8 @@ export function BookmarkSticker({
   size?: 'default' | 'lg'
   describedBy?: string
   onHint?: () => void
-  /** Once it has been dragged somewhere: the visitor knows how it works. */
+  onDragBegin?: () => void
+  /** Once it has been dropped, wherever that was. */
   onDragged?: () => void
 }) {
   const link = useRef<HTMLAnchorElement>(null)
@@ -44,6 +46,7 @@ export function BookmarkSticker({
     event.dataTransfer.setDragImage(event.currentTarget, event.nativeEvent.offsetX, event.nativeEvent.offsetY)
     // The browser photographs the drag image from this frame, so the footprint shows from the next.
     frame.current = requestAnimationFrame(() => setPeeled(true))
+    onDragBegin?.()
   }
   const onDragEnd = () => {
     cancelAnimationFrame(frame.current)

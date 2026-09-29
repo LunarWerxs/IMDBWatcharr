@@ -209,12 +209,15 @@ export function CopyAppButton({
   variant = 'secondary',
   size = 'sm',
   className,
+  onUse,
 }: {
   app: App
   url: string
   variant?: 'secondary' | 'cta'
   size?: 'sm' | 'default' | 'cta'
   className?: string
+  /** After it is pressed, copied or not: the library opens where the link goes, with the link to copy by hand. */
+  onUse?: () => void
 }) {
   const [copied, setCopied] = useState(false)
   const Icon = APPS[app].icon
@@ -226,8 +229,9 @@ export function CopyAppButton({
       setTimeout(() => setCopied(false), 1800)
       void notify('success', `${app} link copied. Paste it in ${app} as the Full URL.`)
     } catch {
-      void notify('error', 'Could not copy. Open “Where do these go” and copy the link from there.')
+      void notify('error', 'Could not copy. The link is under “Where do these go in Radarr and Sonarr?” to copy by hand.')
     }
+    onUse?.()
   }
 
   return (

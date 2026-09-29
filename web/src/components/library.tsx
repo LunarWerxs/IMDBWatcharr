@@ -78,24 +78,15 @@ function FeedSign({ feed }: { feed: Feed }) {
   )
 }
 
-// Whether this browser has dragged a feed's bookmark before: then it knows how, and the line saying so folds away.
-const BOOKMARK_KNOWN_KEY = 'watcharr:bookmark-known'
+// How long the bookmark's line stays after it is dropped or clicked, before it folds away again.
+const BOOKMARK_HINT_MS = 8000
 
-function bookmarkKnown(): boolean {
-  try {
-    return localStorage.getItem(BOOKMARK_KNOWN_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function rememberBookmarkKnown() {
-  try {
-    localStorage.setItem(BOOKMARK_KNOWN_KEY, '1')
-  } catch {
-    // No storage: the line comes back next visit, which is all it costs.
-  }
-}
+/** The bookmark's line, for what the visitor is doing with it right now. */
+const BOOKMARK_HINTS = {
+  dragging: 'Drop it on your bookmarks bar. Then click it inside Radarr or Sonarr: it adds this feed there for you.',
+  dropped: 'Now open Radarr or Sonarr and click the bookmark there: it adds this feed for you.',
+  clicked: 'Drag it to your bookmarks bar first, then click it inside Radarr or Sonarr.',
+} as const
 
 // Whether the side list stays open; otherwise it is a rail of covers that opens while the pointer is on it.
 const PINNED_KEY = 'watcharr:feeds-pinned'
@@ -140,7 +131,7 @@ function Sidebar({
   // Labels show when the list is pinned open, or while the rail is open under the pointer or the keyboard.
   const label = pinned
     ? ''
-    : 'opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100 motion-reduce:transition-none'
+    : 'opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-has-[:focus-visible]/rail:opacity-100 motion-reduce:transition-none'
 
   // The highlight slides to the feed picked: placed once where it belongs, then it moves.
   useLayoutEffect(() => {
@@ -207,8 +198,9 @@ function Sidebar({
 
       {/*
         Wider: a rail of covers, so the feed on the right is plainly the thing to work on. It opens over
-        the page while the pointer or the keyboard is in it (closing a moment after, so a pass across
-        it does not flicker), and the pin keeps it open, remembered in this browser.
+        the page while the pointer is on it or the keyboard is in it (closing a moment after, so a pass
+        across it does not flicker), and the pin keeps it open, remembered in this browser. Keyboard
+        focus only, not focus: a click leaves focus on the feed picked, and the rail would stay open.
       */}
       <nav
         aria-label="Your feeds"
@@ -217,7 +209,7 @@ function Sidebar({
           'transition-[width,box-shadow] duration-300 ease-(--ease-soft) motion-reduce:transition-none',
           pinned
             ? 'w-full'
-            : 'w-18 delay-150 hover:w-64 hover:shadow-2xl hover:shadow-black/50 hover:delay-0 focus-within:w-64 focus-within:delay-0 lg:hover:w-72 lg:focus-within:w-72',
+            : 'w-18 delay-150 hover:w-64 hover:shadow-2xl hover:shadow-black/50 hover:delay-0 has-[:focus-visible]:w-64 has-[:focus-visible]:delay-0 lg:hover:w-72 lg:has-[:focus-visible]:w-72',
         )}
       >
         {/* As wide as the open list, whatever the rail's width: nothing reflows while it opens. */}
@@ -245,7 +237,11 @@ function Sidebar({
             <span
               ref={marker}
               aria-hidden="true"
-              className="bg-accent absolute inset-x-0 top-0 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height] data-placed:duration-350 motion-reduce:transition-none"
+              className={cn(
+                // Folded, it hugs the cover (its 2.5rem and the row's padding); open, the whole row.
+                'bg-accent absolute top-0 left-0 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height,width] data-placed:duration-350 motion-reduce:transition-none',
+                pinned ? 'w-full' : 'w-14 group-hover/rail:w-full group-has-[:focus-visible]/rail:w-full',
+              )}
             />
             {feeds.map((feed, index) => {
               const active = feed.key === current.key
@@ -311,7 +307,15 @@ function Detail({
   const titles = titlesOf(feed, peeks, 18)
   const [setupOpen, setSetupOpen] = useState(fresh?.why === 'made')
   const [renaming, setRenaming] = useState(false)
-  const [bookmark, setBookmark] = useState<'new' | 'asked' | 'known'>(() => (bookmarkKnown() ? 'known' : 'new'))
+  // What the bookmark's line says, while it is wanted: nothing until the bookmark is dragged or clicked.
+  const [bookmark, setBookmark] = useState<keyof typeof BOOKMARK_HINTS | null>(null)
+  useEffect(() => {
+    if (bookmark !== 'dropped' && bookmark !== 'clicked') return
+    const timer = setTimeout(() => setBookmark(null), BOOKMARK_HINT_MS)
+    return () => clearTimeout(timer)
+  }, [bookmark])
+  // Copying a link opens where it goes in the app.
+  const showSetup = () => setSetupOpen(true)
   const failing = feed.sources.filter((source) => source.status === 'error').length
   const eyebrow = shared ? (feed.owner ? 'Shared feed' : `Shared by ${feed.ownerName ?? 'someone'}`) : null
   const health =
@@ -373,17 +377,15 @@ function Detail({
             listTitle={feed.name}
             size="lg"
             describedBy="bookmark-how"
-            onHint={() => setBookmark('asked')}
-            onDragged={() => {
-              rememberBookmarkKnown()
-              setBookmark('known')
-            }}
+            onHint={() => setBookmark('clicked')}
+            onDragBegin={() => setBookmark('dragging')}
+            onDragged={() => setBookmark('dropped')}
           />
         </span>
-        <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" className="md:hidden" />
-        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" className="md:hidden" />
-        <CopyAppButton app="Radarr" url={feed.radarrUrl} size="cta" className="hidden md:inline-flex" />
-        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" />
+        <CopyAppButton app="Radarr" url={feed.radarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
+        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} variant="cta" size="cta" className="md:hidden" onUse={showSetup} />
+        <CopyAppButton app="Radarr" url={feed.radarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
+        <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
         {shared && (
           <Button type="button" variant="secondary" size="cta" onClick={onShare}>
             <UsersIcon />
@@ -395,15 +397,11 @@ function Detail({
         {corner && <span className="sm:hidden">{corner}</span>}
       </div>
 
-      {/* What the bookmark is for, until this browser has dragged one; or when it is clicked here instead. */}
+      {/* What the bookmark is for, only while it is being dragged, just dropped or clicked here. */}
       <div className="hidden md:block">
-        <Fold open={bookmark !== 'known'}>
-          <p id="bookmark-how" role={bookmark === 'asked' ? 'status' : undefined} className="text-muted-foreground pt-2 text-sm text-pretty">
-            {bookmark === 'asked' ? (
-              <span className="text-foreground font-bold">Drag it to your bookmarks bar first, then click it in Radarr or Sonarr.</span>
-            ) : (
-              'Drag Add to Radarr / Sonarr to your bookmarks bar, then click it inside Radarr or Sonarr: it adds this feed there for you.'
-            )}
+        <Fold open={bookmark !== null}>
+          <p id="bookmark-how" role="status" className="pt-2 text-sm font-medium text-pretty">
+            {bookmark && BOOKMARK_HINTS[bookmark]}
           </p>
         </Fold>
       </div>
