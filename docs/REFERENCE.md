@@ -117,7 +117,8 @@ bookmark (`BookmarkSticker` in `web/src/components/one-click-setup.tsx`: drag it
 click it inside Radarr or Sonarr) with the two copy buttons beside it, and on a phone, with no
 bookmarks bar, the copy buttons alone; Share (people and the join link, in a window); a ⋯ for rename
 (in place), delete, leave or stop following; its IMDb lists; and a strip of its covers that open the
-title popup. The feeds themselves are a rail of covers down the side, so the feed is plainly what to
+title popup (`ScrollRow` in `web/src/components/scroll-row.tsx`, shared with the signed-out poster row:
+arrows for a mouse, and a slim scrollbar only while it moves). The feeds themselves are a rail of covers down the side, so the feed is plainly what to
 work on: it opens over the page under the pointer or the keyboard, and its pin keeps it open
 (`watcharr:feeds-pinned` in local storage). On a phone they are a row of small pills.
 
@@ -135,6 +136,9 @@ It shows what the moment needs and folds the rest away:
 - Deleting, leaving, taking a list out, removing someone or making a new join link asks first, in
   the page's own window (`web/src/components/ask.tsx`), never the browser's.
 - The header bell (`#needs-attention`) opens the first feed with a list that keeps failing.
+- The header's LunarWerx and GitHub icons name themselves ("LunarWerx", "Self-host") in a small
+  pop-up on hover or keyboard focus (`web/src/components/icon-tip.tsx`, CSS only, so the header adds
+  nothing to the first download).
 - A `?list=` link someone sent opens as a new feed waiting for a yes; the tab's last list does not
   come back, signed in.
 
