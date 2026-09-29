@@ -398,8 +398,10 @@ function Detail({
             </Button>
           )}
           <FeedMenu feed={feed} api={api} onGone={onGone} onRename={() => setRenaming(true)} />
+          {/* A phone: New feed goes with the ⋯, as Share does, rather than wrapping onto a line alone. */}
+          {corner && <span className="sm:hidden">{corner}</span>}
         </span>
-        {corner && <span className="ms-auto">{corner}</span>}
+        {corner && <span className="ms-auto hidden sm:block">{corner}</span>}
       </div>
 
       {/* What the bookmark is for, only while it is being dragged, just dropped or clicked here. */}
