@@ -30,7 +30,8 @@ type Peeks = ReturnType<typeof usePeeks>
 
 function FeedRow({ feed, peeks, api, onGone }: { feed: Feed; peeks: Peeks; api: FeedsApi; onGone: () => void }) {
   const shared = feed.kind === 'shared'
-  const status = feed.health === 'error' ? 'Cannot read a list' : feed.health === 'pending' ? 'Reading from IMDb' : 'Up to date'
+  const failing = shared ? 'Cannot read a list' : 'Cannot read from IMDb'
+  const status = feed.health === 'error' ? failing : feed.health === 'pending' ? 'Reading from IMDb' : 'Up to date'
   return (
     <Accordion.Item value={feed.key} className="group/feed">
       <div className="flex items-center gap-3 px-3 py-3 sm:px-4">

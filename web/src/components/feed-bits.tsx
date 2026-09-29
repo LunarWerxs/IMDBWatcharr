@@ -180,12 +180,13 @@ export function CopyAppButton({
 /** Where each link goes in its app, with the link itself for anyone who wants to see it. */
 export function SetupSteps({ feed }: { feed: Feed }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    // minmax(0, 1fr): the link, one unbroken line, would otherwise stretch the column past a phone's screen.
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-2">
       {(Object.keys(APPS) as App[]).map((app) => {
         const url = app === 'Radarr' ? feed.radarrUrl : feed.sonarrUrl
         const Icon = APPS[app].icon
         return (
-          <div key={app} className="bg-background/60 ring-foreground/10 rounded-lg p-4 ring-1">
+          <div key={app} className="bg-background/60 ring-foreground/10 min-w-0 rounded-lg p-4 ring-1">
             <p className="flex items-center gap-2 text-sm font-bold">
               <Icon className="text-ink size-4" aria-hidden="true" />
               {app}
