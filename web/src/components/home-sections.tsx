@@ -95,10 +95,13 @@ export function Hero() {
  */
 function SignInToAddMore({
   authAvailable,
+  listUrl,
   onSignIn,
   onDismiss,
 }: {
   authAvailable: boolean
+  /** The link in the field: a full-page sign-in comes back with it, as a new feed to add to. */
+  listUrl: string
   onSignIn: SignInClick
   onDismiss: () => void
 }) {
@@ -113,7 +116,7 @@ function SignInToAddMore({
         </span>
       </p>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {authAvailable && <SignInWithConnections href={signInHref()} onClick={onSignIn} />}
+        {authAvailable && <SignInWithConnections href={signInHref(listUrl || undefined)} onClick={onSignIn} />}
         {authAvailable && (
           <Button asChild variant="ghost">
             <a href={DEMO_URL}>See how it looks</a>
@@ -147,6 +150,7 @@ export function FeedForm({
   session,
   onSubmit,
   onSignInToCombine,
+  combineUrl,
   onTry,
 }: {
   sourceUrl: string
@@ -158,6 +162,8 @@ export function FeedForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   /** Sign in to combine: the library then starts a new feed with the link in the field. */
   onSignInToCombine: SignInClick
+  /** The field's link when it is an IMDb one, for the sign-in to bring back. */
+  combineUrl: string
   /** Builds a list in one click: the example link fills the field and generates. */
   onTry: (listUrl: string) => void
 }) {
@@ -250,6 +256,7 @@ export function FeedForm({
       {askedForMore && (
         <SignInToAddMore
           authAvailable={Boolean(session?.authAvailable)}
+          listUrl={combineUrl}
           onSignIn={onSignInToCombine}
           onDismiss={() => setAskedForMore(false)}
         />

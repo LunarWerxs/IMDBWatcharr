@@ -106,6 +106,8 @@ export default function App() {
     if (list && !arrival.draft) void buildFeeds(list)
   })
   const handleSignIn: SignInClick = (event) => signIn.start(event, activeUrl)
+  // From a join link the visitor is signing in to join, not to follow whatever list is on screen.
+  const handleSignInToJoin: SignInClick = (event) => signIn.start(event)
 
   // "Add another list", signed out: once signed in, the library starts a new
   // feed from the link in the field and a second one to fill in.
@@ -157,7 +159,7 @@ export default function App() {
             <JoinInvite
               code={arrival.joinCode}
               session={session}
-              onSignIn={handleSignIn}
+              onSignIn={handleSignInToJoin}
               onJoined={handleJoined}
               onDismiss={() => setArrival((current) => ({ ...current, joinCode: null }))}
             />
@@ -185,6 +187,7 @@ export default function App() {
                 session={session}
                 onSubmit={handleSubmit}
                 onSignInToCombine={handleSignInToCombine}
+                combineUrl={looksValid ? trimmed : ''}
                 onTry={openList}
               />
 
