@@ -2,13 +2,15 @@ import { Suspense, useCallback, useState, type FormEvent } from 'react'
 
 import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
+import { DemoBanner } from '@/components/demo-banner'
 import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/components/home-sections'
 import { PosterRow } from '@/components/poster-row'
 import { Reveal } from '@/components/reveal'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
 import { createFeed, createSharedList, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
-import { lazyPart } from '@/lib/lazy'
+import { inDemo } from '@/lib/demo-mode'
+import { lazyPart, useHydrated } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
 import { notify } from '@/lib/notify'
 import { usePopupSignIn } from '@/lib/sign-in'
@@ -32,6 +34,8 @@ function revealFeeds() {
 }
 
 export default function App() {
+  // Known only in the browser, and after hydrating, so the prerendered page never disagrees.
+  const demo = useHydrated() && inDemo()
   const [sourceUrl, setSourceUrl] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -153,6 +157,8 @@ export default function App() {
       <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
       <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
+        {demo && <DemoBanner />}
+
         <Hero />
 
         {shared.joinCode && (

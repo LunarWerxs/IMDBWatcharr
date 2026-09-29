@@ -118,6 +118,28 @@ npm run web:build   # builds into web/dist/
 
 Point the dev proxy somewhere else with `VITE_API_ORIGIN=http://localhost:8787 npm run web:dev`.
 
+### The signed-in demo: `/?demo`
+
+**To see the page as a signed-in person sees it, with no account, open
+[watcharr.lunarwerx.com/?demo](https://watcharr.lunarwerx.com/?demo)** (or `/?demo` on any copy,
+`npm run web:dev` included). It is signed in as Alex, a made-up person, with three lists of their own
+(one failing, so the alert bell shows), a shared list they made ("Our house", with Sam and Jordan and
+a join link) and one they joined ("Movie night", made by Riley). Everything works: add and remove
+lists, combine lists from the search bar, rename, leave, delete, reset the join link. A list added in
+the demo is "read" about twelve seconds later. **See an invite** in the demo banner opens the join
+screen for a list Alex is not in yet (`/?demo&join=feedfacecafebeefdeadbeef00000001`), and the
+sign-in prompts link to the demo as **See how it looks**.
+
+How it works: `web/src/main.tsx` sees `?demo` (`web/src/lib/demo-mode.ts`) and, before the page
+starts, loads `web/src/lib/demo.ts`, which puts itself in front of `window.fetch` and answers
+`/api/me`, `/api/my-feeds`, `/api/notifications`, `/api/unfollow` and every `/api/shared` route from
+memory; a reload starts over, and nothing reaches any account or the database. What anyone may read
+without an account still comes from the live Worker: the example lists' real counts, a pasted list's
+links and covers, a title's details, marked as the demo person's. Its answers are typed with
+`web/src/lib/api.ts`'s own types, so an API change the demo does not follow fails `npm run web:build`.
+The demo's shared-list links (`/radarr/s/de…`) are made up and answer 404. Visitors who never open
+`?demo` never download it.
+
 Add a shadcn component with `npx shadcn@latest add <name>` from inside `web/`.
 
 ## Routes

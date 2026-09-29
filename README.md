@@ -45,7 +45,7 @@ nothing to install.
 - 🔖 &nbsp;**One-click setup.** Drag the **Add to Radarr / Sonarr** sticker to your bookmarks bar and click it inside Radarr or Sonarr. Your API key never leaves the app.
 - 🔁 &nbsp;**Links that never change.** They are built from the IMDb list's own id, so the same list always gives the same two links.
 - 🛟 &nbsp;**Never goes blank.** If a read of the list fails, both links keep serving the last good copy.
-- 🎟️ &nbsp;**No account to start.** Sign in only if you want the list re-read on its own, about every 15 minutes.
+- 🎟️ &nbsp;**No account to start.** Sign in only if you want the list re-read on its own, about every 15 minutes, or several lists combined into one pair of links. [See it signed in](https://watcharr.lunarwerx.com/?demo) without an account first.
 - 🔓 &nbsp;**Source-available.** Free to use, and free to self-host for personal use.
 
 > **[Open watcharr.lunarwerx.com →](https://watcharr.lunarwerx.com)** Paste a list, copy two links, done.

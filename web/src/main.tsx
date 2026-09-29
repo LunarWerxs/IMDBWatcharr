@@ -2,6 +2,7 @@ import { createRoot, hydrateRoot } from 'react-dom/client'
 import './index.css'
 import { Root } from './root.tsx'
 import { sendVisitPing } from '@/lib/analytics'
+import { inDemo } from '@/lib/demo-mode'
 import { installImeCompositionGuard } from '@/lib/ime-composition-guard'
 import { preloadParts } from '@/lib/lazy'
 
@@ -13,12 +14,23 @@ installImeCompositionGuard()
 // The production build prerenders the first view into #root (see
 // scripts/prerender-web.mjs), so there it is hydrated rather than drawn again.
 // `vite dev` serves the bare index.html, where #root is empty.
-const container = document.getElementById('root')!
-if (container.hasChildNodes()) {
-  hydrateRoot(container, <Root />)
-} else {
-  createRoot(container).render(<Root />)
+function start() {
+  const container = document.getElementById('root')!
+  if (container.hasChildNodes()) {
+    hydrateRoot(container, <Root />)
+  } else {
+    createRoot(container).render(<Root />)
+  }
+
+  preloadParts()
+  sendVisitPing()
 }
 
-preloadParts()
-sendVisitPing()
+// /?demo is the page signed in, with made-up lists and no account (lib/demo.ts).
+// It has to answer the page's first calls, so it goes in before the page starts;
+// everyone else never downloads it.
+if (inDemo()) {
+  void import('@/lib/demo').then(({ installDemo }) => installDemo()).finally(start)
+} else {
+  start()
+}

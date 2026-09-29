@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Reveal } from '@/components/reveal'
 import { ASKARR_URL, SectionTitle, type SignInClick } from '@/components/site-chrome'
+import { DEMO_URL } from '@/lib/demo-mode'
 import { signInHref } from '@/lib/feed-page'
 import { isSupportedImdbUrl, type Session } from '@/lib/api'
 
@@ -169,8 +170,13 @@ function SignInToAddMore({
             : 'This copy of Watcharr has no sign-in set up, so it makes links for one list at a time.'}
         </span>
       </p>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {authAvailable && <SignInWithConnections href={signInHref(listUrl || undefined)} onClick={onSignIn} />}
+        {authAvailable && (
+          <Button asChild variant="ghost">
+            <a href={DEMO_URL}>See how it looks</a>
+          </Button>
+        )}
         <Button type="button" variant="ghost" onClick={onDismiss}>
           Not now
         </Button>
@@ -418,7 +424,12 @@ export function KeepUpdating({
         Sign in and we check your list about every fifteen minutes. You can also make a shared list: one Radarr
         and one Sonarr link that everyone in the house adds their IMDb lists to.
       </p>
-      <SignInWithConnections href={signInHref()} onClick={onSignIn} className="shrink-0" />
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <SignInWithConnections href={signInHref()} onClick={onSignIn} />
+        <Button asChild variant="ghost">
+          <a href={DEMO_URL}>See how it looks</a>
+        </Button>
+      </div>
     </div>
   )
 }
