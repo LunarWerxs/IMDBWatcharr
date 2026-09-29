@@ -54,6 +54,8 @@
       try {
         if (localStorage.getItem('watcharr:signed-in') === '1' || /[?&]demo(=|&|$)/.test(location.search)) {
           document.documentElement.classList.add('signed-in-hint');
+          // Should the page's script never arrive, the page it hid comes back rather than an outline forever.
+          setTimeout(function () { document.documentElement.classList.remove('signed-in-hint'); }, 10000);
         }
       } catch (e) { /* no storage: the sales page shows first, as it always did */ }
     </script>
