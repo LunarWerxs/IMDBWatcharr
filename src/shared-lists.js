@@ -151,14 +151,47 @@ async function listShared({ env, session, publicOrigin }) {
   return session ? listsResponse(env, session.sub, publicOrigin) : json({ lists: [] });
 }
 
-async function createShared({ request, env, session, publicOrigin }) {
+/**
+ * The IMDb lists a new shared list starts with (the home page's "Combine"),
+ * each once. Every link is checked before anything is made, so one bad link
+ * makes nothing and says which it was.
+ */
+function startingSources(value) {
+  const urls = Array.isArray(value) ? value.map((url) => String(url ?? "").trim()).filter(Boolean) : [];
+  const sources = new Map();
+  for (const url of urls) {
+    let normalized;
+    try {
+      normalized = normalizeImdbUrl(url);
+    } catch {
+      throw new ApiError(`"${url}" is not a public IMDb list or watchlist link.`);
+    }
+    sources.set(normalized.canonicalUrl, normalized);
+  }
+  if (sources.size > MAX_SOURCES_PER_SHARED_LIST) {
+    throw new ApiError(`A shared list can hold up to ${MAX_SOURCES_PER_SHARED_LIST} IMDb lists.`);
+  }
+  return [...sources.values()];
+}
+
+async function createShared({ request, env, ctx, session, publicOrigin }) {
   const { sub, name: memberName } = requireSession(session);
   const payload = await readBody(request);
   const name = cleanName(payload?.name);
+  const sources = startingSources(payload?.sourceUrls);
   if ((await countOwnedSharedLists(env.DB, sub)) >= MAX_OWNED_SHARED_LISTS) {
     throw new ApiError(`You can make up to ${MAX_OWNED_SHARED_LISTS} shared lists. Delete one to make another.`);
   }
   const slug = await createSharedList(env.DB, { name, sub, memberName });
+  if (sources.length > 0) {
+    const list = await getSharedListForMember(env.DB, slug, sub);
+    // arkitect-allow: concurrency-opportunities - one at a time on purpose: the lists keep the order they were typed in, and at most one of them may claim the once-a-minute sync dispatch.
+    for (const normalized of sources) {
+      const feed = await getOrCreateFeed(env.DB, normalized);
+      await addSharedSource(env.DB, list.id, feed.id, sub);
+      await queueRead(env, ctx, feed);
+    }
+  }
   return listsResponse(env, sub, publicOrigin, { slug });
 }
 

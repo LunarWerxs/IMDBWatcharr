@@ -1,5 +1,14 @@
-import { useSyncExternalStore, type FormEvent } from 'react'
-import { ArrowRightIcon, CheckIcon, FilmIcon, LoaderCircleIcon, MonitorIcon, SearchIcon, XIcon } from 'lucide-react'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
+import {
+  ArrowRightIcon,
+  CheckIcon,
+  FilmIcon,
+  LoaderCircleIcon,
+  MonitorIcon,
+  PlusIcon,
+  SearchIcon,
+  XIcon,
+} from 'lucide-react'
 
 import { AskarrLogo, AskarrMark } from '@/components/askarr-brand'
 import { Button } from '@/components/ui/button'
@@ -9,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Reveal } from '@/components/reveal'
 import { ASKARR_URL, SectionTitle, type SignInClick } from '@/components/site-chrome'
 import { signInHref } from '@/lib/feed-page'
-import type { Session } from '@/lib/api'
+import { isSupportedImdbUrl, type Session } from '@/lib/api'
 
 // Public IMDb lists to try, none of them anyone's own watchlist: films, shows,
 // and a mix of both. All read cleanly, covers and all, on 2026-09-28, and each
@@ -91,11 +100,95 @@ export function Hero() {
   )
 }
 
+// A shared list holds up to 25 IMDb lists (src/shared-lists.js): the field plus 24 more.
+const MAX_EXTRA_LISTS = 24
+
+/** One more IMDb link under the main field, for combining; its X takes the row away. */
+function ExtraListField({
+  index,
+  value,
+  onChange,
+  onRemove,
+}: {
+  index: number
+  value: string
+  onChange: (value: string) => void
+  onRemove: () => void
+}) {
+  const trimmed = value.trim()
+  return (
+    <div className="relative mt-3 sm:h-12">
+      <Input
+        type="url"
+        inputMode="url"
+        spellCheck={false}
+        placeholder="Another IMDb list or watchlist link"
+        aria-label={`IMDb list ${index + 2}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={trimmed.length > 0 && !isSupportedImdbUrl(trimmed)}
+        variant="search"
+        className="sm:rounded-r-md"
+        // A row that was just added is where the visitor is about to paste.
+        autoFocus={!value}
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove IMDb list ${index + 2}`}
+        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-field-foreground/45 hover:bg-field-foreground/5 hover:text-field-foreground transition-colors"
+      >
+        <XIcon className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Asked for more lists while signed out: combining them into one pair of
+ * links is a shared list, which lives on an account.
+ */
+function SignInToAddMore({
+  authAvailable,
+  listUrl,
+  onSignIn,
+  onDismiss,
+}: {
+  authAvailable: boolean
+  listUrl: string
+  onSignIn: SignInClick
+  onDismiss: () => void
+}) {
+  return (
+    <div className="bg-secondary ring-foreground/10 mt-3 flex flex-col gap-3 rounded-md p-4 ring-1 motion-safe:animate-rise md:flex-row md:items-center md:justify-between">
+      <p className="text-sm text-pretty">
+        <span className="font-bold">To add more lists, sign in.</span>{' '}
+        <span className="text-muted-foreground">
+          {authAvailable
+            ? 'Yours and your family’s IMDb lists then feed one Radarr link and one Sonarr link, and stay up to date.'
+            : 'This copy of Watcharr has no sign-in set up, so it makes links for one list at a time.'}
+        </span>
+      </p>
+      <div className="flex shrink-0 items-center gap-2">
+        {authAvailable && <SignInWithConnections href={signInHref(listUrl || undefined)} onClick={onSignIn} />}
+        <Button type="button" variant="ghost" onClick={onDismiss}>
+          Not now
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * IMDb's search bar, doing this site's one job: a white field joined to a
  * yellow button (stacked on a phone, where a joined pair is too cramped). When
  * either has focus the yellow ring goes around the pair, the way one control
  * would; the X in the field clears it, and whatever it had built.
+ *
+ * "Add another list" under it is how a visitor learns lists can be combined.
+ * Signed in, it adds a field, and with more than one link Generate becomes
+ * Combine, which makes a shared list: one Radarr link and one Sonarr link for
+ * all of them. Signed out, it says that takes signing in, with the button.
  */
 export function FeedForm({
   sourceUrl,
@@ -103,8 +196,10 @@ export function FeedForm({
   onClear,
   looksValid,
   pending,
-  signedIn,
+  session,
   onSubmit,
+  onCombine,
+  onSignIn,
   onTry,
 }: {
   sourceUrl: string
@@ -112,20 +207,61 @@ export function FeedForm({
   onClear: () => void
   looksValid: boolean
   pending: boolean
-  signedIn: boolean
+  session: Session | null
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  /** Every link in the form, the main field's first, to make one shared list of; true once made. */
+  onCombine: (listUrls: string[]) => Promise<boolean>
+  onSignIn: SignInClick
   /** Builds a list in one click: the example link fills the field and generates. */
   onTry: (listUrl: string) => void
 }) {
   const example = useExampleList()
+  const signedIn = Boolean(session?.signedIn)
+  // The extra links; null until "Add another list" is pressed. Pressed while
+  // signed out, the rows wait for the sign-in and appear once it lands.
+  const [extra, setExtra] = useState<string[] | null>(null)
+  const extraUrls = signedIn ? (extra ?? []) : []
+  const filled = extraUrls.map((url) => url.trim()).filter(Boolean)
+  const combining = filled.length > 0
+  const extrasValid = filled.every(isSupportedImdbUrl)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!combining) {
+      onSubmit(event)
+      return
+    }
+    event.preventDefault()
+    if (pending || !looksValid || !extrasValid) return
+    // Made, the lists live in the shared list below, so the form starts over.
+    void onCombine([sourceUrl.trim(), ...filled]).then((made) => {
+      if (made) setExtra(null)
+    })
+  }
+
+  const submitLabel = pending ? (
+    <>
+      <LoaderCircleIcon className="size-4 animate-spin" />
+      Building
+    </>
+  ) : (
+    <>
+      {combining ? `Combine ${filled.length + 1}` : 'Generate'}
+      <ArrowRightIcon className="size-4 transition-transform group-hover/button:translate-x-0.5" />
+    </>
+  )
+
+  const setRow = (index: number, value: string) =>
+    setExtra((current) => (current ?? []).map((url, at) => (at === index ? value : url)))
+  const removeRow = (index: number) => setExtra((current) => (current ?? []).filter((_, at) => at !== index))
+
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={handleSubmit}
       className="bg-card ring-foreground/10 animation-delay-var rounded-lg p-5 ring-1 sm:p-8 motion-safe:animate-rise"
       style={{ '--delay': beat(3) }}
     >
       <Label htmlFor="source-url" className="mb-2 block">
-        IMDb watchlist or list URL
+        {extraUrls.length > 0 ? 'IMDb watchlists or lists to combine' : 'IMDb watchlist or list URL'}
       </Label>
       <div className="sm:focus-within:ring-primary/70 flex flex-col gap-3 rounded-md transition-shadow sm:h-12 sm:flex-row sm:gap-0 sm:focus-within:ring-3">
         <div className="relative sm:flex-1">
@@ -162,43 +298,73 @@ export function FeedForm({
           disabled={pending}
           variant="cta"
           size="search"
+          // On a phone, where the button stacks under the field, it moves below the extra links.
+          className={extraUrls.length > 0 ? 'hidden sm:inline-flex' : undefined}
         >
-          {pending ? (
-            <>
-              <LoaderCircleIcon className="size-4 animate-spin" />
-              Building
-            </>
-          ) : (
-            <>
-              Generate
-              <ArrowRightIcon className="size-4 transition-transform group-hover/button:translate-x-0.5" />
-            </>
-          )}
+          {submitLabel}
         </Button>
       </div>
-      <p
-        id="source-url-hint"
-        className={looksValid ? 'text-muted-foreground mt-3 text-sm' : 'text-destructive mt-3 text-sm'}
-      >
-        {looksValid ? (
-          <>
-            Try{' '}
-            <button
-              type="button"
-              title={example.url}
-              className="hover:text-ink underline underline-offset-2 transition-colors"
-              onClick={() => onTry(example.url)}
-            >
-              {example.name}
-            </button>
-          </>
-        ) : (
-          'That does not look like an IMDb list or watchlist link.'
+      {extraUrls.map((url, index) => (
+        <ExtraListField
+          // The rows only ever grow at the end or lose one; the index is the row.
+          key={index}
+          index={index}
+          value={url}
+          onChange={(value) => setRow(index, value)}
+          onRemove={() => removeRow(index)}
+        />
+      ))}
+      {extraUrls.length > 0 && (
+        <Button type="submit" disabled={pending} variant="cta" size="search" className="mt-3 w-full sm:hidden">
+          {submitLabel}
+        </Button>
+      )}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p
+          id="source-url-hint"
+          className={looksValid && extrasValid ? 'text-muted-foreground text-sm' : 'text-destructive text-sm'}
+        >
+          {!looksValid || !extrasValid ? (
+            'That does not look like an IMDb list or watchlist link.'
+          ) : (
+            <>
+              Try{' '}
+              <button
+                type="button"
+                title={example.url}
+                className="hover:text-ink underline underline-offset-2 transition-colors"
+                onClick={() => onTry(example.url)}
+              >
+                {example.name}
+              </button>
+            </>
+          )}
+        </p>
+        {extraUrls.length < MAX_EXTRA_LISTS && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setExtra((current) => [...(signedIn ? (current ?? []) : []), ''])}
+          >
+            <PlusIcon className="size-3.5" />
+            Add another list
+          </Button>
         )}
-      </p>
+      </div>
+      {!signedIn && extra !== null && (
+        <SignInToAddMore
+          authAvailable={Boolean(session?.authAvailable)}
+          listUrl={sourceUrl.trim()}
+          onSignIn={onSignIn}
+          onDismiss={() => setExtra(null)}
+        />
+      )}
       {signedIn && (
         <p className="text-muted-foreground mt-1 text-sm">
-          You are signed in, so every list you paste here is kept up to date for you.
+          {combining
+            ? 'Combined, these lists make one shared list: one Radarr link and one Sonarr link for all of them, kept up to date.'
+            : 'You are signed in, so every list you paste here is kept up to date for you.'}
         </p>
       )}
     </form>

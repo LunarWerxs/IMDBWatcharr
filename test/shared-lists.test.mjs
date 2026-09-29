@@ -161,6 +161,19 @@ describe("shared list page API", () => {
     });
   }
 
+  // The home page's Combine sends every link at once; half a shared list, made
+  // before the bad link was reached, would be worse than none.
+  test("making one with a bad link among its lists makes nothing, and names the link", async () => {
+    const { response, parsed, DB } = await asPerson("sub-mom", "Mom", "/api/shared", {
+      method: "POST",
+      body: { name: "Family", sourceUrls: ["https://www.imdb.com/list/ls055592025/", "https://example.com/nope"] },
+    });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(parsed, { error: '"https://example.com/nope" is not a public IMDb list or watchlist link.' });
+    assert.deepEqual(DB.calls.filter((entry) => entry.kind === "batch" || entry.kind === "run"), []);
+  });
+
   test("signed out, changing a shared list is refused", async () => {
     const { env } = makeEnv({ DB: viewDb(), SESSION_SECRET });
     const { response, parsed } = await call(`${ORIGIN}/api/shared/${SLUG}/delete`, { method: "POST", body: {}, env });

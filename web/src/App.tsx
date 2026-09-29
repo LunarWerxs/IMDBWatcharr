@@ -6,10 +6,11 @@ import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/compo
 import { PosterRow } from '@/components/poster-row'
 import { Reveal } from '@/components/reveal'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
-import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
+import { createFeed, createSharedList, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
 import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
 import { lazyPart } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
+import { notify } from '@/lib/notify'
 import { usePopupSignIn } from '@/lib/sign-in'
 
 // Only a signed-in visitor has feeds and shared lists, only a join link shows an
@@ -39,11 +40,11 @@ export default function App() {
   // The URL a poll should keep re-checking. Kept separate from `sourceUrl` so
   // editing the input mid-sync cannot redirect a poll already in flight.
   const [activeUrl, setActiveUrl] = useState('')
-  // A shared list's join link brought the visitor here; once they join, the
-  // shared lists re-read and bring that one into view.
-  const [invite, setInvite] = useState<{ code: string | null; joinedSlug: string | null }>({
-    code: null,
-    joinedSlug: null,
+  // A shared list's join link that brought the visitor here, and the shared
+  // list to bring into view: one just joined, or just made by Combine.
+  const [shared, setShared] = useState<{ joinCode: string | null; focusSlug: string | null }>({
+    joinCode: null,
+    focusSlug: null,
   })
 
   async function buildFeeds(listUrl: string) {
@@ -68,10 +69,35 @@ export default function App() {
       setSourceUrl(list)
       if (build) void buildFeeds(list)
     },
-    onJoin: (code) => setInvite((current) => ({ ...current, code })),
+    onJoin: (joinCode) => setShared((current) => ({ ...current, joinCode })),
   })
 
-  const handleJoined = useCallback((slug: string) => setInvite({ code: null, joinedSlug: slug }), [])
+  const handleJoined = useCallback((slug: string) => setShared({ joinCode: null, focusSlug: slug }), [])
+
+  // More than one link in the form makes a shared list of them: one Radarr link
+  // and one Sonarr link for all. Named after the person; they can rename it.
+  async function combineLists(listUrls: string[]) {
+    setPending(true)
+    setError(null)
+    setResult(null)
+    setActiveUrl('')
+    const firstName = session?.name?.trim().split(/\s+/)[0]
+    const name = firstName ? `${firstName}’s lists` : 'My lists'
+
+    try {
+      const made = await createSharedList(name, listUrls)
+      setShared((current) => ({ ...current, focusSlug: made.slug ?? null }))
+      setSourceUrl('')
+      forgetLastList()
+      void notify('success', `Combined ${listUrls.length} lists into "${name}". Rename it any time.`)
+      return true
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Something went wrong.')
+      return false
+    } finally {
+      setPending(false)
+    }
+  }
 
   useFeedStatusPoll(result, setResult)
 
@@ -129,14 +155,14 @@ export default function App() {
       <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
         <Hero />
 
-        {invite.code && (
+        {shared.joinCode && (
           <Suspense fallback={null}>
             <JoinInvite
-              code={invite.code}
+              code={shared.joinCode}
               session={session}
               onSignIn={handleSignIn}
               onJoined={handleJoined}
-              onDismiss={() => setInvite((current) => ({ ...current, code: null }))}
+              onDismiss={() => setShared((current) => ({ ...current, joinCode: null }))}
             />
           </Suspense>
         )}
@@ -147,8 +173,10 @@ export default function App() {
           onClear={handleClear}
           looksValid={looksValid}
           pending={pending}
-          signedIn={Boolean(session?.signedIn)}
+          session={session}
           onSubmit={handleSubmit}
+          onCombine={combineLists}
+          onSignIn={handleSignIn}
           onTry={openList}
         />
 
@@ -164,7 +192,7 @@ export default function App() {
 
         {session?.signedIn && (
           <Suspense fallback={null}>
-            <SharedLists focusSlug={invite.joinedSlug} />
+            <SharedLists focusSlug={shared.focusSlug} />
           </Suspense>
         )}
 

@@ -245,8 +245,9 @@ export async function readSharedLists(): Promise<SharedList[]> {
   return ((await response.json()) as SharedListsResponse).lists
 }
 
-export function createSharedList(name: string): Promise<SharedListsResponse> {
-  return postJson<SharedListsResponse>('/api/shared', { name })
+/** Make a shared list, optionally starting with some IMDb lists (the home page's Combine). */
+export function createSharedList(name: string, sourceUrls: string[] = []): Promise<SharedListsResponse> {
+  return postJson<SharedListsResponse>('/api/shared', { name, sourceUrls })
 }
 
 export async function readSharedInvite(code: string): Promise<SharedInvite> {
