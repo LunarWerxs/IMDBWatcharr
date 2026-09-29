@@ -28,6 +28,7 @@ import {
   SourceRow,
 } from '@/components/feed-bits'
 import { LibrarySkeleton } from '@/components/library-skeleton'
+import { ScrollRow } from '@/components/scroll-row'
 import { BookmarkSticker } from '@/components/one-click-setup'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -461,7 +462,7 @@ function Detail({
           <h3 id="on-it-title" className="border-b pb-2 font-bold">
             On it
           </h3>
-          <ul className="scrollbar-quiet -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pt-1 pb-2">
+          <ScrollRow label="titles" count={titles.length} arrowTop="top-[4.75rem]" className="-mx-1 mt-3 gap-2 px-1 pt-1 pb-2">
             {titles.map((item, index) => (
               <li key={item.imdbId} className="animation-delay-var shrink-0 motion-safe:animate-rise" style={beat(index + 4)}>
                 <button
@@ -475,7 +476,7 @@ function Detail({
                 </button>
               </li>
             ))}
-          </ul>
+          </ScrollRow>
         </section>
       )}
     </article>

@@ -1,8 +1,6 @@
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useState } from 'react'
 import {
   CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   ClapperboardIcon,
   EyeOffIcon,
   FilmIcon,
@@ -11,10 +9,10 @@ import {
 } from 'lucide-react'
 
 import { Cover } from '@/components/cover'
+import { ScrollRow } from '@/components/scroll-row'
 import { SectionTitle } from '@/components/site-chrome'
 import type { CreateFeedResponse, PreviewItem } from '@/lib/api'
 import { lazyPart } from '@/lib/lazy'
-import { scrollBehavior } from '@/lib/motion'
 
 // The popup only matters once a poster is clicked, so it loads after the page.
 const TitleDialog = lazyPart(() => import('@/components/title-dialog').then((module) => module.TitleDialog))
@@ -81,28 +79,6 @@ function PosterCard({ item, order, onOpen }: { item: PreviewItem; order: number;
   )
 }
 
-/**
- * IMDb's carousel arrows: for a mouse, which cannot swipe the row. They show
- * on hover (or keyboard focus) and hide at the end they cannot go past; on a
- * touch screen the row is swiped instead, so they are not there at all.
- */
-function RowArrow({ side, hidden, onClick }: { side: 'left' | 'right'; hidden: boolean; onClick: () => void }) {
-  const Icon = side === 'left' ? ChevronLeftIcon : ChevronRightIcon
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={side === 'left' ? 'Scroll the titles back' : 'Scroll the titles forward'}
-      tabIndex={hidden ? -1 : 0}
-      className={`hover:text-primary absolute top-24 z-10 hidden h-14 w-11 -translate-y-1/2 items-center justify-center rounded-md border border-white/50 bg-black/60 text-white backdrop-blur-sm transition-opacity duration-200 sm:flex sm:top-28 ${
-        side === 'left' ? '-left-2' : '-right-2'
-      } ${hidden ? 'pointer-events-none opacity-0' : 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100'}`}
-    >
-      <Icon className="size-7" aria-hidden="true" />
-    </button>
-  )
-}
-
 function GhostPoster({ loading }: { loading: boolean }) {
   return (
     <li className={ITEM_WIDTH} aria-hidden="true">
@@ -135,7 +111,6 @@ export function PosterRow({
   const more = result && !pending ? result.totalCount - items.length : 0
   const loading = pending || Boolean(result?.syncing)
 
-  const rowRef = useRef<HTMLUListElement>(null)
   // The poster whose popup is open, if any, and whether one ever was: from then
   // on the popup stays mounted, so it can animate shut.
   const [open, setOpen] = useState<PreviewItem | null>(null)
@@ -143,36 +118,6 @@ export function PosterRow({
   const openPoster = (item: PreviewItem) => {
     setOpened(true)
     setOpen(item)
-  }
-  const [edges, setEdges] = useState({ atStart: true, atEnd: true })
-  const readEdges = () => {
-    const row = rowRef.current
-    if (!row) return
-    setEdges({
-      atStart: row.scrollLeft < 8,
-      atEnd: row.scrollLeft + row.clientWidth > row.scrollWidth - 8,
-    })
-  }
-  // Once the titles are laid out, see whether there is anything to scroll to.
-  useEffect(() => {
-    const frame = requestAnimationFrame(readEdges)
-    return () => cancelAnimationFrame(frame)
-  }, [items.length])
-  // The scrollbar shows only while the row moves: data-scrolling (see scrollbar-quiet) stays on until it
-  // has been still for a moment. Set on the element itself, so scrolling never re-renders the row.
-  const stillTimer = useRef(0)
-  useEffect(() => () => window.clearTimeout(stillTimer.current), [])
-  const onScroll = () => {
-    readEdges()
-    const row = rowRef.current
-    if (!row) return
-    row.dataset.scrolling = ''
-    window.clearTimeout(stillTimer.current)
-    stillTimer.current = window.setTimeout(() => delete row.dataset.scrolling, 900)
-  }
-  const page = (direction: 1 | -1) => {
-    const row = rowRef.current
-    row?.scrollBy({ left: direction * row.clientWidth * 0.85, behavior: scrollBehavior() })
   }
 
   let caption = 'The titles we read from your list show up here.'
@@ -183,13 +128,14 @@ export function PosterRow({
     <section className="mt-12" aria-labelledby="on-this-list">
       <SectionTitle id="on-this-list">On this list</SectionTitle>
       {items.length === 0 && <p className="text-muted-foreground -mt-2 mb-4 text-sm">{caption}</p>}
-      <div className="group/row relative">
-        <ul
-          ref={rowRef}
-          onScroll={onScroll}
-          key={result?.slug ?? 'none'}
-          className="scrollbar-quiet -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
-        >
+      <ScrollRow
+        key={result?.slug ?? 'none'}
+        label="titles"
+        count={items.length}
+        arrows={items.length > 0}
+        arrowTop="top-24 sm:top-28"
+        className="-mx-4 snap-x snap-mandatory scroll-px-4 gap-4 px-4 pt-1 pb-3 sm:mx-0 sm:scroll-px-0 sm:px-0"
+      >
           {items.length > 0
             ? items.map((item, index) => <PosterCard key={item.imdbId} item={item} order={index} onOpen={openPoster} />)
             : Array.from({ length: 6 }, (_, index) => <GhostPoster key={index} loading={loading} />)}
@@ -205,14 +151,7 @@ export function PosterRow({
               </a>
             </li>
           )}
-        </ul>
-        {items.length > 0 && (
-          <>
-            <RowArrow side="left" hidden={edges.atStart} onClick={() => page(-1)} />
-            <RowArrow side="right" hidden={edges.atEnd} onClick={() => page(1)} />
-          </>
-        )}
-      </div>
+      </ScrollRow>
       {opened && (
         <Suspense fallback={null}>
           <TitleDialog item={open} onClose={() => setOpen(null)} />
