@@ -165,7 +165,7 @@ function SignInToAddMore({
         <span className="font-bold">To add more lists, sign in.</span>{' '}
         <span className="text-muted-foreground">
           {authAvailable
-            ? 'Yours and your family’s IMDb lists then feed one Radarr link and one Sonarr link, and stay up to date.'
+            ? 'Then you can combine as many IMDb lists as you like into one Radarr link and one Sonarr link.'
             : 'This copy of Watcharr has no sign-in set up, so it makes links for one list at a time.'}
         </span>
       </p>
