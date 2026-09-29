@@ -243,8 +243,12 @@ export function coversOf(feed: Feed, found: Map<string, Peek>, count: number): s
   return covers
 }
 
-/** "148 movies · 119 shows", from the feed or, for a single list, from its status. */
+/**
+ * "148 movies · 119 shows", from the feed or, for a single list, from its
+ * status; "Nothing read yet" for a list IMDb has never given us.
+ */
 export function countsOf(feed: Feed, found: Map<string, Peek>): string {
+  if (feed.health !== 'ready' && feed.sources.every((source) => source.itemCount === 0)) return 'Nothing read yet'
   const peek = feed.kind === 'single' ? found.get(feed.slug) : undefined
   const movies = feed.movies ?? peek?.movies
   const shows = feed.shows ?? peek?.shows

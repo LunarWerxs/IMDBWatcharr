@@ -80,11 +80,12 @@ function Sidebar({
             <PlusIcon />
           </Button>
         </div>
-        <ul className="grid gap-0.5">
+        {/* minmax(0, 1fr): a long name truncates inside the column instead of widening it. */}
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {feeds.map((feed) => {
             const active = feed.key === current?.key
             return (
-              <li key={feed.key}>
+              <li key={feed.key} className="min-w-0">
                 <button
                   type="button"
                   onClick={() => onPick(feed.key)}

@@ -317,19 +317,23 @@ export function SourceRow({ feed, source, api }: { feed: Feed; source: SharedSou
         {source.status === 'error' && source.lastError && <p className="text-destructive mt-0.5 text-xs">{source.lastError}</p>}
       </div>
       <HealthDot health={health} label="" className="shrink-0" />
-      {feed.kind === 'shared' && source.removable && (
-        <Button
-          type="button"
-          variant="ghost-destructive-muted"
-          size="icon"
-          className="size-7 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
-          onClick={remove}
-          aria-label={`Take ${title} out`}
-          disabled={api.busy}
-        >
-          <XIcon className="size-3.5" />
-        </Button>
-      )}
+      {/* Every row keeps the remove button's room, so the dots line up whoever may remove what. */}
+      {feed.kind === 'shared' &&
+        (source.removable ? (
+          <Button
+            type="button"
+            variant="ghost-destructive-muted"
+            size="icon"
+            className="size-7 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
+            onClick={remove}
+            aria-label={`Take ${title} out`}
+            disabled={api.busy}
+          >
+            <XIcon className="size-3.5" />
+          </Button>
+        ) : (
+          <span className="size-7 shrink-0" aria-hidden="true" />
+        ))}
     </li>
   )
 }
