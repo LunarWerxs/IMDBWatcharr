@@ -7,6 +7,11 @@ export type Question = {
   body: string
   /** The yes button's words: what it does ("Delete feed"), never "OK". */
   yes: string
+  /**
+   * Where the keyboard goes once the window closes, asked then: what was
+   * clicked may be gone by then (a row taken out, a feed deleted).
+   */
+  returnFocus?: () => HTMLElement | null | undefined
 }
 
 export const AskContext = createContext<(question: Question) => Promise<boolean>>(async () => false)

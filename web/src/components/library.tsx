@@ -129,7 +129,7 @@ function Sidebar({
               style={beat(index)}
               className={cn(
                 'bg-card ring-foreground/10 animation-delay-var flex w-36 shrink-0 snap-start flex-col gap-2 rounded-xl p-2.5 text-left ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
-                active ? 'ring-primary ring-2' : 'active:scale-[0.98]',
+                active ? 'ring-primary ring-2' : 'motion-safe:active:scale-[0.98]',
               )}
             >
               <CoverMosaic posters={coversOf(feed, peeks, 4)} size={124} className="aspect-square w-full" />
@@ -181,7 +181,7 @@ function Sidebar({
                   <CoverMosaic
                     posters={coversOf(feed, peeks, 4)}
                     size={40}
-                    className="size-10 transition-transform duration-300 ease-(--ease-soft) group-hover/feed:scale-105"
+                    className="size-10 transition-transform duration-300 ease-(--ease-soft) motion-safe:group-hover/feed:scale-105"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{feed.name}</span>
@@ -256,7 +256,7 @@ function Detail({
               className="h-12 text-2xl font-bold tracking-tight sm:text-3xl"
             />
           ) : (
-            <h2 id="feed-title" className="truncate text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 id="feed-title" tabIndex={-1} className="truncate text-3xl font-bold tracking-tight outline-none sm:text-4xl">
               {feed.name}
             </h2>
           )}
@@ -314,7 +314,7 @@ function Detail({
       </div>
 
       <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={beat(3)} aria-labelledby="lists-title">
-        <h3 id="lists-title" className="border-b pb-2 font-bold">
+        <h3 id="lists-title" tabIndex={-1} className="border-b pb-2 font-bold outline-none">
           IMDb list{feed.sources.length === 1 ? '' : 's'}{' '}
           <span className="text-muted-foreground font-normal">{feed.sources.length}</span>
         </h3>
@@ -346,9 +346,9 @@ function Detail({
                   onClick={() => onOpenTitle(item)}
                   aria-label={item.year ? `${item.title} (${item.year})` : item.title}
                   title={item.title}
-                  className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-[box-shadow,translate] duration-300 ease-(--ease-soft) outline-none hover:-translate-y-1 hover:shadow-lg hover:shadow-black/40 focus-visible:ring-2"
+                  className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-[box-shadow,translate] duration-300 ease-(--ease-soft) outline-none hover:shadow-lg motion-safe:hover:-translate-y-1 hover:shadow-black/40 focus-visible:ring-2"
                 >
-                  <CoverImage src={item.poster as string} width={96} lazy className="transition-transform duration-500 group-hover/poster:scale-105" />
+                  <CoverImage src={item.poster as string} width={96} lazy className="transition-transform duration-500 motion-safe:group-hover/poster:scale-105" />
                 </button>
               </li>
             ))}
@@ -376,7 +376,7 @@ function FirstRun({
       <p className="text-ink text-ui font-bold tracking-wider uppercase motion-safe:animate-rise">
         {firstName ? `Welcome, ${firstName}` : 'Welcome'}
       </p>
-      <h1 id="first-feed-title" className="animation-delay-var mt-2 text-3xl font-bold tracking-tight motion-safe:animate-rise sm:text-4xl" style={beat(1)}>
+      <h1 id="first-feed-title" tabIndex={-1} className="outline-none animation-delay-var mt-2 text-3xl font-bold tracking-tight motion-safe:animate-rise sm:text-4xl" style={beat(1)}>
         Make your first feed
       </h1>
       <p className="text-muted-foreground animation-delay-var mt-3 text-pretty motion-safe:animate-rise" style={beat(2)}>

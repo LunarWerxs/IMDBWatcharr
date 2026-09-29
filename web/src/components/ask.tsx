@@ -32,7 +32,15 @@ export function AskProvider({ children }: { children: ReactNode }) {
       {children}
       <Dialog open={open} onOpenChange={(next) => !next && answer(false)}>
         {question && (
-          <DialogContent className="max-w-sm">
+          <DialogContent
+            className="max-w-sm"
+            onCloseAutoFocus={(event) => {
+              const target = question.returnFocus?.()
+              if (!target) return
+              event.preventDefault()
+              target.focus()
+            }}
+          >
             <DialogTitle>{question.title}</DialogTitle>
             <DialogDescription>{question.body}</DialogDescription>
             <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

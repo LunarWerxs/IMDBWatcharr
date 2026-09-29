@@ -302,6 +302,9 @@ export function FeedMenu({
   const me = feed.members.find((member) => member.you)
   // Something chosen here moves the focus on (the name's field, a question), so the menu does not take it back.
   const chosen = useRef(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  // After a question: back to the ⋯, or, the feed gone, to the name of the one on screen now.
+  const returnFocus = () => trigger.current ?? document.getElementById('feed-title') ?? document.getElementById('first-feed-title')
 
   function choose(action: () => void) {
     chosen.current = true
@@ -313,6 +316,7 @@ export function FeedMenu({
       title: `Delete “${feed.name}”?`,
       body: 'Its Radarr and Sonarr links stop working, for everyone in it. The IMDb lists themselves are not touched.',
       yes: 'Delete feed',
+      returnFocus,
     })
     if (yes && (await api.change(feed, { action: 'delete' }, `Deleted “${feed.name}”.`))) onGone?.()
   }
@@ -323,6 +327,7 @@ export function FeedMenu({
       title: `Leave “${feed.name}”?`,
       body: 'The IMDb lists you added leave with you. You can come back with its join link.',
       yes: 'Leave',
+      returnFocus,
     })
     if (yes && (await api.change(feed, { action: 'members/remove', body: { memberId: me.id } }, `You left “${feed.name}”.`))) {
       onGone?.()
@@ -334,6 +339,7 @@ export function FeedMenu({
       title: `Stop following “${feed.name}”?`,
       body: 'Its links keep the titles they have now, but stop picking up new ones from IMDb.',
       yes: 'Stop following',
+      returnFocus,
     })
     if (yes && (await api.unfollow(feed))) onGone?.()
   }
@@ -341,7 +347,7 @@ export function FeedMenu({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost-muted" size="icon" aria-label={`More for ${feed.name}`} disabled={api.busy}>
+        <Button ref={trigger} type="button" variant="ghost-muted" size="icon" aria-label={`More for ${feed.name}`} disabled={api.busy}>
           <EllipsisIcon />
         </Button>
       </DropdownMenuTrigger>
@@ -434,6 +440,8 @@ export function SourceRow({ feed, source, api }: { feed: Feed; source: SharedSou
   const [open, setOpen] = useState(failing)
   const [leaving, setLeaving] = useState(false)
   const detailsId = useId()
+  const row = useRef<HTMLButtonElement>(null)
+  const leavingNow = useRef(false)
   const shared = feed.kind === 'shared'
   const title = source.listTitle || 'IMDb list'
   const who = source.yours ? 'You' : (source.addedBy ?? 'Someone')
@@ -445,18 +453,25 @@ export function SourceRow({ feed, source, api }: { feed: Feed; source: SharedSou
       title: `Take “${title}” out?`,
       body: `Its titles leave “${feed.name}” on the next read. The list stays on IMDb, and you can add it again.`,
       yes: 'Take it out',
+      // The row, or once it has gone, the lists' heading.
+      returnFocus: () => (row.current?.isConnected && !leavingNow.current ? row.current : document.getElementById('lists-title')),
     })
     if (!yes) return
+    leavingNow.current = true
     setLeaving(true)
     await afterFolding()
     const done = await api.change(feed, { action: 'sources/remove', body: { feedSlug: source.slug } }, `Took “${title}” out.`)
-    if (!done) setLeaving(false)
+    if (!done) {
+      leavingNow.current = false
+      setLeaving(false)
+    }
   }
 
   return (
     <li className="fold" data-folded={leaving ? '' : undefined}>
       <div>
         <button
+          ref={row}
           type="button"
           onClick={() => setOpen((current) => !current)}
           aria-expanded={open}
@@ -518,6 +533,7 @@ export function AddSource({ feed, api, defaultOpen = false }: { feed: Feed; api:
   const [open, setOpen] = useState(defaultOpen)
   const [url, setUrl] = useState('')
   const field = useRef<HTMLInputElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
   const trimmed = url.trim()
   const valid = trimmed.length === 0 || isSupportedImdbUrl(trimmed)
 
@@ -530,6 +546,8 @@ export function AddSource({ feed, api, defaultOpen = false }: { feed: Feed; api:
   function hide() {
     setOpen(false)
     setUrl('')
+    // The field folds away under the keyboard; it goes back to the button that opened it.
+    setTimeout(() => opener.current?.focus(), 0)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -542,7 +560,7 @@ export function AddSource({ feed, api, defaultOpen = false }: { feed: Feed; api:
   return (
     <div className="mt-1">
       <Fold open={!open}>
-        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={show}>
+        <Button ref={opener} type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={show}>
           <PlusIcon />
           Add an IMDb list
         </Button>
@@ -698,6 +716,7 @@ export function NewFeedForm({
 }) {
   const [links, setLinks] = useState(initialLinks?.length ? initialLinks : [''])
   const [name, setName] = useState('')
+  const firstField = useRef<HTMLInputElement>(null)
   const filled = links.map((link) => link.trim()).filter(Boolean)
   const invalid = filled.some((link) => !isSupportedImdbUrl(link))
   const several = links.length > 1
@@ -719,6 +738,7 @@ export function NewFeedForm({
           <Fold key={index} open>
             <div className="relative">
               <Input
+                ref={index === 0 ? firstField : undefined}
                 id={`new-feed-link-${index}`}
                 autoFocus={index === links.length - 1 && !link}
                 type="url"
@@ -751,7 +771,11 @@ export function NewFeedForm({
                 key={example.url}
                 type="button"
                 title={example.url}
-                onClick={() => setLinks([example.url])}
+                onClick={() => {
+                  setLinks([example.url])
+                  // These fold away once the field is filled; the keyboard goes to the field.
+                  setTimeout(() => firstField.current?.focus(), 0)
+                }}
                 className="bg-secondary hover:bg-muted text-foreground rounded-full px-2.5 py-1 font-medium transition-colors"
               >
                 {example.name}
