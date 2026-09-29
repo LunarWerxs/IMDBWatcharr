@@ -77,8 +77,12 @@ async function insertFeed(db, normalized) {
     .first();
 }
 
+/**
+ * The feed for a list, made if it is new. A new one comes back `created`: its
+ * first read is already queued, and it is the caller's to hurry that read.
+ */
 export async function getOrCreateFeed(db, normalized) {
-  return (await getFeedByUrl(db, normalized.canonicalUrl)) ?? insertFeed(db, normalized);
+  return (await getFeedByUrl(db, normalized.canonicalUrl)) ?? { ...(await insertFeed(db, normalized)), created: true };
 }
 
 export async function getFeedItems(db, feedId) {
@@ -321,20 +325,34 @@ export async function isFeedOwnedBy(db, feedId, sub) {
   return Boolean(row);
 }
 
+/** Whether anyone keeps this feed current: a person who claimed it, or a shared list it feeds. */
 export async function hasAnyOwner(db, feedId) {
-  const row = await db.prepare("SELECT 1 AS owned FROM feed_owners WHERE feed_id = ? LIMIT 1").bind(feedId).first();
+  const row = await db
+    .prepare(
+      `SELECT 1 AS owned FROM feed_owners WHERE feed_id = ?
+       UNION ALL SELECT 1 FROM shared_list_sources WHERE feed_id = ?
+       LIMIT 1`,
+    )
+    .bind(feedId, feedId)
+    .first();
   return Boolean(row);
 }
 
 const SYNC_TARGET_COLUMNS = "f.source_url, f.last_synced_at, f.refresh_requested_at";
+
+// A feed is kept on the schedule while somebody wants it: a person who claimed
+// it, or a shared list it feeds.
+const CLAIMED = "EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)";
+const SHARED = "EXISTS (SELECT 1 FROM shared_list_sources s WHERE s.feed_id = f.id)";
 
 // A claimed feed read more recently than this is skipped by a dispatched run:
 // the schedule has it in hand, and the dispatched run is about the queue.
 const OWNED_DUE_AFTER_MS = 1000 * 60 * 10;
 
 /**
- * What the sync job should read, in order: claimed feeds with a pending
- * request (a signed-in person is waiting on each), then signed-out requests,
+ * What the sync job should read, in order: claimed feeds (a person's, or a
+ * shared list's) with a pending request (a signed-in person is waiting on
+ * each), then signed-out requests,
  * oldest first and at most REQUESTED_FEEDS_PER_RUN of them, then every other
  * claimed feed, least recently synced first. The cap applies to signed-out
  * requests only, so however long that queue gets, no claimed feed is ever left
@@ -351,7 +369,7 @@ export async function readSyncTargets(db, { scope = "all" } = {}) {
       .prepare(
         `SELECT ${SYNC_TARGET_COLUMNS}
            FROM feeds f
-          WHERE EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+          WHERE ${CLAIMED} OR ${SHARED}
           ORDER BY f.refresh_requested_at IS NULL ASC, f.refresh_requested_at ASC,
                    f.last_synced_at IS NULL DESC, f.last_synced_at ASC`,
       )
@@ -361,7 +379,7 @@ export async function readSyncTargets(db, { scope = "all" } = {}) {
         `SELECT ${SYNC_TARGET_COLUMNS}
            FROM feeds f
           WHERE f.refresh_requested_at IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM feed_owners o WHERE o.feed_id = f.id)
+            AND NOT ${CLAIMED} AND NOT ${SHARED}
           ORDER BY f.refresh_requested_at ASC
           LIMIT ?`,
       )
@@ -405,6 +423,245 @@ export async function readAlertingFeeds(db, sub, threshold) {
         ORDER BY f.consecutive_failures DESC`,
     )
     .bind(sub, threshold)
+    .all();
+  return result.results ?? [];
+}
+
+// ── Shared lists ─────────────────────────────────────────────────────────────
+// One Radarr link and one Sonarr link fed by several IMDb lists, which several
+// signed-in people can add to (migrations/0010_add_shared_lists.sql).
+
+/** Random lowercase hex, `bytes` long before encoding: slugs and invite codes. */
+function randomHex(bytes) {
+  return [...crypto.getRandomValues(new Uint8Array(bytes))].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+const SHARED_LIST_COLUMNS = "l.id, l.slug, l.invite_code, l.name, l.owner_sub, l.created_at, l.updated_at";
+
+// Every shared list the person belongs to, as a subquery the reads below share.
+const MY_SHARED_LISTS = "SELECT shared_list_id FROM shared_list_members WHERE member_sub = ?";
+
+function touchSharedList(db, listId) {
+  return db.prepare("UPDATE shared_lists SET updated_at = ? WHERE id = ?").bind(nowIso(), listId);
+}
+
+/** A new shared list with its owner as its first member, in one batch. Returns its slug. */
+export async function createSharedList(db, { name, sub, memberName }) {
+  const timestamp = nowIso();
+  const slug = randomHex(6);
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO shared_lists (slug, invite_code, name, owner_sub, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(slug, randomHex(16), name, sub, timestamp, timestamp),
+    db
+      .prepare(
+        `INSERT INTO shared_list_members (shared_list_id, member_sub, member_name, joined_at)
+         SELECT id, ?, ?, ? FROM shared_lists WHERE slug = ?`,
+      )
+      .bind(sub, memberName, timestamp, slug),
+  ]);
+  return slug;
+}
+
+export async function countOwnedSharedLists(db, sub) {
+  const row = await db.prepare("SELECT COUNT(*) AS total FROM shared_lists WHERE owner_sub = ?").bind(sub).first();
+  return row?.total ?? 0;
+}
+
+/** A shared list by its public slug, for the feed routes: nobody's membership involved. */
+export async function getSharedListBySlug(db, slug) {
+  const row = await db.prepare("SELECT id, slug, name, updated_at FROM shared_lists WHERE slug = ?").bind(slug).first();
+  return row ?? null;
+}
+
+/** A shared list this person belongs to, with their own member row's id; null for anyone else. */
+export async function getSharedListForMember(db, slug, sub) {
+  const row = await db
+    .prepare(
+      `SELECT ${SHARED_LIST_COLUMNS}, m.id AS member_id,
+              (SELECT COUNT(*) FROM shared_list_sources s WHERE s.shared_list_id = l.id) AS source_count
+         FROM shared_lists l JOIN shared_list_members m ON m.shared_list_id = l.id
+        WHERE l.slug = ? AND m.member_sub = ?`,
+    )
+    .bind(slug, sub)
+    .first();
+  return row ?? null;
+}
+
+/** What a join link shows before anyone joins: the list's name, who made it, how big it is. */
+export async function getSharedListByInvite(db, inviteCode) {
+  const row = await db
+    .prepare(
+      `SELECT ${SHARED_LIST_COLUMNS},
+              (SELECT member_name FROM shared_list_members m WHERE m.shared_list_id = l.id AND m.member_sub = l.owner_sub) AS owner_name,
+              (SELECT COUNT(*) FROM shared_list_sources s WHERE s.shared_list_id = l.id) AS source_count,
+              (SELECT COUNT(*) FROM shared_list_members m WHERE m.shared_list_id = l.id) AS member_count
+         FROM shared_lists l
+        WHERE l.invite_code = ?`,
+    )
+    .bind(inviteCode)
+    .first();
+  return row ?? null;
+}
+
+/** Join a shared list; joining one already joined just refreshes the name the others see. */
+export async function joinSharedList(db, listId, sub, memberName) {
+  await db
+    .prepare(
+      `INSERT INTO shared_list_members (shared_list_id, member_sub, member_name, joined_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (shared_list_id, member_sub) DO UPDATE SET member_name = COALESCE(excluded.member_name, member_name)`,
+    )
+    .bind(listId, sub, memberName, nowIso())
+    .run();
+}
+
+/**
+ * Every shared list this person belongs to, with each one's members, the IMDb
+ * lists feeding it, and how many distinct movies and shows it serves.
+ */
+export async function readSharedListsFor(db, sub) {
+  const [lists, members, sources, counts] = await Promise.all([
+    db
+      .prepare(
+        `SELECT ${SHARED_LIST_COLUMNS}
+           FROM shared_lists l JOIN shared_list_members m ON m.shared_list_id = l.id
+          WHERE m.member_sub = ?
+          ORDER BY l.created_at, l.id`,
+      )
+      .bind(sub)
+      .all(),
+    db
+      .prepare(
+        `SELECT id, shared_list_id, member_sub, member_name FROM shared_list_members
+          WHERE shared_list_id IN (${MY_SHARED_LISTS})
+          ORDER BY joined_at, id`,
+      )
+      .bind(sub)
+      .all(),
+    db
+      .prepare(
+        `SELECT s.shared_list_id, s.added_by_sub, f.slug, f.source_url, f.list_title, f.status, f.item_count,
+                f.last_synced_at, f.last_error, f.consecutive_failures
+           FROM shared_list_sources s JOIN feeds f ON f.id = s.feed_id
+          WHERE s.shared_list_id IN (${MY_SHARED_LISTS})
+          ORDER BY s.created_at, s.feed_id`,
+      )
+      .bind(sub)
+      .all(),
+    db
+      .prepare(
+        `SELECT s.shared_list_id,
+                COUNT(DISTINCT CASE WHEN i.title_type IN (${placeholders(MOVIE_TYPES)}) THEN i.imdb_id END) AS movies,
+                COUNT(DISTINCT CASE WHEN i.title_type IN (${placeholders(SERIES_TYPES)}) AND i.tvdb_id > 0 THEN i.imdb_id END) AS shows
+           FROM shared_list_sources s JOIN feed_items i ON i.feed_id = s.feed_id
+          WHERE s.shared_list_id IN (${MY_SHARED_LISTS})
+          GROUP BY s.shared_list_id`,
+      )
+      .bind(...MOVIE_TYPES, ...SERIES_TYPES, sub)
+      .all(),
+  ]);
+  return {
+    lists: lists.results ?? [],
+    members: members.results ?? [],
+    sources: sources.results ?? [],
+    counts: counts.results ?? [],
+  };
+}
+
+/** Add an IMDb list's feed to a shared list. False when it was already there. */
+export async function addSharedSource(db, listId, feedId, sub) {
+  const [insert] = await db.batch([
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO shared_list_sources (shared_list_id, feed_id, added_by_sub, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .bind(listId, feedId, sub, nowIso()),
+    touchSharedList(db, listId),
+  ]);
+  return (insert?.meta?.changes ?? 1) === 1;
+}
+
+/** Take a list out of a shared list; with `addedBy`, only if that person added it. True when it went. */
+export async function removeSharedSource(db, listId, feedSlug, addedBy = null) {
+  const onlyTheirs = addedBy ? " AND added_by_sub = ?" : "";
+  const [removal] = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM shared_list_sources
+          WHERE shared_list_id = ? AND feed_id = (SELECT id FROM feeds WHERE slug = ?)${onlyTheirs}`,
+      )
+      .bind(listId, feedSlug, ...(addedBy ? [addedBy] : [])),
+    touchSharedList(db, listId),
+  ]);
+  return (removal?.meta?.changes ?? 1) > 0;
+}
+
+/** Someone leaves, or is removed from, a shared list, and the lists they added go with them. */
+export async function removeSharedMember(db, listId, memberId) {
+  const member = "SELECT member_sub FROM shared_list_members WHERE id = ? AND shared_list_id = ?";
+  await db.batch([
+    db
+      .prepare(`DELETE FROM shared_list_sources WHERE shared_list_id = ? AND added_by_sub = (${member})`)
+      .bind(listId, memberId, listId),
+    db.prepare("DELETE FROM shared_list_members WHERE id = ? AND shared_list_id = ?").bind(memberId, listId),
+    touchSharedList(db, listId),
+  ]);
+}
+
+export async function renameSharedList(db, listId, name) {
+  await db.prepare("UPDATE shared_lists SET name = ?, updated_at = ? WHERE id = ?").bind(name, nowIso(), listId).run();
+}
+
+/** A new join link; the old one stops working. Everyone already in stays in. */
+export async function resetSharedInvite(db, listId) {
+  await db.prepare("UPDATE shared_lists SET invite_code = ? WHERE id = ?").bind(randomHex(16), listId).run();
+}
+
+export async function deleteSharedList(db, listId) {
+  await db.batch([
+    db.prepare("DELETE FROM shared_list_sources WHERE shared_list_id = ?").bind(listId),
+    db.prepare("DELETE FROM shared_list_members WHERE shared_list_id = ?").bind(listId),
+    db.prepare("DELETE FROM shared_lists WHERE id = ?").bind(listId),
+  ]);
+}
+
+/** Where each IMDb list feeding a shared list stands, for its links' status and ETag. */
+export async function readSharedSourceFeeds(db, listId) {
+  const result = await db
+    .prepare(
+      `SELECT f.id, f.list_title, f.status, f.last_synced_at, f.last_error, f.refresh_requested_at,
+              f.source_fingerprint, f.cache_updated_at
+         FROM shared_list_sources s JOIN feeds f ON f.id = s.feed_id
+        WHERE s.shared_list_id = ?
+        ORDER BY s.created_at, s.feed_id`,
+    )
+    .bind(listId)
+    .all();
+  return result.results ?? [];
+}
+
+/**
+ * The titles a shared list serves one app, from every IMDb list feeding it:
+ * the first list added first, each in its own order, each title tagged with the
+ * list it came from. A title on two lists comes back twice; the caller keeps one.
+ */
+export async function readSharedItems(db, listId, feedTarget) {
+  const types = feedTarget === "radarr" ? MOVIE_TYPES : SERIES_TYPES;
+  const result = await db
+    .prepare(
+      `SELECT i.imdb_id, i.tvdb_id, i.tmdb_id, i.title, i.year, i.title_type, i.added_at, f.list_title AS source_title
+         FROM shared_list_sources s
+         JOIN feed_items i ON i.feed_id = s.feed_id
+         JOIN feeds f ON f.id = s.feed_id
+        WHERE s.shared_list_id = ? AND i.title_type IN (${placeholders(types)})
+        ORDER BY s.created_at, s.feed_id, i.position`,
+    )
+    .bind(listId, ...types)
     .all();
   return result.results ?? [];
 }

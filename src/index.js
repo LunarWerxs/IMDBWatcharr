@@ -12,8 +12,10 @@ import {
   skippedShows,
   summarizeItemsByTarget,
 } from "./imdb.js";
+import { arrJson, arrListRequest, arrListResponse } from "./arr-api.js";
 import { completeLogin, getSession, isAuthConfigured, logout, startLogin } from "./auth.js";
 import { json } from "./http.js";
+import { SHARED_ROUTE_HANDLERS } from "./shared-lists.js";
 import {
   claimFeed,
   getFeedByUrl,
@@ -286,11 +288,13 @@ async function handleCreateRoute({ request, env, ctx, url, publicOrigin }) {
     const feed = await getOrCreateFeed(env.DB, normalized);
 
     // Nothing here can fetch IMDb, so a feed that needs data is put in the
-    // sync job's queue, and the job is asked to run now when it can be. An
-    // earlier request keeps its place, and is not dispatched again. TVDB ids
-    // are the sync's to find, so this answers from what is stored, and the
-    // writes and the read below go out together rather than one after another.
-    const queue = mayRefreshNow(feed, session) && !feed.refresh_requested_at;
+    // sync job's queue, and the job is asked to run now when it can be. A new
+    // feed is born queued, and this paste is what queued it, so it is asked
+    // for too; any other earlier request keeps its place, and is not
+    // dispatched again. TVDB ids are the sync's to find, so this answers from
+    // what is stored, and the writes and the read below go out together rather
+    // than one after another.
+    const queue = feed.created || (mayRefreshNow(feed, session) && !feed.refresh_requested_at);
     const [items, refresh, dispatched] = await Promise.all([
       // Titles only exist once a read has landed.
       feed.last_synced_at ? getFeedItems(env.DB, feed.id) : [],
@@ -427,79 +431,9 @@ async function handleFeedRoute({ request, env, ctx, url, publicOrigin }) {
   });
 }
 
-// Radarr's and Sonarr's own list types ("Radarr" and "Sonarr", which import
-// from another Radarr or Sonarr) are re-read every 15 and 5 minutes, where an
-// RSS List waits 12 hours and a Custom List 6 (read off Radarr 6.4 and Sonarr
-// 4.0). So each feed link also answers as a small Radarr or Sonarr v3 API: the
-// same link is the list's Full URL, and the app asks {link}/api/v3/movie (or
-// series) plus the pickers its list form fills in. The lists are public, so any
-// API key will do. The shapes follow Askarr's, the studio's other product,
-// which proved them against a real Radarr and Sonarr.
+// Each feed link also answers as a small Radarr or Sonarr v3 API, so the apps'
+// own list types read it every 15 and 5 minutes (the shapes are in arr-api.js).
 const ARR_API_ROUTE = /^(\/(?:radarr|sonarr)\/(?:p|l|f)\/[^/]+)\/api\/v3\/([a-z]+)\/?$/i;
-const ARR_HEADERS = {
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store",
-  "x-robots-tag": "noindex",
-};
-
-// The list form's pickers: one of each, so a filter set in the app can only
-// ever match everything. Radarr has no language profiles.
-const ARR_PICKERS = {
-  radarr: { qualityprofile: [{ id: 1, name: "Watcharr" }], rootfolder: [{ id: 1, path: "/watcharr" }], tag: [] },
-  sonarr: {
-    qualityprofile: [{ id: 1, name: "Watcharr" }],
-    languageprofile: [{ id: 1, name: "Any" }],
-    rootfolder: [{ id: 1, path: "/watcharr" }],
-    tag: [],
-  },
-};
-
-/** The apps only show the slug; a title with no Latin letters or digits still gets one. */
-function arrSlug(title, id) {
-  const slug = title
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || String(id);
-}
-
-// Radarr reads TmdbId, Title and Year; its list filters read QualityProfileId,
-// Tags and Path. InCinemas and PhysicalRelease are non-nullable dates in
-// Radarr, so they are left out, not null.
-const toRadarrMovie = (row) => ({
-  title: row.title,
-  sortTitle: row.title.toLowerCase(),
-  tmdbId: row.id,
-  overview: "",
-  images: [],
-  monitored: true,
-  year: row.year ?? 0,
-  titleSlug: arrSlug(row.title, row.id),
-  qualityProfileId: 1,
-  path: "/watcharr",
-  tags: [],
-});
-
-// Sonarr reads TvdbId and Title; its filters read the two profile ids, Tags and
-// RootFolderPath. Seasons only matter with "sync season monitoring" on; empty
-// means Sonarr's own defaults.
-const toSonarrSeries = (row) => ({
-  title: row.title,
-  sortTitle: row.title.toLowerCase(),
-  tvdbId: row.id,
-  overview: "",
-  images: [],
-  monitored: true,
-  year: row.year ?? 0,
-  titleSlug: arrSlug(row.title, row.id),
-  qualityProfileId: 1,
-  languageProfileId: 1,
-  rootFolderPath: "/watcharr",
-  seasons: [],
-  tags: [],
-});
 
 // A list nobody is signed in for is only re-read when it is pasted again, so
 // its movies' TMDB ids would wait for that. Instead a Radarr poll looks up the
@@ -518,10 +452,6 @@ async function resolveOnPoll(env, feed) {
   await resolveStoredIds(env, feed).catch(() => {});
 }
 
-function arrJson(body, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: ARR_HEADERS });
-}
-
 async function handleArrApiRoute({ request, env, ctx, url, publicOrigin }) {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return null;
@@ -534,13 +464,9 @@ async function handleArrApiRoute({ request, env, ctx, url, publicOrigin }) {
   }
 
   const { feedTarget, canonicalUrl } = parsedRoute;
-  const resource = match[2].toLowerCase();
-  const pickers = ARR_PICKERS[feedTarget];
-  if (Object.hasOwn(pickers, resource)) {
-    return arrJson(pickers[resource]);
-  }
-  if (resource !== (feedTarget === "radarr" ? "movie" : "series")) {
-    return arrJson({ message: "NotFound" }, 404);
+  const listRequest = arrListRequest(feedTarget, match[2]);
+  if (listRequest.response) {
+    return listRequest.response;
   }
 
   const feed = await getFeedByUrl(env.DB, canonicalUrl);
@@ -561,7 +487,7 @@ async function handleArrApiRoute({ request, env, ctx, url, publicOrigin }) {
   if (feedTarget === "radarr") {
     ctx.waitUntil(resolveOnPoll(env, feed).catch(() => {}));
   }
-  return arrJson(rows.map(feedTarget === "radarr" ? toRadarrMovie : toSonarrSeries));
+  return arrListResponse(feedTarget, rows);
 }
 
 async function handleLegacySlugRedirect({ request, env, url, publicOrigin }) {
@@ -688,6 +614,7 @@ const ROUTE_HANDLERS = [
   handleNotificationsRoute,
   handleUnfollowRoute,
   ...SYNC_ROUTE_HANDLERS,
+  ...SHARED_ROUTE_HANDLERS,
   handleCreateRoute,
   handleArrApiRoute,
   // Order matters around the feed routes: an old /p/… or /l/… path is

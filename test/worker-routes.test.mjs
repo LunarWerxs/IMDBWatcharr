@@ -416,6 +416,33 @@ describe("fetch - /api/create", () => {
     }
   });
 
+  // A new row is born with its first read queued, so reading "already queued"
+  // off it skipped the dispatch for every list new to the site until 2026-09-29.
+  test("a list new to the site asks GitHub for a run, though its row is born queued", async () => {
+    const DB = makeDb([
+      ["INSERT INTO feeds", { ...CREATE_ROW, refresh_requested_at: new Date().toISOString() }],
+      ["FROM feed_items", { results: [] }],
+      ["UPDATE sync_dispatch", { meta: { changes: 1 } }],
+    ]);
+    const { env } = makeEnv({ DB, GITHUB_DISPATCH_TOKEN: "token", GITHUB_REPOSITORY: "owner/repo" });
+    const dispatches = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      dispatches.push(String(url));
+      return new Response(null, { status: 204 });
+    };
+    try {
+      const ctx = makeCtx();
+      const { parsed } = await call(`${ORIGIN}/api/create`, { method: "POST", body: { sourceUrl: CANONICAL_LIST }, env, ctx });
+      await Promise.all(ctx.waited);
+      assert.match(parsed.message, /^We are reading this list from IMDb now/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.equal(dispatches.length, 1);
+  });
+
   test("a list already in the queue does not ask GitHub again, however often it is pasted", async () => {
     const DB = makeDb([
       ["FROM feeds WHERE source_url = ?", { ...CREATE_ROW, refresh_requested_at: RECENT }],

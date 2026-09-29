@@ -254,28 +254,86 @@ function buildFeedItemXml(item, sourceTitle) {
     </item>`;
 }
 
-export function buildFeedXml(origin, feed, items, feedTarget = "radarr") {
-  const feedUrl = `${origin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), feedTarget)}`;
-  const lastBuildDate = feed.last_synced_at ? new Date(feed.last_synced_at).toUTCString() : new Date().toUTCString();
-  const sourceTitle = feed.list_title || "IMDb Feed";
+/**
+ * One RSS document. An item names the list it came from: its own
+ * `source_title` on a shared list, or else the one list the feed reads.
+ */
+function renderRss({ feedUrl, link, sourceTitle, description, lastSyncedAt, items, feedTarget }) {
+  const lastBuildDate = lastSyncedAt ? new Date(lastSyncedAt).toUTCString() : new Date().toUTCString();
   const libraryName = feedTarget === "sonarr" ? "Sonarr" : "Radarr";
   const feedTitle = `${sourceTitle} (${libraryName})`;
-  const description = `${sourceTitle} on IMDb | ${items.length} included for ${libraryName}`;
-
-  const itemXml = items.map((item) => buildFeedItemXml(item, sourceTitle)).join("\n");
+  const itemXml = items.map((item) => buildFeedItemXml(item, item.source_title || sourceTitle)).join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${cdata(feedTitle)}</title>
-    <description>${cdata(description)}</description>
-    <link>${escapeXml(feed.source_url)}</link>
+    <description>${cdata(`${description} | ${items.length} included for ${libraryName}`)}</description>
+    <link>${escapeXml(link)}</link>
     <atom:link href="${escapeXml(feedUrl)}" rel="self" type="application/rss+xml" />
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
 ${itemXml}
   </channel>
 </rss>
 `;
+}
+
+export function buildFeedXml(origin, feed, items, feedTarget = "radarr") {
+  const sourceTitle = feed.list_title || "IMDb Feed";
+  return renderRss({
+    feedUrl: `${origin}${buildPublicFeedPath(normalizeImdbUrl(feed.source_url), feedTarget)}`,
+    link: feed.source_url,
+    sourceTitle,
+    description: `${sourceTitle} on IMDb`,
+    lastSyncedAt: feed.last_synced_at,
+    items,
+    feedTarget,
+  });
+}
+
+// ── Shared lists ─────────────────────────────────────────────────────────────
+// One pair of links fed by several IMDb lists: /radarr/s/<slug> and
+// /sonarr/s/<slug>. The slug is random, so the links say nothing about whose
+// lists are in it; the invite code that lets people in is a separate secret.
+
+const SHARED_ROUTE = /^\/(radarr|sonarr)\/s\/([a-f0-9]{12})\/?$/i;
+
+export function buildSharedFeedPath(slug, feedTarget = "radarr") {
+  if (feedTarget !== "radarr" && feedTarget !== "sonarr") {
+    throw new Error("Unsupported feed target.");
+  }
+  return `/${feedTarget}/s/${slug}`;
+}
+
+export function parseSharedFeedRoute(pathname) {
+  const match = pathname.match(SHARED_ROUTE);
+  return match ? { feedTarget: match[1].toLowerCase(), slug: match[2].toLowerCase() } : null;
+}
+
+/** The first of each title across a shared list's IMDb lists, keyed by `key` (an IMDb, TMDB or TVDB id). */
+export function uniqueBy(items, key) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const value = item[key];
+    if (seen.has(value)) {
+      return false;
+    }
+    seen.add(value);
+    return true;
+  });
+}
+
+/** A shared list's Radarr RSS: every IMDb list's movies, each title once. */
+export function buildSharedFeedXml(origin, shared, items, lastSyncedAt) {
+  return renderRss({
+    feedUrl: `${origin}${buildSharedFeedPath(shared.slug, "radarr")}`,
+    link: `${origin}/`,
+    sourceTitle: shared.name,
+    description: `${shared.name}, a shared list on Watcharr`,
+    lastSyncedAt,
+    items,
+    feedTarget: "radarr",
+  });
 }
 
 export function buildCachedFeedXmlTemplate(feed, items, feedTarget = "radarr") {
