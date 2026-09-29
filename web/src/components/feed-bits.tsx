@@ -732,6 +732,7 @@ export function NewFeedForm({
   const firstField = useRef<HTMLInputElement>(null)
   const filled = links.map((link) => link.trim()).filter(Boolean)
   const invalid = filled.some((link) => !isSupportedImdbUrl(link))
+  const good = filled.filter((link) => isSupportedImdbUrl(link)).length
   const several = links.length > 1
   const empty = filled.length === 0
 
@@ -829,7 +830,7 @@ export function NewFeedForm({
           </Button>
         )}
         <Button type="submit" variant="cta" size="cta" disabled={api.busy || empty || invalid}>
-          {filled.length > 1 ? `Make one feed from ${filled.length}` : 'Make feed'}
+          {good > 1 ? `Make one feed from ${good}` : 'Make feed'}
         </Button>
       </div>
     </form>

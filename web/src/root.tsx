@@ -18,7 +18,7 @@ export function Root() {
         <App />
         {hydrated && (
           <Suspense fallback={null}>
-            <Toaster position="bottom-center" />
+            <Toaster />
           </Suspense>
         )}
       </ThemeProvider>

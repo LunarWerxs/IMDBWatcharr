@@ -7,7 +7,7 @@
 // setup open only for a feed just made, a list's details only when its row is
 // opened, people and the join link in a Share window, the rare actions
 // behind a ⋯. A brand-new account starts on the one thing it can do.
-import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDownIcon, PinIcon, PinOffIcon, PlusIcon, UsersIcon } from 'lucide-react'
 
 import { AskProvider } from '@/components/ask'
@@ -164,7 +164,7 @@ function Sidebar({
   return (
     <>
       {/* A phone: the feeds as small pills to swipe through, so the feed below is what the eye lands on. */}
-      <nav ref={pills} aria-label="Your feeds" className="scrollbar-quiet -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pt-1 pb-2 md:hidden">
+      <nav ref={pills} aria-label="Your feeds" className="scrollbar-quiet -mx-4 flex scroll-px-4 gap-2 overflow-x-auto px-4 pt-1 pb-2 md:hidden">
         {feeds.map((feed, index) => {
           const active = feed.key === current.key
           return (
@@ -175,7 +175,7 @@ function Sidebar({
               aria-current={active ? 'true' : undefined}
               style={beat(index)}
               className={cn(
-                'bg-card ring-foreground/10 animation-delay-var flex max-w-44 shrink-0 snap-start items-center gap-2 rounded-full py-1 ps-1 pe-3.5 text-sm font-semibold ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
+                'bg-card ring-foreground/10 animation-delay-var flex max-w-44 shrink-0 items-center gap-2 rounded-full py-1 ps-1 pe-3.5 text-sm font-semibold ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
                 active ? 'ring-primary ring-2' : 'text-muted-foreground motion-safe:active:scale-[0.97]',
               )}
             >
@@ -190,7 +190,7 @@ function Sidebar({
         <button
           type="button"
           onClick={onNew}
-          className="text-muted-foreground border-foreground/20 hover:text-foreground flex shrink-0 snap-start items-center gap-1 rounded-full border border-dashed px-3 text-sm font-medium transition-colors"
+          className="text-muted-foreground border-foreground/20 hover:text-foreground flex shrink-0 items-center gap-1 rounded-full border border-dashed px-3 text-sm font-medium transition-colors"
         >
           <PlusIcon className="size-4" />
           New feed
@@ -290,7 +290,7 @@ function Detail({
   peeks,
   api,
   fresh,
-  corner,
+  onNew,
   onGone,
   onShare,
   onCombine,
@@ -300,8 +300,8 @@ function Detail({
   peeks: Peeks
   api: FeedsApi
   fresh: Fresh | null
-  /** At the far end of the buttons: the New feed button when there is no side list to hold it. */
-  corner?: ReactNode
+  /** With no side list to hold it, New feed sits with the feed's buttons. */
+  onNew?: () => void
   onGone: () => void
   onShare: () => void
   onCombine: () => void
@@ -350,7 +350,7 @@ function Detail({
               className="-mx-2.5 -my-px h-auto py-0 text-3xl font-bold tracking-tight sm:text-4xl md:text-4xl"
             />
           ) : (
-            <h2 id="feed-title" tabIndex={-1} className="line-clamp-2 text-3xl font-bold tracking-tight break-words outline-none sm:text-4xl">
+            <h2 id="feed-title" tabIndex={-1} className="line-clamp-2 text-3xl font-bold tracking-tight text-balance break-words outline-none sm:text-4xl">
               {feed.name}
             </h2>
           )}
@@ -390,6 +390,7 @@ function Detail({
           <CopyAppButton app="Sonarr" url={feed.sonarrUrl} size="cta" className="hidden md:inline-flex" onUse={showSetup} />
         </span>
         <span className="flex items-center gap-2">
+          {onNew && <NewFeedButton onClick={onNew} className="sm:hidden" />}
           {shared && (
             <Button type="button" variant="secondary" size="cta" onClick={onShare}>
               <UsersIcon />
@@ -398,10 +399,9 @@ function Detail({
             </Button>
           )}
           <FeedMenu feed={feed} api={api} onGone={onGone} onRename={() => setRenaming(true)} />
-          {/* A phone: New feed goes with the ⋯, as Share does, rather than wrapping onto a line alone. */}
-          {corner && <span className="sm:hidden">{corner}</span>}
         </span>
-        {corner && <span className="ms-auto hidden sm:block">{corner}</span>}
+        {/* Not about this feed, so apart from its buttons: at the far end, on the column's edge. */}
+        {onNew && <NewFeedButton onClick={onNew} className="ms-auto hidden sm:inline-flex" />}
       </div>
 
       {/* What the bookmark is for, only while it is being dragged, just dropped or clicked here. */}
@@ -433,8 +433,8 @@ function Detail({
               <p className="mb-3 text-sm text-pretty">
                 <span className="font-bold">One last step:</span>{' '}
                 <span className="text-muted-foreground">
-                  put these two links in Radarr and Sonarr, and they fill in from here. On a computer, the Add to Radarr / Sonarr
-                  bookmark does it for you.
+                  put these two links in Radarr and Sonarr, and they fill in from here. On a computer, the{' '}
+                  <span className="whitespace-nowrap">Add to Radarr / Sonarr</span> bookmark does it for you.
                 </span>
               </p>
             )}
@@ -486,6 +486,16 @@ function Detail({
         </section>
       )}
     </article>
+  )
+}
+
+/** New feed, for a page with no side list to hold it. */
+function NewFeedButton({ onClick, className }: { onClick: () => void; className: string }) {
+  return (
+    <Button type="button" variant="secondary" size="cta" className={className} onClick={onClick}>
+      <PlusIcon />
+      New feed
+    </Button>
   )
 }
 
@@ -642,14 +652,7 @@ function Shelves({
       peeks={peeks}
       api={api}
       fresh={fresh?.key === current.key ? fresh : null}
-      corner={
-        feeds.length === 1 ? (
-          <Button type="button" variant="ghost" size="cta" className="text-muted-foreground" onClick={() => setDialog({ open: 'new' })}>
-            <PlusIcon />
-            New feed
-          </Button>
-        ) : undefined
-      }
+      onNew={feeds.length === 1 ? () => setDialog({ open: 'new' }) : undefined}
       onGone={() => setPicked(null)}
       onShare={() => setDialog({ open: 'share' })}
       onCombine={() => setDialog({ open: 'new', links: [current.sources[0]?.sourceUrl ?? '', ''] })}
