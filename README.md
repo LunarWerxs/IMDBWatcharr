@@ -63,7 +63,7 @@ nothing to install.
 | 🔁 **Links that never change** | Built from the IMDb list's id, so you set them up once and pasting the list again gives the same two links |
 | 📺 **Shows matched for Sonarr** | Sonarr adds shows by their TheTVDB id, which Watcharr finds through TVMaze and then TMDB. A show neither knows is left out rather than passed along broken, and the page lists which ones and why |
 | 🍿 **Covers and details** | The list's covers in a row, each opening TMDB's plot, genres, rating, backdrop and trailer, a View on IMDb link, and a Request with [Askarr](https://askarr.com) step |
-| 🔄 **Keeps itself current** | Sign in and the list is re-read about every 15 minutes. My feeds lists what you follow, and a bell tells you when a list has failed three reads in a row |
+| 🔄 **Keeps itself current** | Sign in and the list is re-read about every 15 minutes. Your library shows every feed you follow, and a bell tells you when a list has failed three reads in a row |
 | 👪 **Shared lists** | One Radarr link and one Sonarr link for the whole house. Sign in, make a shared list, add as many IMDb lists as you like, and send the join link: everyone who joins adds their own watchlist. A title on two lists is added once |
 | 🛟 **Last good copy** | A failed read never empties your Radarr or Sonarr list: the links keep serving the last good snapshot, and the failure is recorded on the feed |
 | 📱 **Works on a phone** | Paste, copy and browse from any screen. The one-click sticker shows on bigger screens, where there is a bookmarks bar |

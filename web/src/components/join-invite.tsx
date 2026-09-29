@@ -57,7 +57,7 @@ export function JoinInvite({
         try {
           const result = await joinSharedList(code)
           const joined = result.lists.find((list) => list.slug === result.slug)
-          void notify('success', `You joined "${joined?.name ?? 'the shared list'}". Add your IMDb lists to it.`)
+          void notify('success', `You joined "${joined?.name ?? 'the shared feed'}". Add your IMDb lists to it.`)
           if (result.slug) startJoining(() => onJoined(result.slug as string))
         } catch (cause) {
           void notify('error', cause instanceof Error ? cause.message : 'Could not join. Try again.')
@@ -94,7 +94,7 @@ export function JoinInvite({
             Join “{invite.name}”
           </h2>
           <p className="text-muted-foreground mt-2 max-w-2xl text-pretty">
-            {invite.ownerName ?? 'Someone'} invited you to a shared list: one Radarr link and one Sonarr link, fed by
+            {invite.ownerName ?? 'Someone'} invited you to a shared feed: one Radarr link and one Sonarr link, fed by
             everyone’s IMDb lists. {plural(invite.sourceCount, 'IMDb list')} and{' '}
             {invite.memberCount === 1 ? '1 person' : `${invite.memberCount} people`} so far.
           </p>

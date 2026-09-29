@@ -33,7 +33,7 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'Can my family share one Radarr link and one Sonarr link?',
     answer:
-      'Yes. Sign in and make a shared list. It has one Radarr link and one Sonarr link, and you can add as many IMDb lists to it as you like. Send the join link to family or friends: once they sign in, they add their own watchlists. Every list’s titles go into the same two links, a title on two lists only once, and each list is checked about every fifteen minutes. Anyone can take out the lists they added, and whoever made the shared list can remove people or make a new join link.',
+      'Yes. Sign in and make a feed from more than one IMDb list. It has one Radarr link and one Sonarr link, and you can add as many lists to it as you like. Share it with family or friends: once they open its join link and sign in, they add their own watchlists. Every list’s titles go into the same two links, a title on two lists only once, and each list is checked about every fifteen minutes. Anyone can take out the lists they added, and whoever made the feed can remove people or make a new join link.',
   },
   {
     question: 'How is this different from adding an IMDb list to Radarr or Sonarr directly?',

@@ -84,11 +84,11 @@ The runner reads three lists at a time and logs how long each read and ingest to
 made to feel like IMDb: an off-black header and footer in both themes, a charcoal (or light) ground,
 IMDb yellow for actions, and Roboto (self-hosted). It builds into `web/dist/`, which the Worker serves as its assets, and the
 build prerenders the first view into `index.html` so the page paints before the JavaScript runs.
-What nobody sees on arrival (the filled-in result, the title popup, the sign-in lightbox, My feeds,
-the alert bell and the toasts) is split out with `lazyPart` (`web/src/lib/lazy.ts`) and fetched once
+What nobody sees on arrival (the filled-in result, the title popup, the sign-in lightbox, the
+signed-in library, the alert bell and the toasts) is split out with `lazyPart` (`web/src/lib/lazy.ts`) and fetched once
 the page is idle, so the first download is the page itself and nothing waits on a click.
 
-One page, top to bottom:
+Signed out, one page, top to bottom:
 
 - **The search bar.** Paste a list and press Generate, or click the example under it: one of six
   public lists, picked per visit, which fills the field and builds in one click. The six are
@@ -103,6 +103,41 @@ One page, top to bottom:
 - **Questions.** The FAQ, from `web/src/lib/faq.ts`; the build writes the same entries into the
   page's FAQPage structured data.
 - **Askarr**, LunarWerx's one-title request app, with its own logo and a drawn picture of it at work.
+
+"Add another list" under the search bar says combining lists takes signing in; signed in, the
+library starts a new feed with the link that was in the field and a second one to fill in.
+
+### Signed in: the library
+
+Signed in, the sales page is gone and the page is the library (`web/src/components/library.tsx`,
+built from `web/src/components/feed-bits.tsx`). It shows one kind of thing, a feed: one Radarr link
+and one Sonarr link, fed by one IMDb list or by several people's (`web/src/lib/use-feeds.ts`). Feeds
+sit down the side like playlists (a row of cards to swipe on a phone), and the one picked fills the
+rest: its cover, name and counts, two big copy buttons, Share (people and the join link, in a
+window), a ⋯ for rename (in place), delete, leave or stop following, its IMDb lists, and a strip of
+its covers that open the title popup.
+
+It shows what the moment needs and folds the rest away:
+
+- No feeds yet: only the first-feed form, with three real lists to try.
+- One feed: no side list; New feed sits beside the name.
+- A feed just made opens with the Radarr and Sonarr setup showing; any other keeps it folded under
+  "Where do these go in Radarr and Sonarr?". A feed just joined opens with its add-a-list field.
+- An IMDb list is one line (whose, how big, a status dot) that opens for when it was read, what went
+  wrong, Open on IMDb and Take it out. A list that cannot be read starts open, with the reason.
+- Deleting, leaving, taking a list out, removing someone or making a new join link asks first, in
+  the page's own window (`web/src/components/ask.tsx`), never the browser's.
+- The header bell (`#needs-attention`) opens the first feed with a list that keeps failing.
+- A `?list=` link someone sent opens as a new feed waiting for a yes; the tab's last list does not
+  come back, signed in.
+
+Motion is one system: whole parts in half a second and small things in a quarter, on `--ease-soft`,
+none of it under reduced motion. Parts fold open and shut (`fold` in `web/src/index.css`, which also
+grows in a row that was just added), the side list's highlight slides to the feed picked, the picked
+feed rises in part by part, covers fade in once loaded, and a feed being read breathes its dot. A
+browser that was signed in last time (`watcharr:signed-in` in local storage, set from the session
+read) shows the library's outline instead of the sales page until the session is read, so the pitch
+never flashes up; `web/index.html` sets the class before anything draws.
 
 Styling follows the Architect's shadcn rules: special buttons and the search field are variants in
 `web/src/components/ui/` rather than restyled per use, colours are tokens in `web/src/index.css`,
@@ -123,20 +158,13 @@ Point the dev proxy somewhere else with `VITE_API_ORIGIN=http://localhost:8787 n
 **To see the page as a signed-in person sees it, with no account, open
 [watcharr.lunarwerx.com/?demo](https://watcharr.lunarwerx.com/?demo)** (or `/?demo` on any copy,
 `npm run web:dev` included). It is signed in as Alex, a made-up person, with three lists of their own
-(one failing, so the alert bell shows), a shared list they made ("Our house", with Sam and Jordan and
-a join link) and one they joined ("Movie night", made by Riley). Everything works: add and remove
-lists, combine lists from the search bar, rename, leave, delete, reset the join link. A list added in
+(one failing, so the alert bell shows), a shared feed they made ("Our house", with Sam and Jordan and
+a join link) and one they joined ("Movie night", made by Riley). Everything works: make feeds, add and
+remove lists, rename, leave, delete, reset the join link; drop every feed to see the first-feed form,
+and all but one to see a single feed. A list added in
 the demo is "read" about twelve seconds later. **See an invite** in the demo banner opens the join
 screen for a list Alex is not in yet (`/?demo&join=feedfacecafebeefdeadbeef00000001`), and the
 sign-in prompts link to the demo as **See how it looks**.
-
-**Layouts being chosen between.** The banner switches the signed-in page between `/?demo=1` (as it
-ships), `/?demo=2` (one column of feeds that open into tabs, `web/src/components/home-v2.tsx`) and
-`/?demo=3` (a library: feeds down the side, the picked one filling the rest, sharing in a window,
-`web/src/components/home-v3.tsx`). Both redesigns show one kind of thing, a feed (one Radarr link
-and one Sonarr link from one IMDb list or several, `web/src/lib/use-feeds.ts`), built from
-`web/src/components/feed-bits.tsx`, and only the demo loads them. Once one is picked it replaces the
-signed-in page and the other goes.
 
 How it works: `web/src/main.tsx` sees `?demo` (`web/src/lib/demo-mode.ts`) and, before the page
 starts, loads `web/src/lib/demo.ts`, which puts itself in front of `window.fetch` and answers
@@ -227,22 +255,21 @@ Run a sync by hand from any machine that is not behind Cloudflare:
 WORKER_ORIGIN=https://watcharr.lunarwerx.com INGEST_SECRET=... SYNC_SCOPE=all node scripts/sync-feeds.mjs
 ```
 
-### My feeds and sync alerts
+### Followed lists and sync alerts
 
-A signed-in visitor sees a "My feeds" card on the home page listing every feed they have claimed,
-each with its status, item count, and when it last synced. A feed that fails
-`FEED_ALERT_FAILURE_THRESHOLD` (3) scheduled syncs in a row is marked as needing attention there and
-in a small bell badge in the header, so a Radarr/Sonarr feed going stale is noticed instead of
-discovered by accident. There is no outbound email today (the OAuth scopes never request one), so
-this is in-app only: no separate mail service to configure.
+The library lists every feed a signed-in visitor has claimed, each with its status, size and when it
+was last read. A feed that fails `FEED_ALERT_FAILURE_THRESHOLD` (3) scheduled syncs in a row is
+marked as needing attention there and in a small bell badge in the header, so a Radarr/Sonarr feed
+going stale is noticed instead of discovered by accident. There is no outbound email today (the OAuth
+scopes never request one), so this is in-app only: no separate mail service to configure.
 
-Each row has an Unfollow button (with a confirm) that calls `POST /api/unfollow` to stop that feed
-from auto-refreshing; its Radarr/Sonarr URLs keep serving the last synced snapshot, they just stop
-updating.
+A single list's ⋯ has Stop following (it asks first), which calls `POST /api/unfollow` to stop that
+feed from auto-refreshing; its Radarr/Sonarr URLs keep serving the last synced snapshot, they just
+stop updating.
 
 ### Shared lists
 
-A signed-in visitor can make a shared list ([src/shared-lists.js](../src/shared-lists.js), tables in
+The page calls them shared feeds. A signed-in visitor can make a shared list ([src/shared-lists.js](../src/shared-lists.js), tables in
 [migrations/0010_add_shared_lists.sql](../migrations/0010_add_shared_lists.sql)): one pair of links,
 `/radarr/s/:slug` and `/sonarr/s/:slug`, fed by several IMDb lists. The maker hands out a join link
 (`/?join=<code>`); anyone who opens it and signs in joins and adds their own lists. The links serve
