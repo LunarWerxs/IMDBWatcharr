@@ -169,11 +169,14 @@ const READY_RESULT = {
 };
 
 const SIGNED_IN = { signedIn: true, name: "Ada", authAvailable: true };
+const SIGNED_OUT = { signedIn: false, name: null, authAvailable: true };
 
-// The filled-in result and the signed-in extras load after the page
-// (web/src/lib/lazy.ts), so one prerender with both in place loads them first.
-globalThis[PROBE_GLOBAL] = { result: READY_RESULT, session: SIGNED_IN };
-await loadParts();
+// The filled-in result and the signed-in library load after the page
+// (web/src/lib/lazy.ts), and never show together, so a prerender of each loads them first.
+for (const state of [{ result: READY_RESULT, session: SIGNED_OUT }, { session: SIGNED_IN }]) {
+  globalThis[PROBE_GLOBAL] = state;
+  await loadParts();
+}
 delete globalThis[PROBE_GLOBAL];
 
 describe("App - a first look", () => {
@@ -264,14 +267,15 @@ describe("App - a finished result", () => {
   });
 
   test("a ready feed is badged with its status and flagged as kept current", () => {
-    const html = render({ result: READY_RESULT, session: SIGNED_IN });
+    // Someone already keeps this list updated, so a signed-out visitor is not asked to.
+    const html = render({ result: READY_RESULT, session: SIGNED_OUT });
 
     assert.match(html, />ready</);
     assert.doesNotMatch(html, /animate-spin/);
 
     // Being read again (a re-paste queues a fresh read) is not "busy": the
     // list is ready and serving, so nothing spins (owner, 2026-09-28).
-    const rereading = render({ result: { ...READY_RESULT, syncing: true }, session: SIGNED_IN });
+    const rereading = render({ result: { ...READY_RESULT, syncing: true }, session: SIGNED_OUT });
     assert.doesNotMatch(rereading, /animate-spin/);
     assert.doesNotMatch(html, /Won’t update by itself/);
     assert.match(html, /Shows we skipped/);
@@ -362,5 +366,18 @@ describe("App - the signed-out nudge", () => {
     const html = render({ session: { signedIn: false, name: null, authAvailable: true } });
 
     assert.doesNotMatch(html, /Won’t update by itself/);
+  });
+});
+
+describe("App - signed in", () => {
+  test("a signed-in visitor gets their library, not the sales page", () => {
+    const html = render({ session: SIGNED_IN });
+
+    // Effects do not run here, so the library is still reading the feeds.
+    assert.match(html, /aria-label="Loading your feeds"/);
+    assert.doesNotMatch(html, /straight into/);
+    assert.doesNotMatch(html, /How it works/);
+    assert.doesNotMatch(html, /IMDb watchlist or list URL/);
+    assert.doesNotMatch(html, /More from LunarWerx/);
   });
 });

@@ -1,4 +1,4 @@
-// My feeds' Unfollow button (web/src/components/my-feeds.tsx) leans entirely on
+// A feed's Stop following (FeedMenu, web/src/components/feed-bits.tsx) leans entirely on
 // unfollowFeed's request contract in web/src/lib/api.ts: what it POSTs, and how
 // it turns a non-2xx answer into the error text the toast shows. It is plain
 // TypeScript, which Node (22.18 and up) imports by stripping the types.

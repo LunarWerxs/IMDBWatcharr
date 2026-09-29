@@ -78,8 +78,9 @@ function takeListFromAddress(): string | null {
  * Which list to open with, and whether to build it straight away. A list in
  * the address is built when this tab carried it through sign-in, or when nobody
  * is signed in to claim it; a signed-in visitor following somebody else's link
- * decides for themselves. Otherwise the tab's last list comes back, rebuilt
- * automatically only when signed out, where building claims nothing.
+ * decides for themselves. Otherwise, signed out, the tab's last list comes back
+ * and is rebuilt, which claims nothing; signed in, the library is the page, and
+ * the lists are all in it already.
  */
 function startingList(session: Session): { list: string; build: boolean } | null {
   const fromAddress = takeListFromAddress()
@@ -88,7 +89,27 @@ function startingList(session: Session): { list: string; build: boolean } | null
   }
 
   const last = stored(LAST_LIST_KEY)
-  return last ? { list: last, build: !session.signedIn } : null
+  return last && !session.signedIn ? { list: last, build: true } : null
+}
+
+/** The bell's link: the library picks the first feed with a list that keeps failing. */
+export const NEEDS_ATTENTION = 'needs-attention'
+
+// Whether this browser was signed in last time, so the next visit can show the
+// library's outline instead of flashing the sales page while the session is read.
+// index.html reads it before anything draws; only a hint, never trusted for access.
+const SIGNED_IN_HINT_KEY = 'watcharr:signed-in'
+const SIGNED_IN_HINT_CLASS = 'signed-in-hint'
+
+/** Record what the session read said, and let the page it hid show if it was wrong. */
+export function rememberSignedIn(signedIn: boolean) {
+  try {
+    if (signedIn) localStorage.setItem(SIGNED_IN_HINT_KEY, '1')
+    else localStorage.removeItem(SIGNED_IN_HINT_KEY)
+  } catch {
+    // No storage: every visit just starts from the sales page, as it always did.
+  }
+  document.documentElement.classList.remove(SIGNED_IN_HINT_CLASS)
 }
 
 // A shared list's join link is the site with ?join=<code> (src/shared-lists.js).

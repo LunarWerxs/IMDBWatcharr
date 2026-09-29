@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { readNotifications } from '@/lib/api'
+import { NEEDS_ATTENTION } from '@/lib/feed-page'
 
 // A signed-out visitor can never own a feed, so the header only renders this
 // once a session is known signed in.
@@ -35,7 +36,7 @@ export function NotificationsBadge() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button asChild variant="ghost" size="icon" className="relative">
-          <a href="#my-feeds" aria-label={`${count} feed${count === 1 ? '' : 's'} need attention`}>
+          <a href={`#${NEEDS_ATTENTION}`} aria-label={`${count} feed${count === 1 ? '' : 's'} need attention`}>
             <BellIcon className="size-4" />
             <Badge
               variant="destructive"

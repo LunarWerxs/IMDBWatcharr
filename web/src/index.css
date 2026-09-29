@@ -300,6 +300,79 @@
     }
 }
 
+/* The library's motion (library.tsx, feed-bits.tsx): small things move in a quarter second, whole parts
+   in half a second, all on --ease-soft, and none of it for a visitor who asked for less motion. */
+
+/* A part that folds open and shut: its one child grows from nothing to its own height, and back.
+   data-folded shuts it; @starting-style makes a part that just arrived (a list added) grow in too. */
+@utility fold {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+        grid-template-rows 0.5s var(--ease-soft),
+        opacity 0.3s var(--ease-soft);
+
+    & > * {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    &[data-folded] {
+        grid-template-rows: 0fr;
+        opacity: 0;
+    }
+
+    @starting-style {
+        grid-template-rows: 0fr;
+        opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
+
+/* A feed still being read from IMDb: its dot breathes out a ring, instead of blinking. */
+@keyframes breathe {
+    0% {
+        box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 60%, transparent);
+    }
+    70%,
+    100% {
+        box-shadow: 0 0 0 6px transparent;
+    }
+}
+
+@utility breathe {
+    animation: breathe 1.8s var(--ease-soft) infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+    }
+}
+
+/* A copy button's light sweeps across it once when the link is copied (on the shine a call to action has). */
+@keyframes sweep {
+    from {
+        transform: translateX(-120%);
+    }
+    to {
+        transform: translateX(120%);
+    }
+}
+
+@utility sweep-once {
+    &::after {
+        animation: sweep 0.7s var(--ease-soft) both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        &::after {
+            animation: none;
+        }
+    }
+}
+
 /* The sticky header casts a soft shadow once the page scrolls under it (a scroll-driven animation; a
    browser without one keeps the flat bar). */
 @keyframes header-lift {
@@ -537,6 +610,20 @@
     transition-property: max-width, opacity;
     transition-timing-function: var(--default-transition-timing-function);
     transition-duration: var(--duration-reveal);
+}
+
+/* The signed-in hint (index.html): until the session is read, a browser that was signed in last time
+   sees the library's outline where the sales page would be, so the sales page never flashes up. */
+[data-library-hint] {
+    display: none;
+}
+
+.signed-in-hint [data-library-hint] {
+    display: grid;
+}
+
+.signed-in-hint [data-signed-out] {
+    display: none;
 }
 
 /* The shared Discord badge sits above everything on the page; while a popup

@@ -1,8 +1,8 @@
-// One model for the signed-in page's redesigns (demo layouts 2 and 3): a
-// "feed" is one Radarr link and one Sonarr link, fed by one IMDb list (a list
-// the person follows) or by several (a shared list). The page stops showing two
-// kinds of thing and shows feeds; which kind a feed is only decides what it can
-// do (only a shared one has people).
+// The signed-in page's one model (components/library.tsx): a "feed" is one
+// Radarr link and one Sonarr link, fed by one IMDb list (a list the person
+// follows) or by several (a shared list). The page shows one kind of thing,
+// feeds; which kind a feed is only decides what it can do (only a shared one
+// has people).
 import { useCallback, useEffect, useState } from 'react'
 
 import {
@@ -14,6 +14,7 @@ import {
   readSharedLists,
   unfollowFeed,
   type MyFeed,
+  type PreviewItem,
   type SharedList,
   type SharedMember,
   type SharedSource,
@@ -195,7 +196,7 @@ export type FeedsApi = ReturnType<typeof useFeeds>
 
 // ── Covers and counts, read from each list's public status ───────────────────
 
-type Peek = { posters: string[]; movies: number; shows: number }
+type Peek = { titles: PreviewItem[]; movies: number; shows: number }
 const peeks = new Map<string, Promise<Peek>>()
 
 function readPeek(slug: string): Promise<Peek> {
@@ -203,11 +204,11 @@ function readPeek(slug: string): Promise<Peek> {
   if (!pending) {
     pending = readFeedStatus(slug).then(
       (status) => ({
-        posters: (status.preview ?? []).map((item) => item.poster).filter((poster): poster is string => Boolean(poster)),
+        titles: (status.preview ?? []).filter((item) => Boolean(item.poster)),
         movies: status.radarrCount,
         shows: status.sonarrCount,
       }),
-      () => ({ posters: [], movies: 0, shows: 0 }),
+      () => ({ titles: [], movies: 0, shows: 0 }),
     )
     peeks.set(slug, pending)
   }
@@ -231,16 +232,34 @@ export function usePeeks(slugs: string[]): Map<string, Peek> {
   return found
 }
 
-/** A feed's covers: the first from each list in turn, so every list shows. */
-export function coversOf(feed: Feed, found: Map<string, Peek>, count: number): string[] {
-  const lists = feed.sources.map((source) => found.get(source.slug)?.posters ?? [])
-  const covers: string[] = []
-  for (let index = 0; covers.length < count && lists.some((posters) => index < posters.length); index += 1) {
-    for (const posters of lists) {
-      if (index < posters.length && covers.length < count) covers.push(posters[index])
+/**
+ * Titles on a feed, with covers: the first from each list in turn, so every
+ * list shows, and a title on two lists once.
+ */
+export function titlesOf(feed: Feed, found: Map<string, Peek>, count: number): PreviewItem[] {
+  const lists = feed.sources.map((source) => found.get(source.slug)?.titles ?? [])
+  const seen = new Set<string>()
+  const titles: PreviewItem[] = []
+  for (let index = 0; titles.length < count && lists.some((items) => index < items.length); index += 1) {
+    for (const items of lists) {
+      const item = items[index]
+      if (item && titles.length < count && !seen.has(item.imdbId)) {
+        seen.add(item.imdbId)
+        titles.push(item)
+      }
     }
   }
-  return covers
+  return titles
+}
+
+/** A feed's covers, the way a playlist has them. */
+export function coversOf(feed: Feed, found: Map<string, Peek>, count: number): string[] {
+  return titlesOf(feed, found, count).map((item) => item.poster as string)
+}
+
+/** True while a feed has never been read: it has nothing to count yet. */
+export function unread(feed: Feed): boolean {
+  return feed.health !== 'ready' && feed.sources.every((source) => source.itemCount === 0)
 }
 
 /**
@@ -248,7 +267,7 @@ export function coversOf(feed: Feed, found: Map<string, Peek>, count: number): s
  * status; "Nothing read yet" for a list IMDb has never given us.
  */
 export function countsOf(feed: Feed, found: Map<string, Peek>): string {
-  if (feed.health !== 'ready' && feed.sources.every((source) => source.itemCount === 0)) return 'Nothing read yet'
+  if (unread(feed)) return 'Nothing read yet'
   const peek = feed.kind === 'single' ? found.get(feed.slug) : undefined
   const movies = feed.movies ?? peek?.movies
   const shows = feed.shows ?? peek?.shows

@@ -48,6 +48,16 @@
     <!-- A plain-text summary for AI readers, the same one robots.txt and the sitemap point at. -->
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Watcharr for AI readers" />
 
+    <!-- Signed in last time (web/src/lib/feed-page.ts remembers it), or the signed-in demo: show the
+         library's outline instead of the sales page until the session is read, so it never flashes up. -->
+    <script>
+      try {
+        if (localStorage.getItem('watcharr:signed-in') === '1' || /[?&]demo(=|&|$)/.test(location.search)) {
+          document.documentElement.classList.add('signed-in-hint');
+        }
+      } catch (e) { /* no storage: the sales page shows first, as it always did */ }
+    </script>
+
     <!-- ARGUS Analytics Pixel (Connections, analytics.connectionsapi.com).
          The key is a PUBLIC ingest key and is meant to ship in client JS.
          Honours DNT and Sec-GPC by itself, and is grant-by-default outside the

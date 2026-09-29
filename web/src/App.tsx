@@ -1,30 +1,25 @@
-import { lazy, Suspense, useCallback, useState, type FormEvent } from 'react'
+import { Suspense, useCallback, useState, type FormEvent, type MouseEvent } from 'react'
 
 import { FaqSection } from '@/components/faq-section'
 import { FeedsSection } from '@/components/feed-panel'
 import { DemoBanner } from '@/components/demo-banner'
 import { AskarrSection, FeedForm, Hero, HowItWorks, KeepUpdating } from '@/components/home-sections'
+import { LibrarySkeleton } from '@/components/library-skeleton'
 import { PosterRow } from '@/components/poster-row'
 import { Reveal } from '@/components/reveal'
 import { PAGE_WIDTH, SiteFooter, SiteHeader, type SignInClick } from '@/components/site-chrome'
-import { createFeed, createSharedList, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
-import { forgetLastList, mergeStatus, rememberLastList, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
-import { demoLayout, inDemo } from '@/lib/demo-mode'
+import { createFeed, isSupportedImdbUrl, type CreateFeedResponse, type Session } from '@/lib/api'
+import { forgetLastList, rememberLastList, rememberSignedIn, useFeedStatusPoll, useStartingList } from '@/lib/feed-page'
+import { inDemo } from '@/lib/demo-mode'
 import { lazyPart, useHydrated } from '@/lib/lazy'
 import { scrollBehavior } from '@/lib/motion'
-import { notify } from '@/lib/notify'
 import { usePopupSignIn } from '@/lib/sign-in'
 
-// Only a signed-in visitor has feeds and shared lists, only a join link shows an
-// invite, and the lightbox only shows while the sign-in window is open.
-const MyFeeds = lazyPart(() => import('@/components/my-feeds').then((module) => module.MyFeeds))
-const SharedLists = lazyPart(() => import('@/components/shared-lists').then((module) => module.SharedLists))
+// Only a signed-in visitor has a library, only a join link shows an invite, and
+// the lightbox only shows while the sign-in window is open.
+const Library = lazyPart(() => import('@/components/library').then((module) => module.Library))
 const JoinInvite = lazyPart(() => import('@/components/join-invite').then((module) => module.JoinInvite))
 const SignInLightbox = lazyPart(() => import('@/components/sign-in-lightbox').then((module) => module.SignInLightbox))
-// The signed-in redesigns being chosen between, only in the demo (?demo=2, ?demo=3):
-// plain lazy, not lazyPart, so nobody else ever downloads them.
-const HomeV2 = lazy(() => import('@/components/home-v2').then((module) => ({ default: module.HomeV2 })))
-const HomeV3 = lazy(() => import('@/components/home-v3').then((module) => ({ default: module.HomeV3 })))
 
 /**
  * On a phone the results land below the fold, so pressing Generate brings the
@@ -40,22 +35,24 @@ function revealFeeds() {
 export default function App() {
   // Known only in the browser, and after hydrating, so the prerendered page never disagrees.
   const demo = useHydrated() && inDemo()
-  const layout = demo ? demoLayout() : 1
   const [sourceUrl, setSourceUrl] = useState('')
   const [session, setSession] = useState<Session | null>(null)
-  // A redesign replaces the whole signed-in page, sales pitch and all.
-  const redesign = layout !== 1 && Boolean(session?.signedIn)
+  // Signed in, the page is the library: the sales pitch is for people who have not signed up.
+  const signedIn = Boolean(session?.signedIn)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateFeedResponse | null>(null)
   // The URL a poll should keep re-checking. Kept separate from `sourceUrl` so
   // editing the input mid-sync cannot redirect a poll already in flight.
   const [activeUrl, setActiveUrl] = useState('')
-  // A shared list's join link that brought the visitor here, and the shared
-  // list to bring into view: one just joined, or just made by Combine.
-  const [shared, setShared] = useState<{ joinCode: string | null; focusSlug: string | null }>({
+  // A shared feed's join link that brought the visitor here, and what the
+  // library opens on: the feed just joined or followed, or the links a new feed
+  // starts from (a list link someone sent, or the lists the visitor signed in
+  // to combine).
+  const [arrival, setArrival] = useState<{ joinCode: string | null; focus: string | null; draft: string[] | null }>({
     joinCode: null,
-    focusSlug: null,
+    focus: null,
+    draft: null,
   })
 
   async function buildFeeds(listUrl: string) {
@@ -65,8 +62,11 @@ export default function App() {
     setActiveUrl(listUrl)
 
     try {
-      setResult(await createFeed(listUrl))
+      const made = await createFeed(listUrl)
+      setResult(made)
       rememberLastList(listUrl)
+      // Signed in, building a list follows it, and the library opens on it.
+      if (made.signedIn) setArrival((current) => ({ ...current, focus: `list:${made.slug}` }))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Something went wrong.')
     } finally {
@@ -75,58 +75,44 @@ export default function App() {
   }
 
   useStartingList({
-    onSession: setSession,
+    onSession: (next) => {
+      setSession(next)
+      rememberSignedIn(next.signedIn)
+    },
     onList: (list, build) => {
       setSourceUrl(list)
       if (build) void buildFeeds(list)
+      // A list link someone sent a signed-in visitor: a new feed, waiting for their yes.
+      else setArrival((current) => ({ ...current, draft: [list] }))
     },
-    onJoin: (joinCode) => setShared((current) => ({ ...current, joinCode })),
+    onJoin: (joinCode) => setArrival((current) => ({ ...current, joinCode })),
   })
 
-  const handleJoined = useCallback((slug: string) => setShared({ joinCode: null, focusSlug: slug }), [])
+  const handleJoined = useCallback(
+    (slug: string) => setArrival((current) => ({ ...current, joinCode: null, focus: `shared:${slug}` })),
+    [],
+  )
 
-  // More than one link in the form makes a shared list of them: one Radarr link
-  // and one Sonarr link for all. Named after the person; they can rename it.
-  async function combineLists(listUrls: string[]) {
-    setPending(true)
-    setError(null)
-    setResult(null)
-    setActiveUrl('')
-    const firstName = session?.name?.trim().split(/\s+/)[0]
-    const name = firstName ? `${firstName}’s lists` : 'My lists'
-
-    try {
-      const made = await createSharedList(name, listUrls)
-      setShared((current) => ({ ...current, focusSlug: made.slug ?? null }))
-      setSourceUrl('')
-      forgetLastList()
-      void notify('success', `Combined ${listUrls.length} lists into "${name}". Rename it any time.`)
-      return true
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Something went wrong.')
-      return false
-    } finally {
-      setPending(false)
-    }
-  }
+  const handleDraftTaken = useCallback(() => setArrival((current) => ({ ...current, draft: null })), [])
 
   useFeedStatusPoll(result, setResult)
 
-  // Signing in from the window keeps this page as it is; the list on screen is
-  // then built again, which, signed in, follows it.
+  // Signing in from the window keeps this page where it is. The list on screen
+  // is then built again, which, signed in, follows it; unless the visitor
+  // signed in to combine lists, when the library starts a new feed with them.
   const signIn = usePopupSignIn((next, list) => {
     setSession(next)
-    if (list) void buildFeeds(list)
+    rememberSignedIn(true)
+    if (list && !arrival.draft) void buildFeeds(list)
   })
   const handleSignIn: SignInClick = (event) => signIn.start(event, activeUrl)
 
-  // Unfollowing the list on screen from My feeds re-reads where it stands, so
-  // the card stops saying it is being kept up to date.
-  function handleUnfollowed(slug: string) {
-    if (result?.slug !== slug) return
-    mergeStatus(setResult, slug).catch(() => {
-      // The card is only out of date; My feeds already shows the change.
-    })
+  // "Add another list", signed out: once signed in, the library starts a new
+  // feed from the link in the field and a second one to fill in.
+  function handleSignInToCombine(event: MouseEvent<HTMLAnchorElement>) {
+    const typed = sourceUrl.trim()
+    setArrival((current) => ({ ...current, draft: [typed && isSupportedImdbUrl(typed) ? typed : '', ''] }))
+    signIn.start(event)
   }
 
   const trimmed = sourceUrl.trim()
@@ -150,8 +136,8 @@ export default function App() {
     document.getElementById('source-url')?.focus()
   }
 
-  // One click on a list, from the account's saved lists or the form's example:
-  // it goes in the field and is built straight away, with no Generate to press.
+  // One click on the form's example: it goes in the field and is built straight
+  // away, with no Generate to press.
   function openList(listUrl: string) {
     if (pending) return
     setSourceUrl(listUrl)
@@ -164,91 +150,75 @@ export default function App() {
       <SiteHeader session={session} listUrl={activeUrl} onSignIn={handleSignIn} />
 
       <main className={`${PAGE_WIDTH} flex-1 pb-20`}>
-        {demo && <DemoBanner layout={layout} />}
+        {demo && <DemoBanner />}
 
-        {!redesign && <Hero />}
-
-        {shared.joinCode && (
+        {arrival.joinCode && (
           <Suspense fallback={null}>
             <JoinInvite
-              code={shared.joinCode}
+              code={arrival.joinCode}
               session={session}
               onSignIn={handleSignIn}
               onJoined={handleJoined}
-              onDismiss={() => setShared((current) => ({ ...current, joinCode: null }))}
+              onDismiss={() => setArrival((current) => ({ ...current, joinCode: null }))}
             />
           </Suspense>
         )}
 
-        {redesign ? (
-          <Suspense fallback={null}>
-            {layout === 2 ? (
-              <HomeV2 key={shared.focusSlug ?? ''} session={session} focusSlug={shared.focusSlug} />
-            ) : (
-              <HomeV3 key={shared.focusSlug ?? ''} session={session} focusSlug={shared.focusSlug} />
-            )}
+        {signedIn ? (
+          <Suspense fallback={<LibrarySkeleton />}>
+            <Library session={session} focus={arrival.focus} draft={arrival.draft} onDraftTaken={handleDraftTaken} />
           </Suspense>
         ) : (
           <>
-            <FeedForm
-              sourceUrl={sourceUrl}
-              onSourceUrlChange={setSourceUrl}
-              onClear={handleClear}
-              looksValid={looksValid}
-              pending={pending}
-              session={session}
-              onSubmit={handleSubmit}
-              onCombine={combineLists}
-              onSignIn={handleSignIn}
-              onTry={openList}
-            />
+            {/* Until the session is read, a visitor who was signed in last time sees their
+                library's outline here instead of the sales page (index.html, index.css). */}
+            {session === null && <LibrarySkeleton hinted />}
+            <div data-signed-out>
+              <Hero />
 
-            {session?.signedIn && (
-              <Suspense fallback={null}>
-                <MyFeeds
-                  refreshKey={result ? `${result.slug}:${result.status}:${result.owned}` : ''}
-                  onOpen={openList}
-                  onUnfollowed={handleUnfollowed}
-                />
-              </Suspense>
-            )}
-
-            {session?.signedIn && (
-              <Suspense fallback={null}>
-                <SharedLists focusSlug={shared.focusSlug} />
-              </Suspense>
-            )}
-
-            <Reveal>
-              <FeedsSection
+              <FeedForm
+                sourceUrl={sourceUrl}
+                onSourceUrlChange={setSourceUrl}
+                onClear={handleClear}
+                looksValid={looksValid}
                 pending={pending}
-                error={error}
-                result={result}
                 session={session}
-                listUrl={activeUrl}
-                onSignIn={handleSignIn}
+                onSubmit={handleSubmit}
+                onSignInToCombine={handleSignInToCombine}
+                onTry={openList}
               />
-            </Reveal>
 
-            <Reveal>
-              <PosterRow pending={pending} result={result} listUrl={activeUrl} />
-            </Reveal>
+              <Reveal>
+                <FeedsSection
+                  pending={pending}
+                  error={error}
+                  result={result}
+                  session={session}
+                  listUrl={activeUrl}
+                  onSignIn={handleSignIn}
+                />
+              </Reveal>
 
-            <Reveal>
-              <HowItWorks />
-            </Reveal>
+              <Reveal>
+                <PosterRow pending={pending} result={result} listUrl={activeUrl} />
+              </Reveal>
 
-            <Reveal>
-              <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
-            </Reveal>
+              <Reveal>
+                <HowItWorks />
+              </Reveal>
 
-            <Reveal>
-              <FaqSection />
-            </Reveal>
+              <Reveal>
+                <KeepUpdating session={session} hasResult={pending || result !== null} onSignIn={handleSignIn} />
+              </Reveal>
 
-            <Reveal>
-              <AskarrSection />
-            </Reveal>
+              <Reveal>
+                <FaqSection />
+              </Reveal>
+
+              <Reveal>
+                <AskarrSection />
+              </Reveal>
+            </div>
           </>
         )}
       </main>

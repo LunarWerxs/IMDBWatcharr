@@ -14,6 +14,8 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        // The yes in a window asking before something is deleted or taken away.
+        destructive: "bg-destructive font-bold text-white hover:bg-destructive/90",
         "ghost-destructive-muted":
           "text-muted-foreground hover:bg-muted hover:text-destructive aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         // The page's calls to action: IMDb yellow, bold, with a light sweeping across on hover.

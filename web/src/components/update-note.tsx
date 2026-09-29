@@ -29,7 +29,7 @@ export function UpdateNote({
 }) {
   const [open, setOpen] = useState(false)
 
-  if (!session?.authAvailable || session.signedIn || result.autoRefreshing) {
+  if (!session?.authAvailable || result.autoRefreshing) {
     return null
   }
 

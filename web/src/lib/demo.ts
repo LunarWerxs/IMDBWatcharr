@@ -19,7 +19,7 @@ import {
   type SharedMember,
   type SharedSource,
 } from '@/lib/api'
-import { DEMO_GAME_NIGHT_INVITE as GAME_NIGHT_INVITE, DEMO_PARAM, demoLayout } from '@/lib/demo-mode'
+import { DEMO_GAME_NIGHT_INVITE as GAME_NIGHT_INVITE, DEMO_PARAM } from '@/lib/demo-mode'
 
 const YOU = 'Alex'
 const MAX_SOURCES = 25
@@ -243,9 +243,9 @@ function sharedView(list: DemoShared): SharedList {
   }
 }
 
-// A demo join link keeps the layout being looked at.
+// A demo join link stays in the demo.
 function joinUrl(code: string): string {
-  return `${window.location.origin}/?${DEMO_PARAM}=${demoLayout()}&join=${code}`
+  return `${window.location.origin}/?${DEMO_PARAM}&join=${code}`
 }
 
 function mine() {

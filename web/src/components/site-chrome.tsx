@@ -4,7 +4,7 @@ import { ChevronRightIcon, UserIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { GithubLink, REPO_URL } from '@/components/github-link'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { signInHref } from '@/lib/feed-page'
+import { rememberSignedIn, signInHref } from '@/lib/feed-page'
 import { lazyPart } from '@/lib/lazy'
 import type { Session } from '@/lib/api'
 
@@ -65,7 +65,9 @@ function AccountControl({
           {session.name ?? 'Signed in'}
         </span>
         <Button asChild variant="ghost" size="sm">
-          <a href="/auth/logout">Sign out</a>
+          <a href="/auth/logout" onClick={() => rememberSignedIn(false)}>
+            Sign out
+          </a>
         </Button>
       </div>
     )
