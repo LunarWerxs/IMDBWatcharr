@@ -14,6 +14,13 @@ const inputVariants = cva(
         // the right for a clear button, and the pair's own ring showing focus.
         search:
           "h-12 rounded-md border border-field-foreground/15 bg-field ps-4 pe-11 text-base text-field-foreground placeholder:text-field-foreground/45 sm:h-full sm:rounded-r-none dark:border-transparent",
+        // The feed's name turned into a field where its title stands: the title's size and line.
+        title:
+          "h-auto rounded-lg border border-input bg-transparent px-2.5 py-0 text-3xl font-bold tracking-tight selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:bg-input/50 sm:text-4xl md:text-4xl dark:bg-input/30 dark:disabled:bg-input/80",
+      },
+      // Room at the end for a button laid over the field (a clear button).
+      room: {
+        clear: "pe-10",
       },
     },
     defaultVariants: {
@@ -26,6 +33,7 @@ function Input({
   className,
   type,
   variant = "default",
+  room,
   ...props
 }: React.ComponentProps<"input"> & VariantProps<typeof inputVariants>) {
   return (
@@ -33,7 +41,7 @@ function Input({
       type={type}
       data-slot="input"
       data-variant={variant}
-      className={cn(inputVariants({ variant }), className)}
+      className={cn(inputVariants({ variant, room }), className)}
       {...props}
     />
   )

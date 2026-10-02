@@ -240,12 +240,13 @@ export function CopyAppButton({
       variant={variant}
       size={size}
       onClick={copy}
-      className={cn(copied && variant === 'cta' && 'sweep-once', className)}
+      sweep={copied && variant === 'cta'}
+      className={className}
       title={url}
       aria-label={`Copy the ${app} link`}
     >
       {/* Both faces in one cell, the hidden one keeping the width: the buttons beside it never move. */}
-      <span className="grid gap-[inherit] *:col-start-1 *:row-start-1 *:flex *:items-center *:justify-center *:gap-[inherit]">
+      <span className="grid gap-inherit *:col-start-1 *:row-start-1 *:flex *:items-center *:justify-center *:gap-inherit">
         <span className={cn(copied && 'invisible')}>
           <Icon />
           {app}
@@ -434,6 +435,7 @@ export function RenameField({ feed, api, onDone, className }: { feed: Feed; api:
           onDone()
         }}
         aria-label="Feed name"
+        variant="title"
         className={className}
       />
     </form>
@@ -573,7 +575,7 @@ export function AddSource({ feed, api, defaultOpen = false }: { feed: Feed; api:
   return (
     <div className="mt-1">
       <Fold open={!open}>
-        <Button ref={opener} type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={show}>
+        <Button ref={opener} type="button" variant="ghost-muted" size="sm" onClick={show}>
           <PlusIcon />
           Add an IMDb list
         </Button>
@@ -594,7 +596,7 @@ export function AddSource({ feed, api, defaultOpen = false }: { feed: Feed; api:
             className="h-9"
           />
           <div className="flex gap-2">
-            <Button type="submit" variant="cta" className="h-9 px-4" disabled={api.busy || !trimmed || !valid}>
+            <Button type="submit" variant="cta" size="form" disabled={api.busy || !trimmed || !valid}>
               Add
             </Button>
             <Button type="button" variant="ghost" className="h-9" onClick={hide}>
@@ -690,7 +692,7 @@ export function InviteLink({ feed, api }: { feed: Feed; api: FeedsApi }) {
         <p className="bg-background/60 ring-foreground/10 min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs ring-1" title={url}>
           {url}
         </p>
-        <Button type="button" variant="cta" onClick={copy} className={cn('shrink-0', copied && 'sweep-once')}>
+        <Button type="button" variant="cta" onClick={copy} sweep={copied} className="shrink-0">
           {copied ? <CheckIcon className="motion-safe:animate-pop" /> : <LinkIcon />}
           {copied ? 'Copied' : 'Copy join link'}
         </Button>
@@ -762,7 +764,8 @@ export function NewFeedForm({
                 value={link}
                 onChange={(event) => setLinks((current) => current.map((value, at) => (at === index ? event.target.value : value)))}
                 aria-invalid={link.trim().length > 0 && !isSupportedImdbUrl(link.trim())}
-                className={cn('h-10', several && 'pe-10')}
+                className="h-10"
+                room={several ? 'clear' : undefined}
               />
               {several && (
                 <button
@@ -798,7 +801,7 @@ export function NewFeedForm({
           </p>
         </Fold>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground -ms-2" onClick={() => setLinks((current) => [...current, ''])}>
+          <Button type="button" variant="ghost-muted" size="sm" className="-ms-2" onClick={() => setLinks((current) => [...current, ''])}>
             <PlusIcon />
             Add another list
           </Button>

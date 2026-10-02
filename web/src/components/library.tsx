@@ -51,8 +51,8 @@ function freshFor(key: string): Fresh {
 }
 
 /** A stagger step for things rising in one after another. */
-function beat(step: number) {
-  return { '--delay': `${Math.min(step, 12) * 45}ms` }
+function beat(step: number): string {
+  return `${Math.min(step, 12) * 45}ms`
 }
 
 /** How big a feed is, in a word or two, for the side list. */
@@ -71,7 +71,7 @@ function FeedSign({ feed }: { feed: Feed }) {
     <span
       className={cn(
         'ring-card absolute -top-1 -right-1 size-2.5 rounded-full ring-2',
-        feed.alerting ? 'bg-destructive' : 'breathe bg-amber-400 text-amber-400',
+        feed.alerting ? 'bg-destructive' : 'breathe bg-pending text-pending',
       )}
     >
       <span className="sr-only">{feed.alerting ? 'Needs attention' : 'Reading from IMDb'}</span>
@@ -132,7 +132,7 @@ function Sidebar({
   // Labels show when the list is pinned open, or while the rail is open under the pointer or the keyboard.
   const label = pinned
     ? ''
-    : 'opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-has-[:focus-visible]/rail:opacity-100 motion-reduce:transition-none'
+    : 'opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 group-has-focus-visible/rail:opacity-100 motion-reduce:transition-none'
 
   // The highlight slides to the feed picked: placed once where it belongs, then it moves.
   useLayoutEffect(() => {
@@ -173,9 +173,9 @@ function Sidebar({
               type="button"
               onClick={() => onPick(feed.key)}
               aria-current={active ? 'true' : undefined}
-              style={beat(index)}
+              style={{ '--delay': beat(index) }}
               className={cn(
-                'bg-card ring-foreground/10 animation-delay-var flex max-w-44 shrink-0 items-center gap-2 rounded-full py-1 ps-1 pe-3.5 text-sm font-semibold ring-1 transition-[box-shadow,transform] duration-300 ease-(--ease-soft) motion-safe:animate-rise',
+                'bg-card ring-foreground/10 animation-delay-var flex max-w-44 shrink-0 items-center gap-2 rounded-full py-1 ps-1 pe-3.5 text-sm font-semibold ring-1 transition-lift duration-300 ease-(--ease-soft) motion-safe:animate-rise',
                 active ? 'ring-primary ring-2' : 'text-muted-foreground motion-safe:active:scale-[0.97]',
               )}
             >
@@ -209,10 +209,10 @@ function Sidebar({
         aria-label="Your feeds"
         className={cn(
           'group/rail bg-card ring-foreground/10 sticky top-18 z-30 hidden overflow-clip rounded-xl p-2 ring-1 md:block',
-          'transition-[width,box-shadow] duration-300 ease-(--ease-soft) motion-reduce:transition-none',
+          'transition-grow duration-300 ease-(--ease-soft) motion-reduce:transition-none',
           pinned
             ? 'w-full'
-            : 'w-18 delay-150 hover:w-64 hover:shadow-2xl hover:shadow-black/50 hover:delay-0 has-[:focus-visible]:w-64 has-[:focus-visible]:delay-0 lg:hover:w-72 lg:has-[:focus-visible]:w-72',
+            : 'w-18 delay-150 hover:w-64 hover:shadow-2xl hover:shadow-black/50 hover:delay-0 has-focus-visible:w-64 has-focus-visible:delay-0 lg:hover:w-72 lg:has-focus-visible:w-72',
         )}
       >
         {/* As wide as the open list, whatever the rail's width: nothing reflows while it opens. */}
@@ -222,11 +222,11 @@ function Sidebar({
               <PlusIcon />
             </Button>
             <h2 className={cn('min-w-0 flex-1 truncate text-sm font-bold', label)}>Your feeds</h2>
+            <span className={cn('flex', label)}>
             <Button
               type="button"
               variant="ghost-muted"
               size="icon"
-              className={label}
               onClick={() => onPin(!pinned)}
               aria-pressed={pinned}
               aria-label={pinned ? 'Let the list fold away' : 'Keep the list open'}
@@ -234,6 +234,7 @@ function Sidebar({
             >
               {pinned ? <PinOffIcon /> : <PinIcon />}
             </Button>
+            </span>
           </div>
           {/* minmax(0, 1fr): a long name truncates inside the column instead of widening it. */}
           <ul ref={list} className="relative grid grid-cols-[minmax(0,1fr)] gap-0.5">
@@ -243,14 +244,14 @@ function Sidebar({
               className={cn(
                 // Folded, it hugs the cover (its 2.5rem and the row's padding); open, the whole row. The gold
                 // edge is the phone pills' own, so a row under the pointer never looks picked as well.
-                'bg-accent ring-primary/60 absolute top-0 left-0 ring-1 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-[translate,height,width] data-placed:duration-350 motion-reduce:transition-none',
-                pinned ? 'w-full' : 'w-14 group-hover/rail:w-full group-has-[:focus-visible]/rail:w-full',
+                'bg-accent ring-primary/60 absolute top-0 left-0 ring-1 h-(--pick-h) translate-y-(--pick-y) rounded-lg ease-(--ease-soft) data-placed:transition-slide data-placed:duration-350 motion-reduce:transition-none',
+                pinned ? 'w-full' : 'w-14 group-hover/rail:w-full group-has-focus-visible/rail:w-full',
               )}
             />
             {feeds.map((feed, index) => {
               const active = feed.key === current.key
               return (
-                <li key={feed.key} className="animation-delay-var min-w-0 motion-safe:animate-rise" style={beat(index)}>
+                <li key={feed.key} className="animation-delay-var min-w-0 motion-safe:animate-rise" style={{ '--delay': beat(index) }}>
                   <button
                     type="button"
                     onClick={() => onPick(feed.key)}
@@ -347,10 +348,10 @@ function Detail({
               feed={feed}
               api={api}
               onDone={() => setRenaming(false)}
-              className="-mx-2.5 -my-px h-auto py-0 text-3xl font-bold tracking-tight sm:text-4xl md:text-4xl"
+              className="-mx-2.5 -my-px"
             />
           ) : (
-            <h2 id="feed-title" tabIndex={-1} className="line-clamp-2 text-3xl font-bold tracking-tight text-balance break-words outline-none sm:text-4xl">
+            <h2 id="feed-title" tabIndex={-1} className="line-clamp-2 text-3xl font-bold tracking-tight text-balance wrap-break-word outline-none sm:text-4xl">
               {feed.name}
             </h2>
           )}
@@ -364,7 +365,7 @@ function Detail({
 
       <div
         className="animation-delay-var mt-6 flex flex-wrap items-center gap-2 motion-safe:animate-rise"
-        style={{ ...beat(1), '--sticker-page': 'var(--background)' }}
+        style={{ '--delay': beat(1), '--sticker-page': 'var(--background)' }}
       >
         {/*
           A computer has a bookmarks bar: the bookmark sets the feed up inside Radarr or Sonarr in one
@@ -413,7 +414,7 @@ function Detail({
         </Fold>
       </div>
 
-      <div className="animation-delay-var mt-3 motion-safe:animate-rise" style={beat(2)}>
+      <div className="animation-delay-var mt-3 motion-safe:animate-rise" style={{ '--delay': beat(2) }}>
         <button
           type="button"
           onClick={() => setSetupOpen((open) => !open)}
@@ -443,7 +444,7 @@ function Detail({
         </Fold>
       </div>
 
-      <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={beat(3)} aria-labelledby="lists-title">
+      <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={{ '--delay': beat(3) }} aria-labelledby="lists-title">
         <h3 id="lists-title" tabIndex={-1} className="-mx-2 border-b px-2 pb-2 font-bold outline-none">
           IMDb list{feed.sources.length === 1 ? '' : 's'}{' '}
           <span className="text-muted-foreground font-normal">{feed.sources.length}</span>
@@ -456,7 +457,7 @@ function Detail({
         {shared ? (
           <AddSource feed={feed} api={api} defaultOpen={fresh?.why === 'joined'} />
         ) : (
-          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground mt-1" onClick={onCombine}>
+          <Button type="button" variant="ghost-muted" size="sm" className="mt-1" onClick={onCombine}>
             <PlusIcon />
             Combine with another list
           </Button>
@@ -464,19 +465,19 @@ function Detail({
       </section>
 
       {titles.length > 4 && (
-        <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={beat(4)} aria-labelledby="on-it-title">
+        <section className="animation-delay-var mt-8 motion-safe:animate-rise" style={{ '--delay': beat(4) }} aria-labelledby="on-it-title">
           <h3 id="on-it-title" className="border-b pb-2 font-bold">
             On it
           </h3>
           <ScrollRow label="titles" count={titles.length} arrowTop="top-[4.75rem]" className="-mx-1 mt-3 gap-2 px-1 pt-1 pb-2">
             {titles.map((item, index) => (
-              <li key={item.imdbId} className="animation-delay-var shrink-0 motion-safe:animate-rise" style={beat(index + 4)}>
+              <li key={item.imdbId} className="animation-delay-var shrink-0 motion-safe:animate-rise" style={{ '--delay': beat(index + 4) }}>
                 <button
                   type="button"
                   onClick={() => onOpenTitle(item)}
                   aria-label={item.year ? `${item.title} (${item.year})` : item.title}
                   title={item.title}
-                  className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-[box-shadow,translate] duration-300 ease-(--ease-soft) outline-none hover:shadow-lg motion-safe:hover:-translate-y-1 hover:shadow-black/40 focus-visible:ring-2"
+                  className="group/poster bg-secondary ring-foreground/10 focus-visible:ring-ring block h-36 w-24 overflow-hidden rounded-md ring-1 transition-raise duration-300 ease-(--ease-soft) outline-none hover:shadow-lg motion-safe:hover:-translate-y-1 hover:shadow-black/40 focus-visible:ring-2"
                 >
                   <CoverImage src={item.poster as string} width={96} lazy className="transition-transform duration-500 motion-safe:group-hover/poster:scale-105" />
                 </button>
@@ -516,14 +517,14 @@ function FirstRun({
       <p className="text-ink text-ui font-bold tracking-wider uppercase motion-safe:animate-rise">
         {firstName ? `Welcome, ${firstName}` : 'Welcome'}
       </p>
-      <h1 id="first-feed-title" tabIndex={-1} className="outline-none animation-delay-var mt-2 text-3xl font-bold tracking-tight motion-safe:animate-rise sm:text-4xl" style={beat(1)}>
+      <h1 id="first-feed-title" tabIndex={-1} className="outline-none animation-delay-var mt-2 text-3xl font-bold tracking-tight motion-safe:animate-rise sm:text-4xl" style={{ '--delay': beat(1) }}>
         Make your first feed
       </h1>
-      <p className="text-muted-foreground animation-delay-var mt-3 text-pretty motion-safe:animate-rise" style={beat(2)}>
+      <p className="text-muted-foreground animation-delay-var mt-3 text-pretty motion-safe:animate-rise" style={{ '--delay': beat(2) }}>
         Paste a public IMDb list or watchlist. You get one link for Radarr and one for Sonarr, and both keep up with
         the list.
       </p>
-      <div className="bg-card ring-foreground/10 animation-delay-var mt-6 rounded-xl p-5 ring-1 motion-safe:animate-rise sm:p-6" style={beat(3)}>
+      <div className="bg-card ring-foreground/10 animation-delay-var mt-6 rounded-xl p-5 ring-1 motion-safe:animate-rise sm:p-6" style={{ '--delay': beat(3) }}>
         <NewFeedForm
           api={api}
           defaultName={firstName ? `${firstName}’s lists` : 'My lists'}
@@ -555,36 +556,20 @@ export function Library({
   )
 }
 
-function Shelves({
-  session,
-  focus,
-  draft,
-  onDraftTaken,
-}: {
-  session: Session | null
-  focus: string | null
-  draft: string[] | null
-  onDraftTaken: () => void
-}) {
-  const api = useFeeds()
-  const { feeds, reload } = api
-  // The feed on screen: a key, or NEEDS_ATTENTION for the first one with a failing list (the bell).
+type DialogState = { open: 'new' | 'share' | null; links?: string[] }
+
+/**
+ * Which feed is on screen: a key, or NEEDS_ATTENTION for the first one with a failing list (the bell).
+ * A feed the page just brought here (followed, joined) is opened on, and the feeds are read again so
+ * it is among them.
+ */
+function useFocusedFeed(focus: string | null, reload: () => Promise<unknown>) {
   const [picked, setPicked] = useState<string | null>(() =>
     focus ?? (typeof window !== 'undefined' && window.location.hash === `#${NEEDS_ATTENTION}` ? NEEDS_ATTENTION : null),
   )
   const [fresh, setFresh] = useState<Fresh | null>(focus ? freshFor(focus) : null)
   const [seenFocus, setSeenFocus] = useState(focus)
-  const [takenDraft, setTakenDraft] = useState<string[] | null>(null)
-  // Which window is open; the new feed's links stay while it closes, so it fades out whole.
-  const [dialog, setDialog] = useState<{ open: 'new' | 'share' | null; links?: string[] }>({ open: null })
-  const close = () => setDialog((current) => ({ ...current, open: null }))
-  const [title, setTitle] = useState<{ item: PreviewItem | null; opened: boolean }>({ item: null, opened: false })
-  const [pinned, setPinned] = useState(readPinned)
-  const peeks = usePeeks(feeds?.flatMap((feed) => feed.sources.map((source) => source.slug)) ?? [])
-  const firstName = session?.name?.trim().split(/\s+/)[0]
-  const defaultName = firstName ? `${firstName}’s lists` : 'My lists'
 
-  // A feed the page just brought here (followed, joined): open on it.
   if (focus !== seenFocus) {
     setSeenFocus(focus)
     if (focus) {
@@ -593,17 +578,6 @@ function Shelves({
     }
   }
 
-  // Links to start a new feed from, once there are feeds to show behind the window (none: the first-run form has them).
-  if (draft && draft !== takenDraft && feeds && feeds.length > 0) {
-    setTakenDraft(draft)
-    setDialog({ open: 'new', links: draft })
-  }
-
-  useEffect(() => {
-    if (takenDraft) onDraftTaken()
-  }, [takenDraft, onDraftTaken])
-
-  // ...and read the feeds again, so the one just followed or joined is among them.
   const lastFocus = useRef(focus)
   useEffect(() => {
     if (focus === lastFocus.current) return
@@ -625,6 +599,95 @@ function Shelves({
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  return { picked, setPicked, fresh, setFresh }
+}
+
+/** Links to start a new feed from, once there are feeds to show behind the window (none: the first-run form has them). */
+function useDraftDialog(draft: string[] | null, feeds: Feed[] | null, onDraftTaken: () => void, setDialog: (dialog: DialogState) => void) {
+  const [takenDraft, setTakenDraft] = useState<string[] | null>(null)
+  if (draft && draft !== takenDraft && feeds && feeds.length > 0) {
+    setTakenDraft(draft)
+    setDialog({ open: 'new', links: draft })
+  }
+  useEffect(() => {
+    if (takenDraft) onDraftTaken()
+  }, [takenDraft, onDraftTaken])
+}
+
+function NewFeedDialog({
+  open,
+  links,
+  api,
+  defaultName,
+  onClose,
+  onMade,
+}: {
+  open: boolean
+  links?: string[]
+  api: FeedsApi
+  defaultName: string
+  onClose: () => void
+  onMade: (key: string) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogTitle>New feed</DialogTitle>
+        <DialogDescription>
+          {links && links.length > 1
+            ? 'One new pair of links for all of these lists. Your other feeds stay as they are.'
+            : 'One Radarr link and one Sonarr link, from one IMDb list or several.'}
+        </DialogDescription>
+        <NewFeedForm api={api} defaultName={defaultName} initialLinks={links} onCancel={onClose} onMade={onMade} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ShareDialog({ open, feed, api, onClose }: { open: boolean; feed: Feed | undefined; api: FeedsApi; onClose: () => void }) {
+  return (
+    <Dialog open={open && feed?.kind === 'shared'} onOpenChange={(next) => !next && onClose()}>
+      {feed && (
+        <DialogContent>
+          <DialogTitle>Share “{feed.name}”</DialogTitle>
+          <DialogDescription>Everyone here adds their own IMDb lists. The two links stay the same.</DialogDescription>
+          <InviteLink feed={feed} api={api} />
+          <div>
+            <h3 className="border-b pb-2 text-sm font-bold">
+              People <span className="text-muted-foreground font-normal">{feed.members.length}</span>
+            </h3>
+            <PeopleList feed={feed} api={api} />
+          </div>
+        </DialogContent>
+      )}
+    </Dialog>
+  )
+}
+
+function Shelves({
+  session,
+  focus,
+  draft,
+  onDraftTaken,
+}: {
+  session: Session | null
+  focus: string | null
+  draft: string[] | null
+  onDraftTaken: () => void
+}) {
+  const api = useFeeds()
+  const { feeds, reload } = api
+  const { picked, setPicked, fresh, setFresh } = useFocusedFeed(focus, reload)
+  // Which window is open; the new feed's links stay while it closes, so it fades out whole.
+  const [dialog, setDialog] = useState<DialogState>({ open: null })
+  const close = () => setDialog((current) => ({ ...current, open: null }))
+  const [title, setTitle] = useState<{ item: PreviewItem | null; opened: boolean }>({ item: null, opened: false })
+  const [pinned, setPinned] = useState(readPinned)
+  const peeks = usePeeks(feeds?.flatMap((feed) => feed.sources.map((source) => source.slug)) ?? [])
+  const firstName = session?.name?.trim().split(/\s+/)[0]
+  const defaultName = firstName ? `${firstName}’s lists` : 'My lists'
+  useDraftDialog(draft, feeds, onDraftTaken, setDialog)
 
   if (feeds === null) return <LibrarySkeleton />
 
@@ -672,7 +735,7 @@ function Shelves({
         // minmax(0, 1fr) on a phone too: the row of feed cards would otherwise widen the column past the screen.
         <div
           className={cn(
-            'grid grid-cols-[minmax(0,1fr)] gap-4 pt-8 pb-4 transition-[grid-template-columns] duration-500 ease-(--ease-soft) sm:pt-10 md:gap-8 motion-reduce:transition-none',
+            'grid grid-cols-[minmax(0,1fr)] gap-4 pt-8 pb-4 transition-columns duration-500 ease-(--ease-soft) sm:pt-10 md:gap-8 motion-reduce:transition-none',
             pinned ? 'md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[18rem_minmax(0,1fr)]' : 'md:grid-cols-[4.5rem_minmax(0,1fr)]',
           )}
         >
@@ -694,33 +757,8 @@ function Shelves({
         </div>
       )}
 
-      <Dialog open={dialog.open === 'new'} onOpenChange={(open) => !open && close()}>
-        <DialogContent>
-          <DialogTitle>New feed</DialogTitle>
-          <DialogDescription>
-            {dialog.links && dialog.links.length > 1
-              ? 'One new pair of links for all of these lists. Your other feeds stay as they are.'
-              : 'One Radarr link and one Sonarr link, from one IMDb list or several.'}
-          </DialogDescription>
-          <NewFeedForm api={api} defaultName={defaultName} initialLinks={dialog.links} onCancel={close} onMade={made} />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={dialog.open === 'share' && current?.kind === 'shared'} onOpenChange={(open) => !open && close()}>
-        {current && (
-          <DialogContent>
-            <DialogTitle>Share “{current.name}”</DialogTitle>
-            <DialogDescription>Everyone here adds their own IMDb lists. The two links stay the same.</DialogDescription>
-            <InviteLink feed={current} api={api} />
-            <div>
-              <h3 className="border-b pb-2 text-sm font-bold">
-                People <span className="text-muted-foreground font-normal">{current.members.length}</span>
-              </h3>
-              <PeopleList feed={current} api={api} />
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
+      <NewFeedDialog open={dialog.open === 'new'} links={dialog.links} api={api} defaultName={defaultName} onClose={close} onMade={made} />
+      <ShareDialog open={dialog.open === 'share'} feed={current} api={api} onClose={close} />
 
       {title.opened && (
         <Suspense fallback={null}>

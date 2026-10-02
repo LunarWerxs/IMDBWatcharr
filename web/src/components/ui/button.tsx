@@ -29,11 +29,17 @@ const buttonVariants = cva(
         // The black header's text buttons: yellow on hover, like IMDb's.
         "ghost-brand": "hover:bg-muted/50 hover:text-primary aria-expanded:bg-muted/50",
       },
+      // The lists' own flourish: a light sweeps across once, as a copy is confirmed.
+      sweep: {
+        true: "sweep-once",
+      },
       size: {
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         icon: "size-8",
+        // A call to action in a one-line form, as tall as its field.
+        form: "h-9 gap-1.5 px-4 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         // A standalone call to action; a leading logo tile (data-icon="tile") sits closer to the edge.
         cta: "h-10 gap-2.5 px-5 has-data-[icon=tile]:ps-1.5",
         // A big rounded call to action that lifts on hover (the title popup's); a leading logo
@@ -58,6 +64,7 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  sweep,
   asChild = false,
   ...props
 }: React.ComponentProps<"button"> &
@@ -71,7 +78,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, sweep, className }))}
       {...props}
     />
   )

@@ -185,7 +185,7 @@ async function createShared({ request, env, ctx, session, publicOrigin }) {
   const slug = await createSharedList(env.DB, { name, sub, memberName });
   if (sources.length > 0) {
     const list = await getSharedListForMember(env.DB, slug, sub);
-    // arkitect-allow: concurrency-opportunities - one at a time on purpose: the lists keep the order they were typed in, and at most one of them may claim the once-a-minute sync dispatch.
+    // One at a time on purpose: the lists keep the order they were typed in, and at most one of them may claim the once-a-minute sync dispatch.
     for (const normalized of sources) {
       const feed = await getOrCreateFeed(env.DB, normalized);
       await addSharedSource(env.DB, list.id, feed.id, sub);
@@ -290,6 +290,9 @@ async function actOnShared(context) {
   const list = await getSharedListForMember(env.DB, slug, sub);
   if (!list) {
     throw new ApiError("There is no such shared list, or you are not in it.", 404);
+  }
+  if (!Object.hasOwn(MEMBER_ACTIONS, action)) {
+    throw new ApiError("There is no such action on a shared list.", 404);
   }
   const extra = await MEMBER_ACTIONS[action]({ ...context, list, owner: list.owner_sub === sub });
   return listsResponse(env, sub, publicOrigin, extra ?? {});

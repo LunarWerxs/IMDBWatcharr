@@ -107,10 +107,10 @@ async function resolveEach(imdbIds, lookup) {
   const found = new Map();
   const queue = [...imdbIds];
   const worker = async () => {
-    // arkitect-allow: concurrency-opportunities - this loop IS the bound: LOOKUP_CONCURRENCY copies run side by side, so going wider would fire every lookup at a third party at once.
+    // This loop IS the bound: LOOKUP_CONCURRENCY copies run side by side, so going wider would fire every lookup at a third party at once.
     for (let imdbId = queue.shift(); imdbId; imdbId = queue.shift()) {
       const id = await lookup(imdbId).catch(() => undefined);
-      if (id !== null && id !== undefined) found.set(imdbId, id);
+      if (id != null) found.set(imdbId, id);
     }
   };
   await Promise.all(Array.from({ length: Math.min(LOOKUP_CONCURRENCY, queue.length) }, worker));

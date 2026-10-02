@@ -17,13 +17,14 @@ export type ArrSetupConfig = {
 /**
  * The bookmark ("bookmarklet") for one list. Comments on lines of their own are dropped and the
  * indentation collapsed, so the link stays short; arr-setup.js keeps every string on one line and ends
- * every statement in a semicolon, so this cannot change what it does.
+ * every statement in a semicolon, so this cannot change what it does. The file is a set of functions;
+ * the bookmark wraps them in one that hands back watcharrSetup, and calls that with the config.
  */
 export function bookmarkletHref(config: ArrSetupConfig): string {
   const body = source
     .replace(/^[ \t]*\/\*(?:[^*]|\*(?!\/))*\*\/[ \t]*$/gm, '')
     .replace(/\n\s+/g, '\n')
     .trim()
-    .replace(/;$/, '')
-  return `javascript:${encodeURIComponent(`${body}(${JSON.stringify(config)});void 0`)}`
+  return `javascript:${encodeURIComponent(`(function(){${body}
+return watcharrSetup;})()(${JSON.stringify(config)});void 0`)}`
 }

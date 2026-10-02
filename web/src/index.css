@@ -34,6 +34,8 @@
     --color-askarr-foreground: #ffffff;
     /* Orange for the one thing on a result a visitor should act on (the won't-update note). */
     --color-warn: #f97316;
+    /* A feed still being read from IMDb: its dot (Tailwind's amber-400). */
+    --color-pending: oklch(82.8% 0.189 84.429);
     --color-warn-ink: var(--warn-ink);
     /* IMDb's search field: white with black text in both themes. */
     --color-field: #ffffff;
@@ -88,6 +90,9 @@
     --input: #d4d4d4;
     --ring: #f5c518;
     --radius: 0.5rem;
+    /* The two ends of the scale, for shadows and die-cut edges that mix them with transparency. */
+    --shade: #000000;
+    --paper: #ffffff;
 }
 
 .dark {
@@ -361,6 +366,42 @@
     }
 }
 
+/* Tailwind's transition-[...] for the property sets this page animates, as named steps. */
+@utility transition-lift {
+    transition-property: box-shadow, transform;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+
+@utility transition-grow {
+    transition-property: width, box-shadow;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+
+@utility transition-slide {
+    transition-property: translate, height, width;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+
+@utility transition-raise {
+    transition-property: box-shadow, translate;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+
+@utility transition-columns {
+    transition-property: grid-template-columns;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+
+/* A child that takes its parent's gap (gap-[inherit]). */
+@utility gap-inherit {
+    gap: inherit;
+}
+
 @utility sweep-once {
     &::after {
         animation: sweep 0.7s var(--ease-soft) both;
@@ -377,7 +418,7 @@
    browser without one keeps the flat bar). */
 @keyframes header-lift {
     to {
-        box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.55);
+        box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--shade) 55%, transparent);
     }
 }
 
@@ -446,7 +487,7 @@
     padding-inline: 0.75rem 0.9375rem;
     border-radius: 0.625rem;
     /* The die-cut edge every sticker has. */
-    border: 1.5px solid color-mix(in oklab, white 90%, transparent);
+    border: 1.5px solid color-mix(in oklab, var(--paper) 90%, transparent);
     background: var(--primary);
     color: var(--primary-foreground);
     font-size: 0.8125rem;
@@ -454,9 +495,10 @@
     white-space: nowrap;
     cursor: grab;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
     box-shadow:
-        0 1px 2px rgb(0 0 0 / 0.2),
-        0 2px 6px -2px rgb(0 0 0 / 0.25);
+        0 1px 2px color-mix(in srgb, var(--shade) 20%, transparent),
+        0 2px 6px -2px color-mix(in srgb, var(--shade) 25%, transparent);
     transition:
         transform 380ms cubic-bezier(0.34, 1.26, 0.64, 1),
         box-shadow 380ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -482,9 +524,9 @@
     background: linear-gradient(
         225deg,
         var(--sticker-page, var(--card)) 0 50%,
-        color-mix(in oklab, white 82%, transparent) 50% 100%
+        color-mix(in oklab, var(--paper) 82%, transparent) 50% 100%
     );
-    box-shadow: -1px 1px 2px rgb(0 0 0 / 0.25);
+    box-shadow: -1px 1px 2px color-mix(in srgb, var(--shade) 25%, transparent);
     transform: scale(0);
     transform-origin: top right;
     transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -494,8 +536,8 @@
 .sticker:focus-visible {
     transform: translateY(-4px) scale(1.04) rotate(-1.5deg);
     box-shadow:
-        0 10px 20px -8px rgb(0 0 0 / 0.5),
-        0 3px 6px -2px rgb(0 0 0 / 0.25);
+        0 10px 20px -8px color-mix(in srgb, var(--shade) 50%, transparent),
+        0 3px 6px -2px color-mix(in srgb, var(--shade) 25%, transparent);
 }
 
 .sticker:hover::after,

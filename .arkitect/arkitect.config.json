@@ -1,9 +1,11 @@
 {
   "checks": {
     "account-scoped-storage-keys": {
-      "$reason": "Device-level by design. ${APP_ID}:visitor-id (imdbwatch:visitor-id, web/src/lib/analytics.ts) is the anonymous, random per-browser visitor id sent with the fire-and-forget visit ping; it carries no user data and exists precisely to identify the device, not an account, so it is written before and independently of any sign-in and must not be split per account.",
+      "$reason": "Device-level by design. ${APP_ID}:visitor-id (imdbwatch:visitor-id, web/src/lib/analytics.ts) is the anonymous, random per-browser visitor id sent with the fire-and-forget visit ping; it carries no user data and exists precisely to identify the device, not an account, so it is written before and independently of any sign-in and must not be split per account. watcharr:feeds-pinned (web/src/components/library.tsx) is whether this browser keeps the library's side list open: a screen-layout preference of the device, not data of an account. watcharr:signed-in (web/src/lib/feed-page.ts) is a hint that this browser was signed in last time, which index.html reads before the page knows who anyone is, so it cannot carry an account; it is only ever a hint, never trusted for access.",
       "deviceGlobalAllow": [
-        "${APP_ID}:visitor-id"
+        "${APP_ID}:visitor-id",
+        "watcharr:feeds-pinned",
+        "watcharr:signed-in"
       ]
     }
   }
